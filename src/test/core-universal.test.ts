@@ -62,7 +62,7 @@ describe("migración v3 aditiva", () => {
 
 describe("registro universal", () => {
   it("carga las capacidades iniciales y admite capacidades nuevas sin cambiar el esquema", async () => {
-    expect((await repo.registry.listCapabilities()).length).toBe(21);
+    expect((await repo.registry.listCapabilities()).length).toBe(INITIAL_CAPABILITIES.length);
     expect(INITIAL_CAPABILITIES.map((c) => c.id)).toContain("speech.realtime");
     await repo.registry.registerCapability({ ...INITIAL_CAPABILITIES[0]!, id: "model3d.generate", label: "3D", outputs: ["model3d"] });
     expect((await repo.registry.listCapabilities()).length).toBe(22);
