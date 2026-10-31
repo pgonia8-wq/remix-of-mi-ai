@@ -1,8 +1,10 @@
 # MI AI — Fase 1
-- [ ] Base de datos (SQLite/SQLCipher nativo, sql.js en vista previa) con aislamiento por proyecto
-- [ ] Proyectos, chats con streaming y cambio de modelo, memoria versionada, documentos
-- [ ] Conexiones de proveedores (10 tipos) con API keys cifradas por clave en Keystore
-- [ ] Exportar/importar cifrado
-- [ ] GitHub Actions: APK debug por build, dev-latest, release estable, firma opcional, ABI arm64/armv7, emulador API 30
-- [ ] Scripts Ubuntu + ANDROID.md
-- [ ] Bloqueado: conectar GitHub (usuario), clave de firma (usuario), pruebas en Poco C40 (usuario)
+- [x] Base de datos (SQLite/SQLCipher nativo, sql.js en vista previa) con aislamiento por proyecto
+- [x] Proyectos, chats con streaming y cambio de modelo, memoria versionada, documentos
+- [x] Conexiones de proveedores (10 tipos) con API keys cifradas por clave en Keystore
+- [x] Exportar/importar cifrado (prueba de recuperación completa)
+- [x] APK Debug compilado y verificado (arm64/armv7, minSdk 30)
+- [x] GitHub Actions + scripts Ubuntu + ANDROID.md + informe
+- [ ] Bloqueado: conectar GitHub (usuario) → emulador Android 11 en Actions
+- [ ] Bloqueado: clave de firma Release (usuario)
+- [ ] Bloqueado: pruebas en Poco C40 (usuario)
