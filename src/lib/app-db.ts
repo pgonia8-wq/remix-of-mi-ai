@@ -59,8 +59,7 @@ async function openNativeDb(): Promise<SqlDb> {
 const WEB_DB_KEY = "miai_preview_db";
 async function openWebDb(): Promise<SqlDb> {
   const initSqlJs = (await import("sql.js")).default;
-  const wasmUrl = (await import("sql.js/dist/sql-wasm.wasm?url")).default;
-  const SQL = await initSqlJs({ locateFile: () => wasmUrl });
+  const SQL = await initSqlJs({ locateFile: () => "/wasm/sql-wasm.wasm" });
   const saved = localStorage.getItem(WEB_DB_KEY);
   const db = saved ? new SQL.Database(unb64(saved)) : new SQL.Database();
   let t: ReturnType<typeof setTimeout> | undefined;
