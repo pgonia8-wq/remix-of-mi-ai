@@ -17,6 +17,6 @@ MI AI es una APK Android privada y local-first. Usa las API de los proveedores c
 
 ## Fases
 1. Núcleo universal (registro, router, trabajos, biblioteca cifrada, respaldos, imagen y audio iniciales)
-2. Imagen y visión · 3. Audio y voz · 4. Documentos y productividad · 5. Investigación y educación · 6. Video y 3D · 7. Música · 8. Agentes, automatización y código · 9. Espacio profesional
+2. Imagen y visión · 3. Audio y voz · 4. Documentos y productividad · 5. Investigación y educación · 6. Agentes, automatización y código · 7. Espacio profesional · 8. Música · 9. Video y 3D
 
 El detalle por capacidad está en `INVENTARIO-CAPACIDADES.md`.
