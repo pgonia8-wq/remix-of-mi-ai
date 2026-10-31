@@ -1,28 +1,42 @@
-# MI AI — Fase 1: Núcleo funcional (mobile-first, local-first)
+# MI AI — Fase 1 (corregida): Android-first, SQLite/SQLCipher nativo
 
-El documento describe una plataforma enorme (multiagente, video, 3D, ejecución de código, APK). Construirla de una sola vez no es realista; propongo una Fase 1 real y funcional que sirve de base para todo lo demás.
+## Funciones de la Fase 1
+1. **Proyectos aislados**: chats, memoria y documentos por proyecto. Los chats del mismo proyecto comparten conocimiento; ningún proyecto ve otro.
+2. **Conexiones de proveedores**: OpenAI, Anthropic, Gemini, Azure AI Foundry, xAI, DeepSeek, Mistral, Cohere, compatible OpenAI y endpoint personalizado. Campos: nombre, endpoint, API key, deployment, modelo, versión, parámetros extra. Añadir, editar, probar, desactivar, eliminar sin reinstalar.
+3. **Chat con streaming**, cambio de modelo a mitad de conversación sin perder historial ni contexto.
+4. **Memoria por proyecto**: hechos, decisiones, hipótesis; editable y versionada; nunca borra conversaciones originales.
+5. **Documentos del proyecto** guardados en el almacenamiento privado de Android, con búsqueda local.
+6. **Funciona sin Internet** para consultar todo; solo las respuestas de IA requieren conexión.
+7. **Exportar/importar** cifrado con contraseña.
 
-## Lo que tendrás al terminar la Fase 1
-1. **Proyectos aislados**: crear proyectos (TRAMA, HTP, etc.). Cada proyecto tiene sus chats, memoria y documentos; un proyecto nunca ve datos de otro. Los chats del mismo proyecto comparten conocimiento.
-2. **Conexiones de proveedores**: añadir/editar/desactivar/probar conexiones (OpenAI, Anthropic, Gemini, Azure AI Foundry, xAI, DeepSeek, Mistral, Cohere, compatible OpenAI, endpoint personalizado) con nombre, endpoint, API key, deployment, modelo, versión, parámetros extra. Claves guardadas cifradas en el dispositivo, nunca en el código.
-3. **Chat con streaming** usando la conexión elegida; cambiar de modelo a mitad de conversación sin perder historial.
-4. **Memoria persistente por proyecto**: notas de memoria (hechos, decisiones, hipótesis) consultables, editables y versionadas; se inyectan como contexto en cada chat del proyecto.
-5. **Documentos del proyecto**: subir texto/PDF/markdown, búsqueda local, uso como contexto.
-6. **Funciona sin Internet** para consultar chats, proyectos, memoria y ajustes.
-7. **Exportar/importar** todo en un archivo cifrado con contraseña.
-8. **Preparado para Android**: configuración de Capacitor incluida y guía para compilar la APK en Android Studio (la APK se compila fuera de Lovable).
+## Almacenamiento (definitivo desde el inicio)
+- SQLite nativo con cifrado SQLCipher (plugin `@capacitor-community/sqlite`, modo cifrado).
+- Clave de la base de datos y API keys protegidas con Android Keystore (plugin de almacenamiento seguro).
+- Archivos binarios en el almacenamiento privado de la app (`@capacitor/filesystem`), enlazados por ID al proyecto.
+- Sin IndexedDB/Dexie como base, sin Supabase/Firebase ni base remota.
+- Capa de repositorios abstracta; cada operación exige `projectId` y valida aislamiento.
+- La vista previa de Lovable usa el modo web del mismo plugin (SQLite en WASM) solo para poder ver la interfaz mientras desarrollamos; no es el almacenamiento del producto.
 
-## Fuera de la Fase 1 (fases siguientes)
-Multiagentes y modo automático de selección de modelo, imágenes/video/audio, investigación web, ejecución de código, generación de documentos/presentaciones, conectores externos.
+## Tres entornos
+- **Lovable**: desarrollo del código.
+- **GitHub**: repositorio, versiones y Releases con la APK.
+- **Azure VM (Ubuntu)**: compilación reproducible y pruebas.
+
+## Compilación y entrega de la APK
+- Proyecto Android de Capacitor incluido en el repositorio (`android/`), JDK 17, Gradle, Android SDK 34/35.
+- Scripts: `scripts/setup-ubuntu.sh` (instala JDK, SDK, Node), `scripts/build-debug.sh`, `scripts/build-release.sh`, `scripts/test.sh`, `scripts/verify-apk.sh` (apksigner + aapt).
+- **GitHub Actions**: al publicar una etiqueta `v*`, compila Debug y Release firmada, ejecuta pruebas y publica ambas APK como GitHub Release con enlace de descarga. Firma con tu keystore guardado como secreto de GitHub (nunca en el repo).
+- Opción equivalente: runner autoalojado de GitHub en tu VM Azure, para que la compilación ocurra allí.
+- `ANDROID.md`, `CHANGELOG.md`, `.gitignore` que excluye keystores, `.env` y secretos; pruebas de aislamiento entre proyectos.
+
+## Lo que necesito de ti (no puedo hacerlo yo desde aquí)
+- **Conectar GitHub** desde Lovable (Conectores → GitHub): el código se sincroniza solo; yo no puedo crear el repositorio ni subirlo por mi cuenta.
+- **Crear tu keystore de firma** (comando incluido en `ANDROID.md`) y añadirlo como secreto en GitHub.
+- **Publicar la etiqueta `v0.1.0`** (o yo te dejo el flujo para lanzarlo con un botón en GitHub Actions).
+- No tengo acceso a tu VM Azure ni a un emulador Android: no podré afirmar que la APK se instaló y abrió hasta que tú lo pruebes en tu teléfono o la compilación en Actions lo confirme. No declararé nada como compilado o probado sin evidencia real.
+
+## Fuera de la Fase 1
+Multiagentes, selección automática de modelo, imágenes/video/audio, investigación web, ejecución de código, documentos/presentaciones, conectores externos.
 
 ## Diseño
-Oscuro, sobrio, tipo herramienta profesional: navegación inferior (Proyectos, Chats, Memoria, Ajustes), tipografía Space Grotesk + DM Sans, acento ámbar.
-
-## Detalles técnicos
-- Sin backend obligatorio: datos en IndexedDB (Dexie) en la capa web; capa de almacenamiento abstraída para cambiar a SQLite/SQLCipher nativo vía Capacitor más adelante.
-- Claves cifradas con WebCrypto (AES-GCM) con PIN/contraseña del usuario; en Android se migrará a Keystore mediante plugin.
-- Llamadas a proveedores directamente desde el dispositivo, un adaptador por proveedor (auth, formato de mensajes, streaming SSE, errores).
-- Rutas: `/` proyectos, `/p/$id` chats del proyecto, `/p/$id/c/$chatId` chat, `/p/$id/memory`, `/p/$id/docs`, `/settings/providers`, `/settings/backup`.
-- Todas las consultas filtran por `projectId` para garantizar aislamiento.
-- `capacitor.config.ts` + `ANDROID.md` documentando qué es web y qué es nativo.
-- Nota: algunos proveedores (p. ej. Anthropic) bloquean CORS desde navegador; en la APK no aplica, en vista previa web se indicará el error claramente.
+Oscuro y profesional, navegación inferior (Proyectos, Chats, Memoria, Ajustes), Space Grotesk + DM Sans, acento ámbar.
