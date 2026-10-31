@@ -18,11 +18,13 @@ Ninguna capacidad se marca "funcional con proveedor" sin una operación real con
 | music.generate | Pendiente | — | jobs largos | — | — | 7 |
 | video.generate / video.edit | Pendiente | — | jobs largos con sondeo | — | — | 6 |
 | model3d.generate | Pendiente | — | jobs largos | — | — | 6 |
-| document.analyze / document.create | Pendiente (docs v1 de Fase 1 existen) | — | biblioteca | — | — | 4 |
-| research.web | Pendiente | — | herramientas | — | — | 5 |
+| document.analyze / crear documentos | Programada · Web (lectura PDF/DOCX) · unitarias | Lectura local + cualquier modelo de chat; exportación local PDF/DOCX/XLSX | router chat | Por token | Unitarias; sin operación real | 4 |
+| notas y tareas | Programada · Web · unitarias | Local | — | Sin costo | Unitarias + persistencia web | 4 |
+| research.web | Programada · unitarias | Tavily + modelo de chat | router | Por búsqueda + tokens | Unitarias; sin operación real | 5 |
+| estudio (cuestionarios, tarjetas SM-2, planes) | Programada · Web · unitarias | Cualquier modelo de chat | — | Por token | Unitarias | 5 |
 | code.execute | Pendiente | — | sandbox | — | — | 8 |
 | agent.run / workflow.run | Pendiente (tablas de workflow listas) | — | router, jobs | — | — | 8 |
-| embeddings | Pendiente | — | memoria | — | — | 5 |
+| embedding (memoria inteligente) | Programada · unitarias | OpenAI, Azure OpenAI | chat | Por token | Unitarias; sin operación real | 5 |
 
 ## Núcleo (Etapa 1)
 | Componente | Estado |
