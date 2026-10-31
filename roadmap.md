@@ -1,5 +1,12 @@
 # MI AI — Roadmap
 
+## Solicitud actual — cierre y dos entregas APK
+- [ ] Auditar el alcance aprobado de Fases 6–7 y documentar cada requisito pendiente.
+- [ ] Completar los módulos implementables de Fases 6–7 y probarlos; no declarar 100% mientras existan bloqueos.
+- [ ] Compilar y entregar APK con Fases 6–7 actualizadas e informe honesto por entorno.
+- [ ] Completar Fases 8 (música) y 9 (video/3D) según el alcance aprobado, sin sustituir APIs reales por simulaciones.
+- [ ] Compilar y entregar APK final cuando el alcance y las verificaciones estén cerrados.
+
 ## Etapa 1 — Núcleo universal (en curso)
 - [x] docs/ESPECIFICACION-MAESTRA.md y docs/INVENTARIO-CAPACIDADES.md
 - [x] Capacidades como datos (21 iniciales) + registro (providers_registry, models, versions, endpoints, auth_refs, tests)
@@ -50,7 +57,7 @@
 - [x] Compilar APK build.4 con Fases 1–5 y la entrega parcial de Fase 6; comprobar firma, minSdk y ABI
 - [ ] Fase 6 pendiente: ejecución autónoma en segundo plano/disparadores Android, PC y conectores específicos de nubes/Termius (no implementados; requieren módulos externos, no solo credenciales)
 - [ ] Bloqueado: comprobar SSH/SFTP/Termux en Android, GitHub y revisión multiagente con cuentas/servidor reales (entornos y credenciales no disponibles)
-- [ ] Compilar las ampliaciones de Fase 6–7 (no solicitado en este turno; build.4 NO las incluye)
+- [ ] Compilar las ampliaciones de Fase 6–7 (solicitado ahora; build.4 NO las incluye)
 - [ ] Bloqueado: validar APK build.4, SQLCipher/Keystore y JavaScript en Android/Poco C40 (sin teléfono ni emulador acelerado disponible)
 - [ ] Bloqueado: pruebas reales con claves del usuario (Azure, Tavily, ElevenLabs)
 
