@@ -1,6 +1,6 @@
 // Minimal SQL executor abstraction. Native Android uses SQLCipher through
 // @capacitor-community/sqlite; the web preview and tests use sql.js (same SQL).
-export type Param = string | number | null;
+export type Param = string | number | null | Uint8Array;
 
 export interface SqlDb {
   run(sql: string, params?: Param[]): Promise<void>;

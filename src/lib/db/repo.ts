@@ -1,5 +1,7 @@
 import type { SqlDb } from "./sql";
 import { SCHEMA } from "./schema";
+import { SCHEMA_V3, PROJECT_TABLES_V3 } from "../core/schema-v3";
+import { Registry } from "../core/registry";
 
 export interface KeyVault {
   encrypt(plain: string): Promise<string>;
@@ -13,11 +15,15 @@ export type MemoryKind = "hecho" | "decision" | "hipotesis";
 export type MemoryItem = { id: string; project_id: string; kind: MemoryKind; content: string; version: number; archived: number; updated_at: number };
 export type MemoryVersion = { id: string; item_id: string; version: number; kind: MemoryKind; content: string; created_at: number };
 export type Doc = { id: string; project_id: string; name: string; mime: string | null; size: number; text_content: string | null; file_path: string | null; created_at: number };
-export type ProviderKind = "openai" | "anthropic" | "gemini" | "azure" | "azure_openai" | "xai" | "deepseek" | "mistral" | "cohere" | "openai_compatible" | "custom";
+export type ProviderKind = "openai" | "anthropic" | "gemini" | "azure" | "azure_openai" | "xai" | "deepseek" | "mistral" | "cohere" | "openai_compatible" | "custom" | "elevenlabs";
 export type Provider = { id: string; name: string; kind: ProviderKind; endpoint: string | null; deployment: string | null; model: string; api_version: string | null; extra_params: string | null; enabled: number; created_at: number; has_key: boolean; verification_status: "verified" | "error" | "unverified"; checked_at: number | null };
 export type ProviderInput = { name: string; kind: ProviderKind; endpoint?: string; apiKey?: string | undefined; deployment?: string; model: string; apiVersion?: string; extraParams?: string; enabled?: boolean };
 
 export class IsolationError extends Error {}
+
+// Catalog + project data from migration v3 included in backups. Excluded on purpose: capability_tests
+// (verification claims reset on restore), key_versions (device-bound), asset_blobs (bytes travel separately).
+const BACKUP_TABLES_V3 = ["capabilities", "providers_registry", "endpoints", "auth_refs", "models", "model_versions", "model_capabilities", "model_configs", "jobs", "job_attempts", "assets", "asset_tags", "asset_relations", "workflow_steps"] as const;
 
 const uid = () => crypto.randomUUID();
 const now = () => Date.now();
@@ -27,10 +33,19 @@ function need(projectId: string) {
 }
 
 export class Repo {
-  constructor(private db: SqlDb, private vault: KeyVault) {}
+  constructor(private db: SqlDb, private vault: KeyVault) {
+    this.registry = new Registry(db);
+  }
+
+  readonly registry: Registry;
+  get sql(): SqlDb { return this.db; }
 
   async migrate() {
     for (const s of SCHEMA) await this.db.run(s);
+    // v3 is additive: new tables only; existing rows are mirrored into the registry, never moved or deleted.
+    for (const s of SCHEMA_V3) await this.db.run(s);
+    await this.registry.seedCapabilities();
+    await this.registry.syncLegacyProviders();
   }
 
   // ---------- Projects ----------
@@ -49,7 +64,7 @@ export class Repo {
     await this.db.run(`UPDATE projects SET name=?, description=? WHERE id=?`, [name, description, id]);
   }
   async deleteProject(id: string) {
-    for (const t of ["messages", "chats", "memory_versions", "memory_items", "documents"])
+    for (const t of ["messages", "chats", "memory_versions", "memory_items", "documents", ...PROJECT_TABLES_V3])
       await this.db.run(`DELETE FROM ${t} WHERE project_id=?`, [id]);
     await this.db.run(`DELETE FROM projects WHERE id=?`, [id]);
   }
@@ -202,20 +217,24 @@ export class Repo {
         `UPDATE providers SET name=?, kind=?, endpoint=?, deployment=?, model=?, api_version=?, extra_params=?, enabled=? ${enc ? ", api_key_enc=?" : ""} WHERE id=?`,
         [input.name, input.kind, input.endpoint ?? null, input.deployment ?? null, input.model, input.apiVersion ?? null, input.extraParams ?? null, input.enabled === false ? 0 : 1, ...(enc ? [enc] : []), id],
       );
+      await this.registry.syncLegacyProviders();
       return id;
     }
     const nid = uid();
     await this.db.run(`INSERT INTO providers VALUES (?,?,?,?,?,?,?,?,?,?,?)`, [
       nid, input.name, input.kind, input.endpoint ?? null, enc, input.deployment ?? null, input.model, input.apiVersion ?? null, input.extraParams ?? null, input.enabled === false ? 0 : 1, now(),
     ]);
+    await this.registry.syncLegacyProviders();
     return nid;
   }
   async setProviderEnabled(id: string, enabled: boolean) {
     await this.db.run(`UPDATE providers SET enabled=? WHERE id=?`, [enabled ? 1 : 0, id]);
+    await this.registry.syncLegacyProviders();
   }
   async deleteProvider(id: string) {
     await this.db.run(`DELETE FROM provider_verifications WHERE provider_id=?`, [id]);
     await this.db.run(`DELETE FROM providers WHERE id=?`, [id]);
+    await this.registry.syncLegacyProviders();
   }
   async setProviderVerification(id: string, status: "verified" | "error") {
     await this.db.run(`INSERT OR REPLACE INTO provider_verifications (provider_id,status,checked_at) VALUES (?,?,?)`, [id, status, now()]);
@@ -228,7 +247,7 @@ export class Repo {
 
   // ---------- Export / import (API keys never included) ----------
   async dumpAll() {
-    const tables = ["projects", "chats", "messages", "memory_items", "memory_versions", "documents"] as const;
+    const tables = ["projects", "chats", "messages", "memory_items", "memory_versions", "documents", ...BACKUP_TABLES_V3] as const;
     const out: Record<string, unknown[]> = {};
     for (const t of tables) out[t] = await this.db.all(`SELECT * FROM ${t}`);
     const providers = await this.listProviders();
@@ -236,7 +255,7 @@ export class Repo {
     return { app: "MI AI", v: 1, exportedAt: now(), tables: out };
   }
   async restoreAll(dump: { tables: Record<string, Record<string, unknown>[]> }) {
-    const order = ["projects", "chats", "messages", "memory_items", "memory_versions", "documents", "providers"];
+    const order = ["projects", "chats", "messages", "memory_items", "memory_versions", "documents", "providers", ...BACKUP_TABLES_V3];
     for (const t of order) {
       for (const row of dump.tables[t] ?? []) {
         const cols = Object.keys(row).filter((c) => c !== "api_key_enc" && c !== "has_key");
@@ -247,5 +266,6 @@ export class Repo {
         if (t === "providers") await this.db.run(`DELETE FROM provider_verifications WHERE provider_id=?`, [row["id"] as string]);
       }
     }
+    await this.registry.syncLegacyProviders();
   }
 }

@@ -46,4 +46,10 @@ cat > android/app/src/debug/AndroidManifest.xml <<'XML'
 </manifest>
 XML
 
+# MI AI native Keystore plugin (master keys inside Android Keystore, StrongBox when available).
+JAVA_DIR=android/app/src/main/java/com/miai/app
+mkdir -p "$JAVA_DIR"
+cp scripts/native/MiaiKeystorePlugin.java "$JAVA_DIR/MiaiKeystorePlugin.java"
+cp scripts/native/MainActivity.java "$JAVA_DIR/MainActivity.java"
+
 echo "Android project ready: version ${VERSION_NAME} (${VERSION_CODE})"

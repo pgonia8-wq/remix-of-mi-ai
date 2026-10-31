@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { getRepo } from "@/lib/app-db";
 import { streamChat, ProviderError, type ChatMsg } from "@/lib/providers";
 import { useActiveProjectId, useMutate, useRepoQuery } from "@/lib/use-app";
+import { route } from "@/lib/core/router";
 import { NeedProject, inputCls } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 
@@ -29,6 +30,7 @@ function ChatPage() {
   const { data: chat, error: chatError, isLoading } = useRepoQuery(["chat", pid, chatId], (r) => pid ? r.getChat(pid, chatId) : Promise.resolve(null), !!pid);
   const { data: messages = [], error: messagesError, refetch } = useRepoQuery(["messages", pid, chatId], (r) => pid ? r.listMessages(pid, chatId) : Promise.resolve([]), !!pid);
   const { data: providers = [] } = useRepoQuery(["providers"], (r) => r.listProviders());
+  const { data: registryModels = [] } = useRepoQuery(["registry-models"], (r) => r.registry.listModels());
   const enabled = providers.filter((p) => p.enabled);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState<string | null>(null);
@@ -42,8 +44,12 @@ function ChatPage() {
   if (chatError || messagesError) return <div role="alert" className="space-y-3 p-4"><p>No se pudieron recuperar los datos del chat.</p><Button variant="outline" onClick={() => mutate(async () => undefined).catch(() => toast.error("No se pudo abrir el almacenamiento local."))}>Reintentar</Button></div>;
   if (isLoading) return <p role="status" className="p-4 text-sm text-muted-foreground">Abriendo chat…</p>;
   if (chat === null) return <div className="p-6 text-sm text-muted-foreground">Este chat no pertenece al proyecto activo.</div>;
-  const providerId = chat?.provider_id ?? enabled[0]?.id ?? null;
-  const provider = providers.find((p) => p.id === providerId);
+  const selection = chat?.provider_id ?? enabled[0]?.id ?? null;
+  // "__auto"/"__fav" let the Model Router pick among models declaring the exact "chat" capability.
+  const routed = selection === "__auto" || selection === "__fav" ? route(registryModels, { capability: "chat", mode: selection === "__auto" ? "auto" : "favorite" }) : null;
+  const providerId = routed ? (routed.ok ? routed.model.provider_id : null) : selection;
+  const baseProvider = providers.find((p) => p.id === providerId);
+  const provider = baseProvider && routed?.ok ? (baseProvider.kind === "azure_openai" || baseProvider.kind === "azure" ? { ...baseProvider, deployment: routed.model.remote_id } : { ...baseProvider, model: routed.model.remote_id }) : baseProvider;
 
   async function send() {
     const text = input.trim();
@@ -93,12 +99,16 @@ function ChatPage() {
         <span className="flex-1 truncate text-sm font-medium">{chat?.title}</span>
         <select
           className="max-w-[45%] rounded-lg border bg-card px-2 py-1 text-xs"
-          value={providerId ?? ""}
+          value={selection ?? ""}
           onChange={(e) => {
-            const p = providers.find((x) => x.id === e.target.value);
+            const v = e.target.value;
+            if (v === "__auto" || v === "__fav") { void mutate((r) => r.updateChat(pid, chatId, { provider_id: v, model: null })); return; }
+            const p = providers.find((x) => x.id === v);
             mutate((r) => r.updateChat(pid, chatId, { provider_id: p?.id ?? null, model: p?.model ?? null }));
           }}
         >
+          <option value="__auto">Automático</option>
+          <option value="__fav">Favorito</option>
           {!enabled.length && <option value="">Sin proveedores</option>}
           {enabled.map((p) => (
             <option key={p.id} value={p.id}>
@@ -107,6 +117,7 @@ function ChatPage() {
           ))}
         </select>
       </div>
+      {routed && <p className={`border-b px-3 py-1 text-[11px] ${routed.ok ? "text-muted-foreground" : "text-destructive"}`}>{routed.ok ? `${routed.model.name}: ${routed.reasons.join(" · ")}` : routed.reason}</p>}
       <div className="flex-1 space-y-3 overflow-y-auto p-4">
         {messages.map((m) => (
           <div key={m.id} className={m.role === "user" ? "ml-auto max-w-[85%] rounded-2xl bg-primary px-4 py-2 text-sm text-primary-foreground" : "max-w-[95%] text-sm"}>

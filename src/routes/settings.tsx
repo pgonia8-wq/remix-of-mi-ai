@@ -5,7 +5,10 @@ import { toast } from "sonner";
 import type { Provider } from "@/lib/db/repo";
 import { testProvider, type ConnectionResult } from "@/lib/providers";
 import { getRepo, isNative } from "@/lib/app-db";
-import { openWithPassword, sealWithPassword } from "@/lib/crypto";
+import { openWithPassword } from "@/lib/crypto";
+import { Link } from "@tanstack/react-router";
+import { getCore } from "@/lib/core";
+import { createBackup, openBackup, restoreBackup, passwordStrength } from "@/lib/core/backup";
 import { useMutate, useRepoQuery } from "@/lib/use-app";
 import { btnCls, btnGhost, inputCls } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -85,47 +88,69 @@ function Settings() {
 function Backup() {
   const mutate = useMutate();
   const [pw, setPw] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const strength = passwordStrength(pw);
   async function doExport() {
-    if (pw.length < 8) {
-      toast.error("Usa una contraseña de al menos 8 caracteres");
-      return;
-    }
-    const sealed = await sealWithPassword(pw, JSON.stringify(await (await getRepo()).dumpAll()));
-    const name = `miai-${new Date().toISOString().slice(0, 10)}.miai`;
-    if (isNative()) {
-      const { Filesystem, Directory, Encoding } = await import("@capacitor/filesystem");
-      await Filesystem.writeFile({ path: name, data: sealed, directory: Directory.Documents, encoding: Encoding.UTF8 });
-      toast.success(`Guardado en Documentos/${name}`);
-    } else {
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(new Blob([sealed], { type: "application/octet-stream" }));
-      a.download = name;
-      a.click();
-    }
+    if (!strength.ok) { toast.error(strength.hint); return; }
+    setBusy("Derivando la llave y cifrando la copia…");
+    try {
+      const core = await getCore();
+      const nav = navigator as Navigator & { deviceMemory?: number };
+      const mem = core.device.totalMemMB ? core.device.totalMemMB / 1024 : nav.deviceMemory ?? null;
+      const sealed = await createBackup({ repo: core.repo, keys: core.keys, fs: core.files, password: pw, deviceMemGB: mem });
+      const name = `miai-${new Date().toISOString().slice(0, 10)}.miai`;
+      if (isNative()) {
+        const { Filesystem, Directory, Encoding } = await import("@capacitor/filesystem");
+        await Filesystem.writeFile({ path: name, data: sealed, directory: Directory.Documents, encoding: Encoding.UTF8 });
+        toast.success(`Guardado en Documentos/${name}`);
+      } else {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob([sealed], { type: "application/octet-stream" }));
+        a.download = name;
+        a.click();
+      }
+    } catch (e) { toast.error((e as Error).message); } finally { setBusy(null); }
   }
   async function doImport(f: File | undefined) {
     if (!f) return;
+    setBusy("Verificando la copia…");
     try {
-      const dump = JSON.parse(await openWithPassword(pw, await f.text()));
-      await mutate((r) => r.restoreAll(dump));
-      toast.success("Copia importada. Vuelve a introducir las API keys de las conexiones.");
+      const text = await f.text();
+      const format = JSON.parse(text)?.format;
+      if (format === "miai-export") {
+        const dump = JSON.parse(await openWithPassword(pw, text)); // v1 compatibility
+        await mutate((r) => r.restoreAll(dump));
+      } else {
+        const payload = await openBackup(text, pw); // authenticity checked before anything is touched
+        setBusy("Restaurando y verificando archivos…");
+        const core = await getCore();
+        await restoreBackup({ payload, repo: core.repo, db: core.repo.sql, keys: core.keys, fs: core.files });
+        await mutate(async () => undefined);
+      }
+      toast.success("Copia restaurada. Vuelve a introducir y probar las API keys de las conexiones.");
     } catch (e) {
       toast.error((e as Error).message);
-    }
+    } finally { setBusy(null); }
   }
   return (
     <section className="space-y-2 rounded-xl border bg-card p-3">
       <h2 className="font-semibold">Copia de seguridad cifrada</h2>
-      <p className="text-xs text-muted-foreground">Incluye proyectos, chats, memoria y texto de documentos. Las API keys nunca se exportan.</p>
+      <p className="text-xs text-muted-foreground">Incluye proyectos, chats, memoria, documentos, modelos, trabajos y la biblioteca. Se protege con Argon2id y AES-256-GCM, y se puede restaurar en otro teléfono. Las API keys nunca se exportan. La contraseña no se guarda.</p>
       <input className={inputCls} type="password" placeholder="Contraseña de la copia" value={pw} onChange={(e) => setPw(e.target.value)} />
+      {pw && <p className={`text-xs ${strength.ok ? "text-muted-foreground" : "text-destructive"}`}>{strength.hint}</p>}
+      {busy && <p className="text-xs text-primary">{busy}</p>}
       <div className="flex gap-2">
-        <button className={btnCls + " flex-1"} onClick={doExport}>
+        <button className={btnCls + " flex-1"} disabled={!!busy} onClick={doExport}>
           <Download className="h-4 w-4" /> Exportar
         </button>
         <label className={btnGhost + " flex-1 cursor-pointer"}>
           <Upload className="h-4 w-4" /> Importar
-          <input type="file" className="hidden" onChange={(e) => doImport(e.target.files?.[0])} />
+          <input type="file" className="hidden" disabled={!!busy} onChange={(e) => doImport(e.target.files?.[0])} />
         </label>
+      </div>
+      <div className="flex gap-3 pt-1 text-xs">
+        <Link to="/jobs" className="text-primary underline">Trabajos</Link>
+        <Link to="/diagnostics" className="text-primary underline">Diagnóstico de seguridad y rendimiento</Link>
       </div>
     </section>
   );

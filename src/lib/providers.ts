@@ -166,7 +166,7 @@ export function redactSecret(text: string, key?: string | null): string {
   if (key) for (const variant of [key, encodeURIComponent(key), JSON.stringify(key).slice(1, -1)]) safe = safe.split(variant).join("[credencial oculta]");
   return safe.replace(/(?:Bearer\s+|sk-|AIza)[\w.\-]+/gi, "[credencial oculta]").slice(0, 600);
 }
-function responseError(status: number, body: string, key?: string | null): ProviderError {
+export function responseError(status: number, body: string, key?: string | null): ProviderError {
   const technical = redactSecret(body, key);
   const msg = technical.toLowerCase();
   let code: DiagnosticCode = "parameters";

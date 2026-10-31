@@ -1,22 +1,22 @@
-# MI AI — Fase 1
-- [x] Continuación aprobada: generar APK actualizado build.3 y documentar validación real y bloqueos
-- [x] Reforzar autoprueba Android de recuperación y contraseña incorrecta; 50/50 pruebas automáticas PASS
-- [x] Revisar desaparición de proveedor: usuario confirma modelo/chat funcionando; reforzar persistencia inmediata y probar recarga/navegación
-- [x] Corregir destroy is not a function al actualizar/salir del chat; causa confirmada en navegador del usuario y regresión probada
-- [x] Corregir rechazo de URL Azure /openai/v1/chat/completions; solicitud real con clave ficticia devuelve HTTP 401 (sin generación verificada)
-- [x] Añadir Azure OpenAI con cuatro campos y comprobar solicitudes/errores en vista previa (sin credenciales reales)
-- [x] Corregir fallo del chat y verificar chats nuevos/existentes en navegador
-- [x] Implementar solicitud real obligatoria antes de guardar, diagnóstico seguro y estado persistente
-- [x] Documentar pruebas realizadas y limitaciones Android/credenciales
-- [ ] Bloqueado: comprobar generación real con credenciales del usuario, errores reales de clave/modelo y timeout de proveedor
-- [x] Compilar actualización build.3 Debug y Release sin firma; verificar ABIs, Android 11, manifiesto y firma Debug
-- [ ] Bloqueado: instalar/abrir y validar actualización en emulador; arranque sin KVM no completó antes del límite
-- [x] Base de datos (SQLite/SQLCipher nativo, sql.js en vista previa) con aislamiento por proyecto
-- [x] Proyectos, chats con streaming y cambio de modelo, memoria versionada, documentos
-- [x] Conexiones de proveedores (11 tipos, incluido Azure OpenAI) con API keys cifradas por clave en Keystore
-- [x] Exportar/importar cifrado (prueba de recuperación completa)
-- [x] APK Debug compilado y verificado (arm64/armv7, minSdk 30)
-- [x] GitHub Actions + scripts Ubuntu + ANDROID.md + informe
-- [ ] Bloqueado: conectar GitHub (usuario) → emulador Android 11 en Actions
+# MI AI — Roadmap
+
+## Etapa 1 — Núcleo universal (en curso)
+- [x] docs/ESPECIFICACION-MAESTRA.md y docs/INVENTARIO-CAPACIDADES.md
+- [x] Capacidades como datos (21 iniciales) + registro (providers_registry, models, versions, endpoints, auth_refs, tests)
+- [x] Migración v3 aditiva + conversión de proveedores existentes
+- [x] Model Router (manual/favorito/automático, razones, sin modelo incompatible)
+- [x] Job Manager (8 estados, idempotencia, recovery_required)
+- [x] Formato de archivo cifrado (DEK por archivo, nonce prefijo+contador, AAD, registro final) + escritura atómica
+- [x] Llaves maestras versionadas, plugin nativo Keystore/StrongBox, rotación
+- [x] Respaldo v2 con Argon2id/PBKDF2 y re-envoltura de DEK
+- [x] Adaptadores: texto (envoltura), OpenAI Images, Azure Images, OpenAI audio, ElevenLabs
+- [x] Pantallas: Modelos, Biblioteca, Trabajos, Diagnóstico; selector de capacidad en chat
+- [x] Pruebas unitarias/cripto/router/jobs/migración
+- [ ] APK Etapa 1 + informe por niveles
+- [ ] Bloqueado: operaciones reales de imagen/audio (claves del usuario)
+- [ ] Bloqueado: pruebas físicas Poco C40 / intermedio / Galaxy S26 (usuario)
 - [ ] Bloqueado: clave de firma Release (usuario)
-- [ ] Bloqueado: pruebas en Poco C40 (usuario)
+
+## Fase 1 (completada)
+- [x] Proyectos, chats, memoria, documentos, proveedores con prueba real, Azure OpenAI, respaldo cifrado, APK build.3
+- [x] Probado por el usuario en Poco C40: APK abre, chat funciona, proveedor persiste

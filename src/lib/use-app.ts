@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRepo } from "./app-db";
 import type { Repo } from "./db/repo";
+import { getCore, type Core } from "./core";
 
 const KEY = "miai_active_project";
 const listeners = new Set<() => void>();
@@ -28,5 +29,15 @@ export function useMutate() {
     const out = await fn(await getRepo());
     await qc.invalidateQueries();
     return out;
+  };
+}
+
+export function useCoreQuery<T>(key: unknown[], fn: (c: Core) => Promise<T>, enabled = true) {
+  return useQuery({ queryKey: ["core", ...key], queryFn: async () => fn(await getCore()), enabled });
+}
+export function useCoreMutate() {
+  const qc = useQueryClient();
+  return async <T,>(fn: (c: Core) => Promise<T>): Promise<T> => {
+    try { return await fn(await getCore()); } finally { await qc.invalidateQueries(); }
   };
 }
