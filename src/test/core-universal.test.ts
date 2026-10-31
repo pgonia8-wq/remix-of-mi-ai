@@ -161,6 +161,16 @@ describe("gestor de trabajos", () => {
 });
 
 describe("biblioteca cifrada", () => {
+  it("historial de versiones: familia completa desde cualquier versión, solo del proyecto", async () => {
+    const p = await repo.createProject("A"), q = await repo.createProject("B");
+    const v1 = await assets.put(p.id, once(bytes(10)), { kind: "image", mime: "image/png" });
+    const v2 = await assets.put(p.id, once(bytes(10)), { kind: "image", mime: "image/png", parentId: v1.id });
+    const v3 = await assets.put(p.id, once(bytes(10)), { kind: "image", mime: "image/png", parentId: v2.id });
+    await assets.put(p.id, once(bytes(10)), { kind: "image", mime: "image/png" });
+    expect((await assets.versions(p.id, v3.id)).map((x) => x.id)).toEqual([v1.id, v2.id, v3.id]);
+    expect((await assets.versions(p.id, v1.id)).length).toBe(3);
+    expect(await assets.versions(q.id, v1.id)).toEqual([]);
+  });
   it("guarda cifrado, lee verificado, aísla proyectos y versiona", async () => {
     const p = await repo.createProject("A"), q = await repo.createProject("B");
     const data = bytes(200 * 1024);
