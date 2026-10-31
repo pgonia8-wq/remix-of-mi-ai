@@ -1,5 +1,12 @@
 # MI AI Fase 1 — Informe de pruebas (31-oct-2026, compilación 0.1.0-build.2)
 
+## Guardado en vista previa — 31-oct-2026, 19:57 UTC
+- El usuario confirmó que el modelo vuelve a aparecer y el chat funciona. La desaparición inicial no quedó reproducida en su sesión; estaba consultando una versión histórica según el contexto recibido.
+- Se detectó y reprodujo separadamente una ventana de pérdida al recargar: sql.js demoraba 150 ms la escritura después de resolver el guardado. Se eliminó esa demora solo para la vista previa; los errores de escritura ahora rechazan la operación. SQLCipher y Keystore nativos permanecen intactos.
+- **49/49 pruebas automáticas PASS:** la nueva regresión falla antes y pasa después, verificando proveedor Azure, clave cifrada y estado persistidos antes de resolver el guardado. Estado verificado solo como dato de prueba de repositorio, no como conexión simulada en la app.
+- **Chromium:** proveedor de prueba no verificado permanece tras recarga inmediata y navegación Proyectos → Ajustes, cero errores JavaScript. No se usaron credenciales del usuario ni se simuló generación.
+- Pendiente recompilar y comprobar esta actualización en Android. Los datos de la vista previa pertenecen a su origen; cambiar de dirección de vista previa no transfiere datos entre ellas.
+
 ## Corrección: destroy is not a function — 31-oct-2026, 19:52 UTC
 - **Causa confirmada en el navegador del usuario:** `scrollIntoView()` devuelve una Promise en ese entorno. El efecto del chat devolvía implícitamente ese resultado; React lo trataba como función de limpieza al actualizar mensajes o desmontar y fallaba. Se cambió a un cuerpo de bloque sin retorno. No es un fallo del proveedor Azure ni del registro de rutas.
 - **Prueba de regresión:** se reproduce el retorno Promise observado; la prueba falla antes de la corrección y pasa después al actualizar mensajes y desmontar el chat. 48/48 pruebas automáticas PASS.

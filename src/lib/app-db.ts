@@ -62,10 +62,10 @@ async function openWebDb(): Promise<SqlDb> {
   const SQL = await initSqlJs({ locateFile: (file: string) => `/wasm/${file}` });
   const saved = localStorage.getItem(WEB_DB_KEY);
   const db = saved ? new SQL.Database(unb64(saved)) : new SQL.Database();
-  let t: ReturnType<typeof setTimeout> | undefined;
   return wrapSqlJs(db, () => {
-    clearTimeout(t);
-    t = setTimeout(() => localStorage.setItem(WEB_DB_KEY, b64(db.export())), 150);
+    // Preview only: finish persistence before run/save resolves, not after a
+    // timer that navigation or reload can interrupt. Storage failures propagate.
+    localStorage.setItem(WEB_DB_KEY, b64(db.export()));
   });
 }
 
