@@ -9,7 +9,7 @@ import { evaluateCode, CODE_LIMITS } from "@/lib/code/engine";
 import { AssetStore, sqlBlobBackend } from "@/lib/core/asset-store";
 import { KeyRing, webBackend } from "@/lib/core/keys";
 import { JobManager } from "@/lib/core/jobs";
-import { chooseProfile } from "@/lib/core/device-profile";
+import { chooseProfile, type DeviceFacts } from "@/lib/core/device-profile";
 import type { Core } from "@/lib/core";
 let repo: Repo, core: Core;
 const flow = (): Flow => ({ maxCalls: 2, steps: [{ id: "1", name: "Nota", tool: "note.save", prompt: "{{input}}", agentId: null, approval: false, contains: "", repeat: 1 }] });
@@ -18,10 +18,10 @@ beforeEach(async () => {
   repo = new Repo(db, { encrypt: async () => "cipher", decrypt: async () => "" }); await repo.migrate();
   const mem = new Map<string, string>();
   const keys = new KeyRing(db, webBackend({ get: (k) => mem.get(k) ?? null, set: (k, v) => { mem.set(k, v); }, del: (k) => { mem.delete(k); } }));
-  const device = { native: false, ramGB: 3, cpuCores: 4, strongBox: false, keystore: false };
+  const device: DeviceFacts = { availMemMB: 500, totalMemMB: 3000, lowMemory: false, cores: 4, abis: [], freeStorageMB: null, batteryPct: null, charging: null, thermal: null, strongBox: false, source: "browser" };
   const profile = chooseProfile(device);
   const files = sqlBlobBackend(db), assets = new AssetStore(db, files, keys, () => profile);
-  core = { repo, keys, files, assets, jobs: new JobManager(db), profile, device, startup: { temps: 0, orphans: 0, requeued: 0, interrupted: 0, needsUser: 0 } } as Core;
+  core = { repo, keys, files, assets, jobs: new JobManager(db), profile, device, startup: { temps: 0, orphans: 0, requeued: 0, interrupted: 0, needsUser: 0 } };
 });
 describe("Agentes y flujos", () => {
   it("no accede ni modifica agentes de otro proyecto", async () => {
@@ -64,7 +64,7 @@ describe("Agentes y flujos", () => {
   });
   it("respalda y borra los registros de agentes y flujos", async () => {
     const p = await repo.createProject("A"); await workflows.save(repo, p.id, "X", flow());
-    expect((await repo.dumpAll()).tables.workflows?.length).toBe(1);
+    expect((await repo.dumpAll()).tables["workflows"]?.length).toBe(1);
     await repo.deleteProject(p.id); expect(await workflows.list(repo, p.id)).toEqual([]);
   });
   it("variables no se evalúan como código y llamadas con coste fuerzan aprobación", () => {
