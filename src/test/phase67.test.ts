@@ -57,6 +57,16 @@ describe("Fases 6 y 7", () => {
     const r = await schedules.start(repo, p.id, id); expect(await runs.get(repo, p.id, r)).not.toBeNull();
     await expect(schedules.start(repo, p.id, id)).rejects.toThrow();
   });
+  it("otro proyecto no puede eliminar ni iniciar una programación", async () => {
+    const a = await repo.createProject("A"), b = await repo.createProject("B");
+    const w = await workflows.save(repo, a.id, "F", flow());
+    const id = await schedules.add(repo, a.id, w, Date.now() + 60000, "privado");
+    await schedules.remove(repo, b.id, id);
+    expect((await schedules.list(repo, a.id)).map((s) => s.id)).toEqual([id]);
+    await expect(schedules.start(repo, b.id, id)).rejects.toThrow();
+    await schedules.remove(repo, a.id, id);
+    expect(await schedules.list(repo, a.id)).toEqual([]);
+  });
   it("entregables y favoritos no pueden cambiar desde otro proyecto", async () => {
     const a = await repo.createProject("A"), b = await repo.createProject("B");
     await repo.sql.run("INSERT INTO workspace_items VALUES (?,?,?,'deliverable',NULL,'todo',?)", ["i", a.id, "Reporte", Date.now()]);
