@@ -54,8 +54,10 @@ function buildRequest(p: ProviderCall, messages: ChatMsg[]): { url: string; init
   } catch {
     throw new ProviderError("endpoint", "Endpoint incorrecto: utiliza una URL HTTP o HTTPS sin credenciales ni parámetros.");
   }
-  if ((p.kind !== "azure_openai" && !p.model.trim()) || (azure && !p.deployment?.trim())) throw new ProviderError("model", "Modelo o deployment inexistente: completa el identificador.");
-  if (p.kind === "azure_openai" && !p.apiVersion?.trim()) throw new ProviderError("parameters", "Versión de API requerida: introduce la versión de Azure OpenAI.");
+  const azurePath = trim(endpoint.pathname);
+  const azureV1 = azure && (azurePath === "/openai/v1" || azurePath === "/openai/v1/chat/completions");
+  if ((!azure && !p.model.trim()) || (azure && !p.deployment?.trim())) throw new ProviderError("model", "Modelo o deployment inexistente: completa el identificador.");
+  if (p.kind === "azure_openai" && !azureV1 && !p.apiVersion?.trim()) throw new ProviderError("parameters", "Versión de API requerida: introduce la versión de Azure OpenAI.");
   if (!["custom", "openai_compatible"].includes(p.kind) && !p.apiKey?.trim()) throw new ProviderError("key", "API Key inválida: falta la credencial.");
   const key = p.apiKey ?? "";
   const x = p.kind === "azure_openai" ? {} : extra(p);
@@ -100,17 +102,23 @@ function buildRequest(p: ProviderCall, messages: ChatMsg[]): { url: string; init
   if (azure) {
     // Accept a resource URL or a copied deployment chat-completions URL.
     // Explicit form fields remain authoritative; never duplicate the route.
-    const path = trim(endpoint.pathname);
+    const path = azurePath;
     let base: string;
+    if (azureV1) {
+      // Azure v1 selects deployment through model, not through the URL.
+      // Dated api-version is not part of this GA endpoint contract.
+      url = `${endpoint.origin}/openai/v1/chat/completions`;
+    } else {
     if (path === "" || path === "/openai") base = endpoint.origin;
     else if (/^\/openai\/deployments\/[^/]+\/chat\/completions$/.test(path)) base = endpoint.origin;
-    else throw new ProviderError("endpoint", "URL de Azure incorrecta: usa la URL del recurso o la URL completa de chat/completions.");
+    else throw new ProviderError("endpoint", "URL de Azure incorrecta: usa la URL del recurso, /openai/v1/chat/completions o la URL completa del deployment.");
     url = `${base}/openai/deployments/${encodeURIComponent(p.deployment?.trim() || p.model)}/chat/completions?api-version=${encodeURIComponent(p.apiVersion?.trim() || "2024-10-21")}`;
+    }
     headers["api-key"] = key;
   } else if (key) headers["authorization"] = `Bearer ${key}`;
   return {
     url,
-    init: { method: "POST", headers, body: JSON.stringify({ ...(azure ? {} : { model: p.model }), stream: true, messages, ...x }) },
+    init: { method: "POST", headers, body: JSON.stringify({ ...(azureV1 ? { model: p.deployment?.trim() } : azure ? {} : { model: p.model }), stream: true, messages, ...x }) },
     parse: (d) => d.choices?.[0]?.delta?.content ?? null,
   };
 }
