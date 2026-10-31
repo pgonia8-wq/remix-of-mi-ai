@@ -41,10 +41,14 @@ function Library() {
   const [open, setOpen] = useState<Asset | null>(null);
   const { data: assets = [] } = useCoreQuery(["assets", pid, kind, search, tag], (c) => c.assets.list(pid!, { ...(kind ? { kind } : {}), ...(search ? { search } : {}), ...(tag ? { tag } : {}) }), !!pid);
   const { data: tags = [] } = useCoreQuery(["tags", pid], (c) => c.assets.tags(pid!), !!pid);
+  const mutate = useCoreMutate();
   if (!pid) return <NeedProject />;
   return (
     <div className="space-y-4 p-4">
-      <div className="flex items-center justify-between"><h1 className="text-2xl font-bold">Biblioteca</h1><Link to="/jobs" className="text-xs text-primary underline">Trabajos</Link></div>
+      <div className="flex items-center justify-between gap-2"><h1 className="flex-1 text-2xl font-bold">Biblioteca</h1>
+        <label className="flex cursor-pointer items-center gap-1 rounded-lg border px-2 py-1 text-xs"><Upload className="h-3.5 w-3.5" /> Subir
+          <input type="file" accept="image/*,audio/*" multiple className="hidden" onChange={(e) => importFiles(pid, Array.from(e.target.files ?? []), mutate)} /></label>
+        <Link to="/jobs" className="text-xs text-primary underline">Trabajos</Link></div>
       <Create projectId={pid} />
       <div className="flex gap-2">
         <input className={inputCls} placeholder="Buscar por nombre o prompt" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -62,6 +66,20 @@ function Library() {
       {open && <AssetDetail key={open.id} a={open} onClose={() => setOpen(null)} onOpen={setOpen} />}
     </div>
   );
+}
+
+const MAX_IMPORT = 100 * 1024 * 1024;
+async function importFiles(projectId: string, files: File[], mutate: ReturnType<typeof useCoreMutate>) {
+  let ok = 0;
+  for (const f of files) {
+    if (!/^(image|audio)\//.test(f.type)) { toast.error(`${f.name}: solo imágenes o audio.`); continue; }
+    if (f.size > MAX_IMPORT) { toast.error(`${f.name}: supera 100 MB.`); continue; }
+    try {
+      await mutate(async (c) => c.assets.put(projectId, (async function* () { yield new Uint8Array(await f.arrayBuffer()); })(), { kind: f.type.split("/")[0]!, mime: f.type, name: f.name }));
+      ok++;
+    } catch (e) { toast.error(`${f.name}: ${(e as Error).message}`); }
+  }
+  if (ok) toast.success(`${ok} archivo(s) guardado(s) cifrados`);
 }
 
 function useAssetUrl(a: Asset | null, enabled = true) {
