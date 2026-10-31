@@ -9,10 +9,23 @@ const base = (c: AdapterCredentials) => trimSlash(c.endpoint?.trim() || "https:/
 export const elevenlabsAdapter: ProviderAdapter = {
   id: "elevenlabs",
   label: "ElevenLabs",
-  operations: { "audio.tts": sync(), "audio.transcribe": sync(), "audio.voice_clone": sync() },
+  operations: { "audio.tts": sync(), "audio.transcribe": sync(), "audio.voice_clone": sync(), "music.generate": sync(), "audio.sfx": sync() },
   supports(cap) { return cap in this.operations; },
   async run(c, r) {
     const key = requireKey(c.apiKey);
+    if (r.capability === "music.generate" || r.capability === "audio.sfx") {
+      const text = r.prompt?.trim();
+      if (!text) throw new ProviderError("parameters", "Describe la música o el sonido.");
+      const seconds = Number(r.params?.["seconds"] ?? 30);
+      const music = r.capability === "music.generate";
+      if (!Number.isFinite(seconds) || seconds < (music ? 3 : 0.5) || seconds > (music ? 600 : 30)) throw new ProviderError("parameters", "Duración fuera del rango permitido por el proveedor.");
+      const body = music ? { prompt: text, music_length_ms: Math.round(seconds * 1000), model_id: r.model, force_instrumental: r.params?.["instrumental"] === true }
+        : { text, duration_seconds: seconds, prompt_influence: 0.3 };
+      const res = await call(`${base(c)}/${music ? "music" : "sound-generation"}?output_format=mp3_44100_128`, { method: "POST", headers: { "xi-api-key": key, "content-type": "application/json", accept: "audio/mpeg" }, body: JSON.stringify(body), signal: r.signal }, key, 600_000);
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      if (bytes.length < 100 || !res.headers.get("content-type")?.startsWith("audio/")) throw new ProviderError("parameters", "El proveedor no devolvió audio válido.");
+      return { kind: "files", files: [{ bytes, mime: "audio/mpeg", name: music ? "musica.mp3" : "efecto.mp3" }] };
+    }
     if (r.capability === "audio.tts") {
       const text = (r.prompt ?? "").trim();
       if (!text) throw new ProviderError("parameters", "Escribe el texto que quieres convertir en voz.");
