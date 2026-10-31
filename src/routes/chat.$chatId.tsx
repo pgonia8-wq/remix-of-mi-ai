@@ -34,7 +34,9 @@ function ChatPage() {
   const [streaming, setStreaming] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
   const end = useRef<HTMLDivElement>(null);
-  useEffect(() => end.current?.scrollIntoView?.(), [messages.length, streaming]);
+  useEffect(() => {
+    end.current?.scrollIntoView?.();
+  }, [messages.length, streaming]);
 
   if (!pid) return <NeedProject />;
   if (chatError || messagesError) return <div role="alert" className="space-y-3 p-4"><p>No se pudieron recuperar los datos del chat.</p><Button variant="outline" onClick={() => mutate(async () => undefined).catch(() => toast.error("No se pudo abrir el almacenamiento local."))}>Reintentar</Button></div>;

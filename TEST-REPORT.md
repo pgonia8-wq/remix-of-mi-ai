@@ -1,5 +1,11 @@
 # MI AI Fase 1 — Informe de pruebas (31-oct-2026, compilación 0.1.0-build.2)
 
+## Corrección: destroy is not a function — 31-oct-2026, 19:52 UTC
+- **Causa confirmada en el navegador del usuario:** `scrollIntoView()` devuelve una Promise en ese entorno. El efecto del chat devolvía implícitamente ese resultado; React lo trataba como función de limpieza al actualizar mensajes o desmontar y fallaba. Se cambió a un cuerpo de bloque sin retorno. No es un fallo del proveedor Azure ni del registro de rutas.
+- **Prueba de regresión:** se reproduce el retorno Promise observado; la prueba falla antes de la corrección y pasa después al actualizar mensajes y desmontar el chat. 48/48 pruebas automáticas PASS.
+- **Probado en Chromium:** crear proyecto → abrir chat nuevo → salir → reabrir chat existente → Ajustes, con retorno Promise del desplazamiento; cero errores JavaScript y sin pantalla en blanco.
+- **Android:** corrección programada, no recompilada ni probada en emulador o dispositivo físico; el APK anterior no la incluye.
+
 ## Actualización: Azure OpenAI — 31-oct-2026
 - **Corrección Azure v1 (19:49 UTC):** rechazo reproducido y corregido para la URL `https://pgonia8-4510-resource.services.ai.azure.com/openai/v1/chat/completions`. Ambos proveedores Azure reconocen `/openai/v1` y la URL completa; v1 envía deployment como `model` en el cuerpo, sin ruta legacy ni versión fechada. La versión puede dejarse vacía para v1; sigue siendo requerida para Azure OpenAI legacy.
 - **Verificación v1:** 47/47 pruebas automáticas PASS, incluidas cinco regresiones que fallaban antes. En Chromium se envió una solicitud real a la URL exacta con una clave ficticia inválida: Azure devolvió HTTP 401 y se mostró el diagnóstico de API Key inválida, no rechazo de URL; guardado bloqueado y cero errores JavaScript. No se probó generación con una clave válida ni Android.
