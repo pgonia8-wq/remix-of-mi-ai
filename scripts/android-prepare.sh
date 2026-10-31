@@ -26,6 +26,8 @@ fi
 
 # No cloud backup of app data (encrypted DB stays on the device).
 sed -i -E 's/android:allowBackup="true"/android:allowBackup="false"/' android/app/src/main/AndroidManifest.xml
+# Microphone for dictation / voice notes (Capacitor's WebChromeClient asks the user at runtime).
+grep -q RECORD_AUDIO android/app/src/main/AndroidManifest.xml || sed -i 's#<application#<uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n    <application#' android/app/src/main/AndroidManifest.xml
 
 # Debug-only deep link used by the CI self-test (miai://selftest/...). Not present in release builds.
 mkdir -p android/app/src/debug

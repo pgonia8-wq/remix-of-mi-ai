@@ -17,12 +17,21 @@
 - [ ] Bloqueado: pruebas físicas Poco C40 / intermedio / Galaxy S26 (usuario)
 - [ ] Bloqueado: clave de firma Release (usuario)
 
-## Fase 2 — Imagen y visión (en curso)
+## Fase 2 — Imagen y visión (completada en código)
 - [x] Visión (analizar imagen) OpenAI y Azure OpenAI + prueba real mínima + análisis guardado cifrado en Biblioteca
 - [ ] Bloqueado: prueba real de visión con tus claves
 - [x] Herramientas locales sin costo (rotar, voltear, recortar, escalar, convertir) como versiones nuevas cifradas
 - [x] Historial de versiones, subir imágenes/audio a la Biblioteca, generar 1–4 imágenes
-- [ ] Más adelante (usuario): integrar sus ~290 modelos de Azure (registro masivo) — luego quitar fondo/upscale con IA
+- [x] Eliminar fondo y mejorar resolución con IA para cualquier modelo que declare la capacidad
+- [ ] Más adelante (usuario): registro masivo de sus ~290 modelos de Azure
+
+## Fase 3 — Audio y voz (completada en código)
+- [x] Texto a voz con selección de voz y velocidad (OpenAI, Azure OpenAI, ElevenLabs)
+- [x] Transcribir y traducir audio (OpenAI, Azure OpenAI, ElevenLabs Scribe), grabando o subiendo archivo
+- [x] Clonar voz (ElevenLabs) con consentimiento obligatorio; solo se guarda el ID de la voz
+- [x] Chat: dictado por micrófono y «Leer en voz alta»; permiso de micrófono en Android
+- [ ] Siguiente: compilar APK de Fases 1–3 y corregir errores de compilación
+- [ ] Bloqueado: pruebas reales con claves del usuario
 
 ## Fase 1 (completada)
 - [x] Proyectos, chats, memoria, documentos, proveedores con prueba real, Azure OpenAI, respaldo cifrado, APK build.3

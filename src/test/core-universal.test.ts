@@ -61,11 +61,11 @@ describe("migración v3 aditiva", () => {
 });
 
 describe("registro universal", () => {
-  it("carga las 21 capacidades iniciales y admite capacidades nuevas sin cambiar el esquema", async () => {
-    expect((await repo.registry.listCapabilities()).length).toBe(21);
+  it("carga las capacidades iniciales y admite capacidades nuevas sin cambiar el esquema", async () => {
+    expect((await repo.registry.listCapabilities()).length).toBe(INITIAL_CAPABILITIES.length);
     expect(INITIAL_CAPABILITIES.map((c) => c.id)).toContain("speech.realtime");
     await repo.registry.registerCapability({ ...INITIAL_CAPABILITIES[0]!, id: "model3d.generate", label: "3D", outputs: ["model3d"] });
-    expect((await repo.registry.listCapabilities()).length).toBe(22);
+    expect((await repo.registry.listCapabilities()).length).toBe(INITIAL_CAPABILITIES.length + 1);
     await expect(repo.registry.registerCapability({ ...INITIAL_CAPABILITIES[0]!, id: "Bad Id" })).rejects.toThrow();
   });
 
@@ -314,7 +314,7 @@ describe("adaptadores", () => {
     expect(getAdapter("openai").supports("image.generate")).toBe(true);
     expect(getAdapter("elevenlabs").supports("image.generate")).toBe(false);
     expect(getAdapter("text:mistral").supports("audio.tts")).toBe(false);
-    expect(getAdapter("azure_openai").supports("audio.tts")).toBe(false);
+    expect(getAdapter("azure_openai").supports("video.generate")).toBe(false);
   });
   it("Azure imágenes: /openai/v1 en el cuerpo; URL clásica en la ruta con api-version", () => {
     const c = { kind: "azure_openai" as const, endpoint: "https://r.services.ai.azure.com/openai/v1/chat/completions", apiKey: "k", deployment: "img", apiVersion: null, model: "img", extraParams: null };

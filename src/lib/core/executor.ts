@@ -7,6 +7,7 @@ import type { AssetStore, Asset } from "./asset-store";
 import type { JobManager } from "./jobs";
 import type { ModelWithCaps } from "./registry";
 import { TEST_PNG_B64 } from "./adapters/vision";
+import { testWav } from "./adapters/audio";
 import { b64ToBytes } from "./adapters/types";
 
 export type ExecResult = { jobId: string; text?: string; assets: Asset[] };
@@ -77,9 +78,15 @@ export async function testOperation(repo: Repo, model: ModelWithCaps, capability
       "image.generate": { prompt: "Un círculo azul sobre fondo blanco, ilustración simple", params: { size: "1024x1024", quality: "low", n: 1 } },
       "audio.tts": { prompt: "Prueba de MI AI." },
     };
-    const p = prompts[capability];
-    if (!p) return { ok: false, httpStatus: null, message: "Esta operación necesita un archivo de entrada; pruébala desde la Biblioteca." };
-    const files = capability === "vision" ? [{ bytes: b64ToBytes(TEST_PNG_B64), mime: "image/png", name: "prueba.png" }] : undefined;
+    const audioCaps = ["audio.transcribe", "audio.translate"];
+    if (audioCaps.includes(capability)) {
+      const r = await adapter.run(creds, { capability, model: model.remote_id, files: [{ bytes: testWav(), mime: "audio/wav", name: "prueba.wav" }], params: { allowEmpty: true } });
+      return r.kind === "text" ? { ok: true, httpStatus: 200, message: "Operación real completada (el proveedor procesó el audio de prueba)." } : { ok: false, httpStatus: 200, message: "Respuesta inválida." };
+    }
+    const imageIn = ["vision", "image.edit", "image.upscale", "image.remove_bg"];
+    const p = prompts[capability] ?? (imageIn.includes(capability) ? { prompt: capability === "image.edit" ? "Cambia el color a rojo." : "" } : undefined);
+    if (!p) return { ok: false, httpStatus: null, message: "Esta operación necesita un archivo propio; pruébala desde la Biblioteca." };
+    const files = imageIn.includes(capability) ? [{ bytes: b64ToBytes(TEST_PNG_B64), mime: "image/png", name: "prueba.png" }] : undefined;
     const r = await adapter.run(creds, { capability, model: model.remote_id, prompt: p.prompt, ...(p.params ? { params: p.params } : {}), ...(files ? { files } : {}) });
     const ok = (r.kind === "text" && r.text.trim().length > 0) || (r.kind === "files" && r.files.length > 0 && r.files[0]!.bytes.length > 100);
     return ok ? { ok: true, httpStatus: 200, message: "Operación real completada." } : { ok: false, httpStatus: 200, message: "Respuesta vacía." };

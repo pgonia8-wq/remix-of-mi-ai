@@ -11,6 +11,7 @@ import { execute } from "@/lib/core/executor";
 import type { Asset } from "@/lib/core/asset-store";
 import { isNative } from "@/lib/app-db";
 import { NeedProject, inputCls } from "@/components/AppShell";
+import { AudioStudio } from "@/components/AudioStudio";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/library")({
@@ -29,8 +30,10 @@ export const Route = createFileRoute("/library")({
 
 const CREATE_CAPS = [
   { id: "image.generate", label: "Imagen" },
-  { id: "audio.tts", label: "Voz" },
   { id: "vision", label: "Analizar" },
+  { id: "audio.tts", label: "Voz" },
+  { id: "audio.transcribe", label: "Transcribir" },
+  { id: "audio.voice_clone", label: "Clonar" },
 ];
 
 function Library() {
@@ -170,18 +173,19 @@ function AssetDetail({ a, onClose, onOpen }: { a: Asset; onClose: () => void; on
       }
     } catch (e) { toast.error((e as Error).message); }
   }
-  async function runEdit() {
-    if (!edit.trim()) return;
+  async function runEdit(capability = "image.edit") {
+    if (capability === "image.edit" && !edit.trim()) return;
     setBusy(true);
     try {
       const c = await getCore();
-      const d = route(await c.repo.registry.listModels(), { capability: "image.edit", mode: "auto" });
+      const d = route(await c.repo.registry.listModels(), { capability, mode: "auto" });
       if (!d.ok) { toast.error(d.reason); return; }
       const bytes = await c.assets.read(a.project_id, a.id);
-      await execute(c, a.project_id, d.model, { capability: "image.edit", prompt: edit, files: [{ bytes, mime: a.mime, name: `entrada.${a.format ?? "png"}` }], parentAssetId: a.id });
+      const r = await execute(c, a.project_id, d.model, { capability, ...(capability === "image.edit" ? { prompt: edit } : {}), files: [{ bytes, mime: a.mime, name: `entrada.${a.format ?? "png"}` }], parentAssetId: a.id });
       toast.success(`Nueva versión con ${d.model.name}`);
       setEdit("");
       await mutate(async () => undefined);
+      if (r.assets[0]) onOpen(r.assets[0]);
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
   }
 
@@ -211,6 +215,14 @@ function AssetDetail({ a, onClose, onOpen }: { a: Asset; onClose: () => void; on
           </div>
         )}
         {a.kind === "image" && (
+          <div className="space-y-1"><p className="text-xs text-muted-foreground">Con IA (usa el modelo que tenga la capacidad; puede tener costo)</p>
+            <div className="flex gap-1">
+              <Button size="sm" variant="outline" disabled={busy} onClick={() => runEdit("image.remove_bg")}><Wand2 /> Eliminar fondo</Button>
+              <Button size="sm" variant="outline" disabled={busy} onClick={() => runEdit("image.upscale")}><Sparkles /> Mejorar resolución</Button>
+            </div>
+          </div>
+        )}
+        {a.kind === "image" && (
           <div className="space-y-1"><p className="text-xs text-muted-foreground">Herramientas en el teléfono (sin costo, sin internet)</p>
             <div className="flex flex-wrap gap-1">{TOOLS.map((o) => <Button key={JSON.stringify(o)} size="sm" variant="outline" disabled={busy} onClick={() => tool(o)}>{describeOp(o)}</Button>)}</div>
           </div>
@@ -224,7 +236,7 @@ function AssetDetail({ a, onClose, onOpen }: { a: Asset; onClose: () => void; on
         )}
         {a.kind === "image" && (
           <div className="flex gap-2"><input className={inputCls} placeholder="Editar con instrucciones (crea versión nueva)" value={edit} onChange={(e) => setEdit(e.target.value)} />
-            <Button disabled={busy} onClick={runEdit}><Wand2 />{busy ? "…" : ""}</Button></div>
+            <Button disabled={busy} onClick={() => runEdit()}><Wand2 />{busy ? "…" : ""}</Button></div>
         )}
         <div className="grid grid-cols-3 gap-2">
           <Button variant="outline" onClick={exportFile}><Download /> Exportar</Button>
@@ -276,7 +288,8 @@ function Create({ projectId }: { projectId: string }) {
 
   return (
     <section className="space-y-2 rounded-xl border bg-card p-3 text-sm">
-      <div className="flex gap-1">{CREATE_CAPS.map((c) => <button key={c.id} onClick={() => setCap(c.id)} className={`flex-1 rounded-lg border px-2 py-1.5 text-xs ${cap === c.id ? "border-primary bg-primary text-primary-foreground" : ""}`}>{c.label}</button>)}</div>
+      <div className="flex flex-wrap gap-1">{CREATE_CAPS.map((c) => <button key={c.id} onClick={() => setCap(c.id)} className={`flex-1 rounded-lg border px-2 py-1.5 text-xs ${cap === c.id ? "border-primary bg-primary text-primary-foreground" : ""}`}>{c.label}</button>)}</div>
+      {cap.startsWith("audio.") ? <AudioStudio key={cap} projectId={projectId} cap={cap as "audio.tts"} /> : <>
       {cap === "vision" && (
         <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed p-3 text-xs">
           <Upload className="h-4 w-4" /> {file ? file.name : "Elegir imagen (PNG, JPEG, WEBP, GIF)"}
@@ -297,6 +310,7 @@ function Create({ projectId }: { projectId: string }) {
       </p>
       <Button className="w-full" disabled={busy || !decision.ok} onClick={run}><Sparkles />{busy ? "Procesando…" : cap === "vision" ? "Analizar" : "Generar"}</Button>
       {answer !== null && <p className="whitespace-pre-wrap rounded-lg border bg-background p-2 text-sm">{answer}</p>}
+      </>}
     </section>
   );
 }

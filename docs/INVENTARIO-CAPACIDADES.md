@@ -10,10 +10,11 @@ Ninguna capacidad se marca "funcional con proveedor" sin una operación real con
 | vision | Programada · unitarias | OpenAI, Azure OpenAI (chat/completions con imagen) | Biblioteca cifrada | Por token | Unitarias; sin operación real | 2 |
 | image.generate | Programada · Web (UI) | OpenAI Images, Azure OpenAI Images | Biblioteca cifrada, jobs | Por imagen | Unitarias con respuestas simuladas; sin operación real | 1 |
 | image.edit | Programada | OpenAI Images (edits) | image.generate, versiones | Por imagen | Unitarias; sin operación real | 1 |
-| image.upscale / image.remove_bg | Pendiente | — | image.edit | — | — | 2 |
-| audio.tts | Programada | OpenAI TTS, ElevenLabs | Biblioteca | Por carácter | Unitarias; sin operación real | 1 |
-| audio.stt | Programada | OpenAI transcripciones | Biblioteca | Por minuto | Unitarias; sin operación real | 1 |
-| audio.voice_clone | Pendiente | ElevenLabs | audio.tts, consentimiento | — | — | 3 |
+| image.upscale / image.remove_bg | Programada · unitarias | Cualquier modelo OpenAI/Azure con images/edits | image.edit | Por imagen | Unitarias; sin operación real | 2 |
+| audio.tts | Programada | OpenAI, Azure OpenAI, ElevenLabs (voces) | Biblioteca | Por carácter | Unitarias; sin operación real | 1 |
+| audio.transcribe | Programada · Web (micrófono) | OpenAI, Azure OpenAI, ElevenLabs | Biblioteca | Por minuto | Unitarias; sin operación real | 1 |
+| audio.voice_clone | Programada · Web (grabación) · unitarias | ElevenLabs | consentimiento | Según plan | Unitarias; sin operación real | 3 |
+| audio.translate | Programada · unitarias | OpenAI, Azure OpenAI | — | Por minuto | Unitarias | 3 |
 | music.generate | Pendiente | — | jobs largos | — | — | 7 |
 | video.generate / video.edit | Pendiente | — | jobs largos con sondeo | — | — | 6 |
 | model3d.generate | Pendiente | — | jobs largos | — | — | 6 |

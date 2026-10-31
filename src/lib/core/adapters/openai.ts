@@ -2,6 +2,7 @@
 import { streamChat, ProviderError } from "../../providers";
 import { call, requireKey } from "./http";
 import { visionBody, parseVision } from "./vision";
+import { OPENAI_VOICES, parseSpeech, parseTranscript, speechBody, transcriptionForm } from "./audio";
 import { b64ToBytes, sync, trimSlash, type AdapterCredentials, type ProviderAdapter, type RunRequest, type RunResult } from "./types";
 
 export async function chatViaLegacy(c: AdapterCredentials, r: RunRequest): Promise<RunResult> {
@@ -34,7 +35,25 @@ export function editForm(r: RunRequest, withModel: boolean) {
   f.append("prompt", r.prompt ?? "");
   for (const file of r.files ?? []) f.append("image[]", new Blob([file.bytes as BlobPart], { type: file.mime }), file.name);
   if (r.params?.["size"]) f.append("size", String(r.params["size"]));
+  if (r.params?.["background"]) f.append("background", String(r.params["background"]));
+  if (r.params?.["output_format"]) f.append("output_format", String(r.params["output_format"]));
+  if (r.params?.["quality"]) f.append("quality", String(r.params["quality"]));
   return f;
+}
+
+/**
+ * AI background removal and resolution enhancement for any model on the OpenAI-style images/edits contract.
+ * Works with whichever model the user marks with these capabilities; the instruction keeps the subject unchanged.
+ */
+export function derivedEdit(r: RunRequest): RunRequest {
+  if (!r.files?.length) throw new ProviderError("parameters", "Esta operación requiere una imagen de entrada.");
+  const gptImage = /gpt-image/i.test(r.model);
+  if (r.capability === "image.remove_bg") {
+    return { ...r, capability: "image.edit", prompt: r.prompt?.trim() || "Remove the background completely. Keep the main subject exactly as it is, with clean precise edges and its original colors. Transparent background.",
+      params: { ...r.params, ...(gptImage ? { background: "transparent", output_format: "png" } : {}) } };
+  }
+  return { ...r, capability: "image.edit", prompt: r.prompt?.trim() || "Upscale and enhance this exact image: increase sharpness, fine detail and clarity, reduce noise and compression artifacts. Do not change composition, subjects, colors, text or style.",
+    params: { ...r.params, ...(gptImage ? { quality: "high" } : {}) } };
 }
 
 const base = (c: AdapterCredentials) => trimSlash(c.endpoint?.trim() || "https://api.openai.com/v1");
@@ -42,7 +61,8 @@ const base = (c: AdapterCredentials) => trimSlash(c.endpoint?.trim() || "https:/
 export const openaiAdapter: ProviderAdapter = {
   id: "openai",
   label: "OpenAI",
-  operations: { chat: sync(), vision: sync(), "image.generate": sync(), "image.edit": sync(), "audio.tts": sync(), "audio.transcribe": sync() },
+  operations: { chat: sync(), vision: sync(), "image.generate": sync(), "image.edit": sync(), "image.upscale": sync(), "image.remove_bg": sync(), "audio.tts": sync(), "audio.transcribe": sync(), "audio.translate": sync() },
+  async listVoices() { return OPENAI_VOICES.map((v) => ({ id: v, name: v })); },
   supports(cap) { return cap in this.operations; },
   async run(c, r) {
     const key = requireKey(c.apiKey);
@@ -57,27 +77,22 @@ export const openaiAdapter: ProviderAdapter = {
         const res = await call(`${base(c)}/images/generations`, { method: "POST", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify(imageBody(r)), signal: r.signal ?? null }, key);
         return { kind: "files", files: parseImages(await res.json(), String(r.params?.["output_format"] ?? "png")) };
       }
+      case "image.upscale":
+      case "image.remove_bg": return openaiAdapter.run(c, derivedEdit(r));
       case "image.edit": {
         if (!r.files?.length) throw new ProviderError("parameters", "Editar imagen requiere al menos una imagen de entrada.");
         const res = await call(`${base(c)}/images/edits`, { method: "POST", headers: auth, body: editForm(r, true), signal: r.signal ?? null }, key);
         return { kind: "files", files: parseImages(await res.json(), "png") };
       }
       case "audio.tts": {
-        const res = await call(`${base(c)}/audio/speech`, { method: "POST", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify({ model: r.model, input: r.prompt ?? "", voice: r.params?.["voice"] ?? "alloy", response_format: "mp3" }), signal: r.signal ?? null }, key);
-        const bytes = new Uint8Array(await res.arrayBuffer());
-        if (bytes.length < 100) throw new ProviderError("parameters", "Respuesta inválida: audio vacío.", 200);
-        return { kind: "files", files: [{ bytes, mime: "audio/mpeg", name: "voz.mp3" }] };
+        const res = await call(`${base(c)}/audio/speech`, { method: "POST", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify(speechBody(r, true)), signal: r.signal ?? null }, key);
+        return parseSpeech(res);
       }
-      case "audio.transcribe": {
-        const file = r.files?.[0];
-        if (!file) throw new ProviderError("parameters", "Transcribir requiere un archivo de audio.");
-        const f = new FormData();
-        f.append("model", r.model);
-        f.append("file", new Blob([file.bytes as BlobPart], { type: file.mime }), file.name);
-        const res = await call(`${base(c)}/audio/transcriptions`, { method: "POST", headers: auth, body: f, signal: r.signal ?? null }, key);
-        const d = await res.json();
-        if (typeof d?.text !== "string") throw new ProviderError("parameters", "Respuesta inválida: sin transcripción.", 200);
-        return { kind: "text", text: d.text };
+      case "audio.transcribe":
+      case "audio.translate": {
+        const tr = r.capability === "audio.translate";
+        const res = await call(`${base(c)}/audio/${tr ? "translations" : "transcriptions"}`, { method: "POST", headers: auth, body: transcriptionForm(r, true, tr), signal: r.signal ?? null }, key);
+        return parseTranscript(res, !!r.params?.["allowEmpty"]);
       }
     }
     throw new ProviderError("parameters", `OpenAI no implementa «${r.capability}» en este adaptador.`);
