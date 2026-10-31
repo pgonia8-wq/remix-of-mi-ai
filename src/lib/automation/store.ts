@@ -12,9 +12,17 @@ export const stepSchema = z.object({
   id: z.string().min(1), name: z.string().min(1).max(100), tool: z.enum(TOOLS), prompt: z.string().max(60_000),
   agentId: z.string().nullable().default(null), approval: z.boolean().default(true),
   contains: z.string().max(200).default(""), repeat: z.number().int().min(1).max(3).default(1),
+  next: z.string().nullable().optional(), otherwise: z.string().nullable().optional(),
+  dependsOn: z.array(z.string()).max(20).optional(),
 });
 export const flowSchema = z.object({ steps: z.array(stepSchema).min(1).max(20), maxCalls: z.number().int().min(1).max(20) }).superRefine((v, ctx) => {
   if (new Set(v.steps.map((s) => s.id)).size !== v.steps.length) ctx.addIssue({ code: "custom", message: "Los pasos necesitan identificadores únicos." });
+  v.steps.forEach((s, i) => {
+    for (const target of [s.next, s.otherwise, ...(s.dependsOn ?? [])]) {
+      if (target && !v.steps.some((x) => x.id === target)) ctx.addIssue({ code: "custom", message: "Referencia a paso inexistente." });
+    }
+    for (const dep of s.dependsOn ?? []) if (!v.steps.slice(0, i).some((x) => x.id === dep)) ctx.addIssue({ code: "custom", message: "Dependencias deben señalar pasos anteriores." });
+  });
 });
 export type Flow = z.infer<typeof flowSchema>;
 export type Step = z.infer<typeof stepSchema>;

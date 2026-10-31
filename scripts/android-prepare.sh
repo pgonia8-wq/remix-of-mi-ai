@@ -52,6 +52,10 @@ XML
 JAVA_DIR=android/app/src/main/java/com/miai/app
 mkdir -p "$JAVA_DIR"
 cp scripts/native/MiaiKeystorePlugin.java "$JAVA_DIR/MiaiKeystorePlugin.java"
+cp scripts/native/MiaiRemotePlugin.java "$JAVA_DIR/MiaiRemotePlugin.java"
 cp scripts/native/MainActivity.java "$JAVA_DIR/MainActivity.java"
+grep -q 'com.github.mwiede:jsch' android/app/build.gradle || printf '\ndependencies { implementation "com.github.mwiede:jsch:2.28.2" }\n' >> android/app/build.gradle
+# Package visibility for launching a separately installed Termux (no local shell bridge).
+grep -q 'package android:name="com.termux"' android/app/src/main/AndroidManifest.xml || sed -i 's#<application#<queries><package android:name="com.termux" /></queries>\n    <application#' android/app/src/main/AndroidManifest.xml
 
 echo "Android project ready: version ${VERSION_NAME} (${VERSION_CODE})"

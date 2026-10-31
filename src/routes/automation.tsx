@@ -8,6 +8,8 @@ import { useActiveProjectId, useCoreQuery, useCoreMutate } from "@/lib/use-app";
 import { agents, workflows, runs, TOOLS, type Flow, type Step, type Workflow, type Run } from "@/lib/automation/store";
 import { advance } from "@/lib/automation/runner";
 import { planFlow } from "@/lib/automation/planner";
+import { delegatePlan, runUntilPause, schedules } from "@/lib/automation/control";
+import { reviewRun } from "@/lib/automation/review";
 
 export const Route = createFileRoute("/automation")({ head: () => ({ meta: [
   { title: "Automatización — MI AI" }, { name: "description", content: "Flujos multimodelo con aprobaciones, condiciones e historial local." },
@@ -21,6 +23,8 @@ function Automation({ pid }: { pid: string }) {
   const { data: history = [] } = useCoreQuery(["runs", pid], (c) => runs.list(c.repo, pid));
   const { data: team = [] } = useCoreQuery(["agents", pid], (c) => agents.list(c.repo, pid));
   const mutate = useCoreMutate();
+  const { data: scheduled = [] } = useCoreQuery(["schedules", pid], (c) => schedules.list(c.repo, pid));
+  const [due, setDue] = useState("");
   const [tab, setTab] = useState("flows"), [edit, setEdit] = useState<string | null>(null), [name, setName] = useState("");
   const [flow, setFlow] = useState<Flow>({ steps: [], maxCalls: 5 }), [goal, setGoal] = useState(""), [input, setInput] = useState(""), [busy, setBusy] = useState(false);
   function open(w?: Workflow) { setEdit(w?.id ?? "new"); setName(w?.name ?? ""); setFlow(w ? JSON.parse(w.definition) as Flow : { steps: [fresh()], maxCalls: 5 }); }
@@ -40,14 +44,22 @@ function Automation({ pid }: { pid: string }) {
         <input aria-label={`Condición paso ${i + 1}`} className={inputCls} placeholder="Solo si el resultado anterior contiene…" value={s.contains} onChange={(e) => patch(s.id, { contains: e.target.value })} />
         <label className="flex items-center gap-2 text-xs">Repeticiones<input className={inputCls + " max-w-20"} type="number" min={1} max={3} value={s.repeat} onChange={(e) => patch(s.id, { repeat: Number(e.target.value) })} /></label>
         <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={s.approval} onChange={(e) => patch(s.id, { approval: e.target.checked })} />Pausar para aprobación</label>
+        <select aria-label={`Rama si cumple paso ${i + 1}`} className={inputCls} value={s.next === null ? "end" : s.next ?? ""} onChange={(e) => patch(s.id, { next: e.target.value === "end" ? null : e.target.value || undefined })}><option value="">Continuar al siguiente</option><option value="end">Terminar flujo</option>{flow.steps.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
+        <select aria-label={`Rama si no cumple paso ${i + 1}`} className={inputCls} value={s.otherwise === null ? "end" : s.otherwise ?? ""} onChange={(e) => patch(s.id, { otherwise: e.target.value === "end" ? null : e.target.value || undefined })}><option value="">Siguiente si no cumple</option><option value="end">Terminar si no cumple</option>{flow.steps.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
+        {i > 0 && <fieldset className="space-y-1"><legend className="text-xs">Dependencias</legend>{flow.steps.slice(0, i).map((x) => <label key={x.id} className="flex gap-2 text-xs"><input type="checkbox" checked={s.dependsOn?.includes(x.id) ?? false} onChange={(e) => patch(s.id, { dependsOn: e.target.checked ? [...(s.dependsOn ?? []), x.id] : s.dependsOn?.filter((d) => d !== x.id) })} />{x.name}</label>)}</fieldset>}
         {i < flow.steps.length - 1 && <ArrowDown className="h-4 w-4 text-muted-foreground" />}
       </div>)}
       <Button variant="outline" disabled={flow.steps.length >= 20} onClick={() => setFlow({ ...flow, steps: [...flow.steps, fresh()] })}><Plus />Paso</Button>
       <div className="flex gap-2"><Button disabled={busy || !name.trim() || !flow.steps.length} onClick={() => action(async (c) => { await workflows.save(c.repo, pid, name, flow, edit === "new" ? undefined : edit); setEdit(null); })}><Save />Guardar flujo</Button><Button variant="outline" onClick={() => setEdit(null)}>Cancelar</Button></div>
       <textarea className={inputCls} placeholder="Objetivo del flujo" rows={3} value={goal} onChange={(e) => setGoal(e.target.value)} />
       <Button variant="outline" disabled={busy || !goal.trim()} onClick={() => action(async (c) => { setFlow(await planFlow(c, pid, goal)); })}><Sparkles />Proponer pasos con IA</Button>
+      <Button variant="outline" disabled={busy || !goal.trim() || !team.length} onClick={() => action(async (c) => { setFlow(await delegatePlan(c, pid, goal)); })}><Sparkles />Distribuir al equipo</Button>
     </div> : <div className="space-y-3">
       <textarea aria-label="Entrada de la ejecución" className={inputCls} rows={3} placeholder="Entrada de la ejecución" value={input} onChange={(e) => setInput(e.target.value)} />
+      <label className="block text-xs">Fecha de programación<input type="datetime-local" className={inputCls} value={due} onChange={(e) => setDue(e.target.value)} /></label>
+      {due && <select aria-label="Programar flujo" className={inputCls} value="" onChange={(e) => e.target.value && action(async (c) => { await schedules.add(c.repo, pid, e.target.value, new Date(due).getTime(), input); setDue(""); })}><option value="">Elige el flujo a programar</option>{list.filter((w) => w.enabled).map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}</select>}
+      {scheduled.map((s) => <div key={s.id} className="flex flex-wrap items-center gap-2 border-b py-2 text-xs"><span>{new Date(s.due_at).toLocaleString()} · {s.status}</span><Button size="sm" variant="outline" disabled={s.status !== "scheduled" || s.due_at > Date.now() || busy} onClick={() => action(async (c) => { await schedules.start(c.repo, pid, s.id); setTab("history"); })}>Abrir ejecución</Button><Button variant="ghost" size="icon" aria-label="Eliminar programación" onClick={() => action((c) => schedules.remove(c.repo, pid, s.id))}><Trash2 /></Button></div>)}
+      {scheduled.length > 0 && <p className="text-xs text-muted-foreground">Programaciones con la app abierta; no se ejecutan con la app cerrada.</p>}
       {list.map((w) => <div key={w.id} className="space-y-2 rounded-lg border bg-card p-3"><div className="flex items-center gap-2"><Button className="min-w-0 flex-1 justify-start truncate" variant="ghost" onClick={() => open(w)}>{w.name}</Button><input aria-label={`Activar ${w.name}`} type="checkbox" checked={!!w.enabled} onChange={(e) => action((c) => workflows.toggle(c.repo, pid, w.id, e.target.checked))} /><Button size="icon" variant="ghost" aria-label={`Eliminar ${w.name}`} onClick={() => confirm("¿Eliminar flujo?") && action((c) => workflows.remove(c.repo, pid, w.id))}><Trash2 /></Button></div><Button variant="outline" disabled={busy || !w.enabled} onClick={() => action(async (c) => { await runs.create(c.repo, pid, w.id, input); setTab("history"); })}><Play />Iniciar</Button></div>)}
       {!list.length && <p className="text-sm text-muted-foreground">Sin flujos.</p>}
     </div>}
@@ -56,6 +68,7 @@ function Automation({ pid }: { pid: string }) {
 function RunItem({ pid, run: r, busy, action }: { pid: string; run: Run; busy: boolean; action: (fn: Parameters<ReturnType<typeof useCoreMutate>>[0]) => Promise<void> }) {
   const { data: events = [] } = useCoreQuery(["events", pid, r.id, r.updated_at], (c) => runs.events(c.repo, pid, r.id));
   const [show, setShow] = useState(false);
+  const [review, setReview] = useState<{ conflicts: string[]; recommendation: string } | null>(null);
   const flow = JSON.parse(r.definition) as Flow;
   const uncertain = ["failed", "recovery_required"].includes(r.status);
   return <div className="space-y-2 rounded-lg border bg-card p-3">
@@ -65,9 +78,12 @@ function RunItem({ pid, run: r, busy, action }: { pid: string; run: Run; busy: b
     <div className="flex flex-wrap gap-2">
       {!["completed", "cancelled", "running"].includes(r.status) && <Button disabled={busy} onClick={() => { if (uncertain && !confirm("¿Repetir el paso? Puede duplicar acciones y costes.")) return; if (r.status === "approval" && !confirm("¿Autorizar esta operación y su posible coste?")) return; action((c) => advance(c, pid, r.id, r.status === "approval", uncertain)); }}><Play />{uncertain ? "Reintentar" : r.status === "approval" ? "Aprobar paso" : "Continuar"}</Button>}
       {!["completed", "cancelled", "running"].includes(r.status) && <Button variant="outline" disabled={busy} onClick={() => action((c) => runs.cancel(c.repo, pid, r.id))}>Cancelar</Button>}
+      {r.status === "ready" && <Button variant="outline" disabled={busy} onClick={() => action((c) => runUntilPause(c, pid, r.id))}>Ejecutar hasta aprobación</Button>}
       <Button variant="ghost" onClick={() => setShow(!show)}>Historial</Button>
+      {r.output && <Button variant="outline" disabled={busy} onClick={() => { if (!confirm("¿Enviar los resultados de este flujo al modelo para revisar conflictos? Puede tener coste.")) return; action(async (c) => { setReview(await reviewRun(c, pid, r.id)); }); }}>Revisar conflictos</Button>}
       {r.output && <Link to="/library" className="text-xs text-primary underline">Resultado en Biblioteca</Link>}
     </div>
     {show && <div className="space-y-1 border-t pt-2">{events.map((e) => <p key={e.id} className="break-words text-xs"><span className="text-muted-foreground">{new Date(e.created_at).toLocaleTimeString()} · {e.step_id} · {e.agent_id ? "Agente " + e.agent_id.slice(0, 8) : "Sin agente"}</span><br />{e.kind}: {e.detail}</p>)}</div>}
+    {review && <div className="space-y-2 border-t pt-2 text-sm">{review.conflicts.map((c,i) => <p className="text-destructive" key={i}>{c}</p>)}<p>{review.recommendation}</p><p className="text-xs text-muted-foreground">Revisión propuesta; ninguna decisión se aplicó automáticamente.</p></div>}
   </div>;
 }

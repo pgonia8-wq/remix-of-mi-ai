@@ -24,8 +24,13 @@ Ninguna capacidad se marca "funcional con proveedor" sin una operación real con
 | estudio (cuestionarios, tarjetas SM-2, planes) | Programada · Web · unitarias | Cualquier modelo de chat | — | Por token | Unitarias | 5 |
 | code.execute (JavaScript síncrono) | Programada · Web · unitarias · APK compilada | QuickJS WASM en worker sin puentes al host | límites memoria/tiempo/salida | Local sin costo | Ejecución real en Chromium; pendiente Android | 6 |
 | agent.run / workflow.run (secuencias revisadas) | Programada · Web local · unitarias · APK compilada | Herramientas permitidas, router exacto, aprobaciones, límites | agentes por proyecto, jobs, biblioteca | Por solicitud externa | Flujo real guardar nota; sin proveedores reales | 6 |
-| Terminal / SSH / SFTP / Git / GitHub / Termux | Pendiente | — | permisos y conectores externos | — | — | 6 |
-| Orquestación autónoma, ramas generales y programación Android | Pendiente | — | ampliación de motor y permisos | — | — | 6 |
+| Terminal SSH / SFTP / Git remoto / abrir Termux | Programada; no compilada ni probada Android | JSch nativo, known_hosts estricto, autorización nativa | servidor Linux, Termux instalado | servidor del usuario | Sin ejecución real | 6–7 |
+| GitHub archivos y commits | Programada; pantalla Web | API GitHub on-device, token cifrado fuera de respaldos | token y repositorio autorizados | proveedor | Sin cuenta real probada | 6–7 |
+| Ramas, dependencias, delegación y revisión de conflictos | Programada · Web local (rama) · unitarias | router y aprobaciones | modelos de chat para propuestas/revisión | por solicitud | Propuestas multiagente sin prueba real | 6 |
+| Fechas de ejecución | Programada · unitarias | programación revisada con app abierta | ninguna ejecución automática app cerrada | local | fecha y no duplicación | 6 |
+| Workspace / entregables / archivos / favoritos | Programada · Web | Repo + AssetStore | proyecto | local | persistencia y movimiento real en Chromium | 7 |
+| CSV/Excel, estadísticas, gráficos y escenarios de costos | Programada · Web · unitarias | XLSX y fórmulas locales | datos del usuario | local | CSV real: suma 100, media/mediana 25 | 7 |
+| Disparadores segundo plano, PC y conectores específicos cloud/Termius | Pendiente | — | módulos adicionales y permisos | — | — | 6–7 |
 | embedding (memoria inteligente) | Programada · unitarias | OpenAI, Azure OpenAI | chat | Por token | Unitarias; sin operación real | 5 |
 
 ## Núcleo (Etapa 1)

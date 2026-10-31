@@ -43,10 +43,14 @@
 - [x] Estudio: explicar, cuestionarios, tarjetas con repaso espaciado, planes de estudio
 
 ## Siguiente
+- [x] Ampliación Fase 6: ramas, dependencias, ejecución hasta aprobación, delegación propuesta al equipo, revisión de conflictos, programación manual por fecha
+- [x] Desarrollo: editor CodeMirror, resaltado/autocompletado, comparación de cambios; SSH/SFTP Android con confirmación nativa y host confiable; Git remoto por comandos revisados; archivos GitHub por API con token cifrado
+- [x] Fase 7 local: espacio profesional, búsqueda/favoritos, archivos cifrados, entregables por estado, CSV/Excel, estadísticas/gráfico local, escenarios de costos e informes
 - [x] Fase 6 (antes 8), entrega parcial: agentes por proyecto, secuencias revisadas, condiciones de texto, repeticiones limitadas, historial, aprobación, límites y JavaScript aislado
 - [x] Compilar APK build.4 con Fases 1–5 y la entrega parcial de Fase 6; comprobar firma, minSdk y ABI
-- [ ] Fase 6 pendiente: terminal/Termux, SSH/SFTP, Git/GitHub, integraciones externas con autorización (sin conectores implementados)
-- [ ] Fase 6 pendiente: delegación autónoma, resolución de conflictos, ramas generales, disparadores y programación Android (motor aún secuencial/manual)
+- [ ] Fase 6 pendiente: ejecución autónoma en segundo plano/disparadores Android, PC y conectores específicos de nubes/Termius (no implementados; requieren módulos externos, no solo credenciales)
+- [ ] Bloqueado: comprobar SSH/SFTP/Termux en Android, GitHub y revisión multiagente con cuentas/servidor reales (entornos y credenciales no disponibles)
+- [ ] Compilar las ampliaciones de Fase 6–7 (no solicitado en este turno; build.4 NO las incluye)
 - [ ] Bloqueado: validar APK build.4, SQLCipher/Keystore y JavaScript en Android/Poco C40 (sin teléfono ni emulador acelerado disponible)
 - [ ] Bloqueado: pruebas reales con claves del usuario (Azure, Tavily, ElevenLabs)
 

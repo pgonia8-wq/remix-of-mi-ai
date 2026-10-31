@@ -14,17 +14,21 @@ import { Route as AgentsRouteImport } from './routes/agents'
 import { Route as AutomationRouteImport } from './routes/automation'
 import { Route as ChatsRouteImport } from './routes/chats'
 import { Route as CodeRouteImport } from './routes/code'
+import { Route as DataRouteImport } from './routes/data'
 import { Route as DiagnosticsRouteImport } from './routes/diagnostics'
 import { Route as DocumentsRouteImport } from './routes/documents'
+import { Route as GithubRouteImport } from './routes/github'
 import { Route as JobsRouteImport } from './routes/jobs'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as MemoryRouteImport } from './routes/memory'
 import { Route as ModelsRouteImport } from './routes/models'
 import { Route as NotesRouteImport } from './routes/notes'
 import { Route as ResearchRouteImport } from './routes/research'
+import { Route as ServersRouteImport } from './routes/servers'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as StudyRouteImport } from './routes/study'
 import { Route as ToolsRouteImport } from './routes/tools'
+import { Route as WorkspaceRouteImport } from './routes/workspace'
 import { Route as ChatChatIdRouteImport } from './routes/chat.$chatId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -52,6 +56,11 @@ const CodeRoute = CodeRouteImport.update({
   path: '/code',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DataRoute = DataRouteImport.update({
+  id: '/data',
+  path: '/data',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DiagnosticsRoute = DiagnosticsRouteImport.update({
   id: '/diagnostics',
   path: '/diagnostics',
@@ -60,6 +69,11 @@ const DiagnosticsRoute = DiagnosticsRouteImport.update({
 const DocumentsRoute = DocumentsRouteImport.update({
   id: '/documents',
   path: '/documents',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GithubRoute = GithubRouteImport.update({
+  id: '/github',
+  path: '/github',
   getParentRoute: () => rootRouteImport,
 } as any)
 const JobsRoute = JobsRouteImport.update({
@@ -92,6 +106,11 @@ const ResearchRoute = ResearchRouteImport.update({
   path: '/research',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ServersRoute = ServersRouteImport.update({
+  id: '/servers',
+  path: '/servers',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -107,6 +126,11 @@ const ToolsRoute = ToolsRouteImport.update({
   path: '/tools',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WorkspaceRoute = WorkspaceRouteImport.update({
+  id: '/workspace',
+  path: '/workspace',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ChatChatIdRoute = ChatChatIdRouteImport.update({
   id: '/chat/$chatId',
   path: '/chat/$chatId',
@@ -119,17 +143,21 @@ export interface FileRoutesByFullPath {
   '/automation': typeof AutomationRoute
   '/chats': typeof ChatsRoute
   '/code': typeof CodeRoute
+  '/data': typeof DataRoute
   '/diagnostics': typeof DiagnosticsRoute
   '/documents': typeof DocumentsRoute
+  '/github': typeof GithubRoute
   '/jobs': typeof JobsRoute
   '/library': typeof LibraryRoute
   '/memory': typeof MemoryRoute
   '/models': typeof ModelsRoute
   '/notes': typeof NotesRoute
   '/research': typeof ResearchRoute
+  '/servers': typeof ServersRoute
   '/settings': typeof SettingsRoute
   '/study': typeof StudyRoute
   '/tools': typeof ToolsRoute
+  '/workspace': typeof WorkspaceRoute
   '/chat/$chatId': typeof ChatChatIdRoute
 }
 export interface FileRoutesByTo {
@@ -138,17 +166,21 @@ export interface FileRoutesByTo {
   '/automation': typeof AutomationRoute
   '/chats': typeof ChatsRoute
   '/code': typeof CodeRoute
+  '/data': typeof DataRoute
   '/diagnostics': typeof DiagnosticsRoute
   '/documents': typeof DocumentsRoute
+  '/github': typeof GithubRoute
   '/jobs': typeof JobsRoute
   '/library': typeof LibraryRoute
   '/memory': typeof MemoryRoute
   '/models': typeof ModelsRoute
   '/notes': typeof NotesRoute
   '/research': typeof ResearchRoute
+  '/servers': typeof ServersRoute
   '/settings': typeof SettingsRoute
   '/study': typeof StudyRoute
   '/tools': typeof ToolsRoute
+  '/workspace': typeof WorkspaceRoute
   '/chat/$chatId': typeof ChatChatIdRoute
 }
 export interface FileRoutesById {
@@ -158,17 +190,21 @@ export interface FileRoutesById {
   '/automation': typeof AutomationRoute
   '/chats': typeof ChatsRoute
   '/code': typeof CodeRoute
+  '/data': typeof DataRoute
   '/diagnostics': typeof DiagnosticsRoute
   '/documents': typeof DocumentsRoute
+  '/github': typeof GithubRoute
   '/jobs': typeof JobsRoute
   '/library': typeof LibraryRoute
   '/memory': typeof MemoryRoute
   '/models': typeof ModelsRoute
   '/notes': typeof NotesRoute
   '/research': typeof ResearchRoute
+  '/servers': typeof ServersRoute
   '/settings': typeof SettingsRoute
   '/study': typeof StudyRoute
   '/tools': typeof ToolsRoute
+  '/workspace': typeof WorkspaceRoute
   '/chat/$chatId': typeof ChatChatIdRoute
 }
 export interface FileRouteTypes {
@@ -179,17 +215,21 @@ export interface FileRouteTypes {
     | '/automation'
     | '/chats'
     | '/code'
+    | '/data'
     | '/diagnostics'
     | '/documents'
+    | '/github'
     | '/jobs'
     | '/library'
     | '/memory'
     | '/models'
     | '/notes'
     | '/research'
+    | '/servers'
     | '/settings'
     | '/study'
     | '/tools'
+    | '/workspace'
     | '/chat/$chatId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -198,17 +238,21 @@ export interface FileRouteTypes {
     | '/automation'
     | '/chats'
     | '/code'
+    | '/data'
     | '/diagnostics'
     | '/documents'
+    | '/github'
     | '/jobs'
     | '/library'
     | '/memory'
     | '/models'
     | '/notes'
     | '/research'
+    | '/servers'
     | '/settings'
     | '/study'
     | '/tools'
+    | '/workspace'
     | '/chat/$chatId'
   id:
     | '__root__'
@@ -217,17 +261,21 @@ export interface FileRouteTypes {
     | '/automation'
     | '/chats'
     | '/code'
+    | '/data'
     | '/diagnostics'
     | '/documents'
+    | '/github'
     | '/jobs'
     | '/library'
     | '/memory'
     | '/models'
     | '/notes'
     | '/research'
+    | '/servers'
     | '/settings'
     | '/study'
     | '/tools'
+    | '/workspace'
     | '/chat/$chatId'
   fileRoutesById: FileRoutesById
 }
@@ -237,17 +285,21 @@ export interface RootRouteChildren {
   AutomationRoute: typeof AutomationRoute
   ChatsRoute: typeof ChatsRoute
   CodeRoute: typeof CodeRoute
+  DataRoute: typeof DataRoute
   DiagnosticsRoute: typeof DiagnosticsRoute
   DocumentsRoute: typeof DocumentsRoute
+  GithubRoute: typeof GithubRoute
   JobsRoute: typeof JobsRoute
   LibraryRoute: typeof LibraryRoute
   MemoryRoute: typeof MemoryRoute
   ModelsRoute: typeof ModelsRoute
   NotesRoute: typeof NotesRoute
   ResearchRoute: typeof ResearchRoute
+  ServersRoute: typeof ServersRoute
   SettingsRoute: typeof SettingsRoute
   StudyRoute: typeof StudyRoute
   ToolsRoute: typeof ToolsRoute
+  WorkspaceRoute: typeof WorkspaceRoute
   ChatChatIdRoute: typeof ChatChatIdRoute
 }
 
@@ -288,6 +340,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CodeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/data': {
+      id: '/data'
+      path: '/data'
+      fullPath: '/data'
+      preLoaderRoute: typeof DataRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/diagnostics': {
       id: '/diagnostics'
       path: '/diagnostics'
@@ -300,6 +359,13 @@ declare module '@tanstack/react-router' {
       path: '/documents'
       fullPath: '/documents'
       preLoaderRoute: typeof DocumentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/github': {
+      id: '/github'
+      path: '/github'
+      fullPath: '/github'
+      preLoaderRoute: typeof GithubRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/jobs': {
@@ -344,6 +410,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ResearchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/servers': {
+      id: '/servers'
+      path: '/servers'
+      fullPath: '/servers'
+      preLoaderRoute: typeof ServersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -365,6 +438,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ToolsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/workspace': {
+      id: '/workspace'
+      path: '/workspace'
+      fullPath: '/workspace'
+      preLoaderRoute: typeof WorkspaceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/chat/$chatId': {
       id: '/chat/$chatId'
       path: '/chat/$chatId'
@@ -381,17 +461,21 @@ const rootRouteChildren: RootRouteChildren = {
   AutomationRoute: AutomationRoute,
   ChatsRoute: ChatsRoute,
   CodeRoute: CodeRoute,
+  DataRoute: DataRoute,
   DiagnosticsRoute: DiagnosticsRoute,
   DocumentsRoute: DocumentsRoute,
+  GithubRoute: GithubRoute,
   JobsRoute: JobsRoute,
   LibraryRoute: LibraryRoute,
   MemoryRoute: MemoryRoute,
   ModelsRoute: ModelsRoute,
   NotesRoute: NotesRoute,
   ResearchRoute: ResearchRoute,
+  ServersRoute: ServersRoute,
   SettingsRoute: SettingsRoute,
   StudyRoute: StudyRoute,
   ToolsRoute: ToolsRoute,
+  WorkspaceRoute: WorkspaceRoute,
   ChatChatIdRoute: ChatChatIdRoute,
 }
 export const routeTree = rootRouteImport
