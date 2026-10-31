@@ -45,7 +45,7 @@ export async function exportDoc(md: string, format: ExportFormat, title: string)
       else children.push(new d.Table({ width: { size: 100, type: d.WidthType.PERCENTAGE }, rows: b.rows.map((r, i) => new d.TableRow({ children: r.map((c) => new d.TableCell({ children: [new d.Paragraph({ children: [new d.TextRun({ text: c, bold: i === 0 })] })] })) })) }));
     }
     const doc = new d.Document({ creator: "MI AI", title, sections: [{ children }] });
-    return new Uint8Array(await (await d.Packer.toBlob(doc)).arrayBuffer());
+    return new Uint8Array(await d.Packer.toArrayBuffer(doc));
   }
   const XLSX = await import("xlsx");
   const wb = XLSX.utils.book_new();
