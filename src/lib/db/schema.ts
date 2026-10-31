@@ -7,6 +7,7 @@ export const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS documents (id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, name TEXT NOT NULL, mime TEXT, size INTEGER NOT NULL, text_content TEXT, file_path TEXT, created_at INTEGER NOT NULL)`,
   // api_key_enc holds AES-GCM ciphertext; the AES key lives in Android Keystore-backed storage.
   `CREATE TABLE IF NOT EXISTS providers (id TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL, endpoint TEXT, api_key_enc TEXT, deployment TEXT, model TEXT NOT NULL, api_version TEXT, extra_params TEXT, enabled INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS provider_verifications (provider_id TEXT PRIMARY KEY REFERENCES providers(id) ON DELETE CASCADE, status TEXT NOT NULL, checked_at INTEGER NOT NULL)`,
   `CREATE INDEX IF NOT EXISTS idx_chats_project ON chats(project_id)`,
   `CREATE INDEX IF NOT EXISTS idx_messages_chat ON messages(project_id, chat_id)`,
   `CREATE INDEX IF NOT EXISTS idx_memory_project ON memory_items(project_id)`,
