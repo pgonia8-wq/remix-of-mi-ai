@@ -94,6 +94,19 @@ export class AssetStore {
     return this.db.all<Asset>(sql + ` ORDER BY a.created_at DESC`, params);
   }
 
+  /** Whole version family (root → every derived version), oldest first, scoped to the project. */
+  async versions(projectId: string, id: string): Promise<Asset[]> {
+    need(projectId);
+    let root = await this.get(projectId, id);
+    for (let i = 0; root?.parent_id && i < 100; i++) { const p = await this.get(projectId, root.parent_id); if (!p) break; root = p; }
+    if (!root) return [];
+    const out: Asset[] = [root];
+    for (let i = 0; i < out.length && out.length < 500; i++) {
+      out.push(...await this.db.all<Asset>(`SELECT * FROM assets WHERE project_id=? AND parent_id=? ORDER BY created_at`, [projectId, out[i]!.id]));
+    }
+    return out.sort((x, y) => x.created_at - y.created_at);
+  }
+
   /** Plaintext only after full verification (header, every block, final record). */
   async read(projectId: string, id: string): Promise<Uint8Array> {
     const a = await this.get(projectId, id);
