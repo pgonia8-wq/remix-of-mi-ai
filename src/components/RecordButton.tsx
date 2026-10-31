@@ -23,7 +23,7 @@ export function RecordButton({ onAudio, disabled, label = "Grabar" }: { onAudio:
     } catch (e) { toast.error((e as Error).message); }
   }
   return (
-    <Button type="button" variant={rec ? "destructive" : "outline"} size="sm" disabled={disabled && !rec} onClick={toggle} aria-label={rec ? "Detener grabación" : label}>
+    <Button type="button" variant={rec ? "destructive" : "outline"} size="sm" disabled={disabled && !rec} onClick={toggle} aria-label={rec ? "Detener grabación" : label || "Dictar"}>
       {rec ? <><Square /> {Math.floor(secs / 60)}:{String(secs % 60).padStart(2, "0")}</> : <><Mic /> {label}</>}
     </Button>
   );
