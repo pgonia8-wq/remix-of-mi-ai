@@ -17,6 +17,7 @@ import { Route as CodeRouteImport } from './routes/code'
 import { Route as DataRouteImport } from './routes/data'
 import { Route as DiagnosticsRouteImport } from './routes/diagnostics'
 import { Route as DocumentsRouteImport } from './routes/documents'
+import { Route as GithubRouteImport } from './routes/github'
 import { Route as JobsRouteImport } from './routes/jobs'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as MemoryRouteImport } from './routes/memory'
@@ -68,6 +69,11 @@ const DiagnosticsRoute = DiagnosticsRouteImport.update({
 const DocumentsRoute = DocumentsRouteImport.update({
   id: '/documents',
   path: '/documents',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GithubRoute = GithubRouteImport.update({
+  id: '/github',
+  path: '/github',
   getParentRoute: () => rootRouteImport,
 } as any)
 const JobsRoute = JobsRouteImport.update({
@@ -140,6 +146,7 @@ export interface FileRoutesByFullPath {
   '/data': typeof DataRoute
   '/diagnostics': typeof DiagnosticsRoute
   '/documents': typeof DocumentsRoute
+  '/github': typeof GithubRoute
   '/jobs': typeof JobsRoute
   '/library': typeof LibraryRoute
   '/memory': typeof MemoryRoute
@@ -162,6 +169,7 @@ export interface FileRoutesByTo {
   '/data': typeof DataRoute
   '/diagnostics': typeof DiagnosticsRoute
   '/documents': typeof DocumentsRoute
+  '/github': typeof GithubRoute
   '/jobs': typeof JobsRoute
   '/library': typeof LibraryRoute
   '/memory': typeof MemoryRoute
@@ -185,6 +193,7 @@ export interface FileRoutesById {
   '/data': typeof DataRoute
   '/diagnostics': typeof DiagnosticsRoute
   '/documents': typeof DocumentsRoute
+  '/github': typeof GithubRoute
   '/jobs': typeof JobsRoute
   '/library': typeof LibraryRoute
   '/memory': typeof MemoryRoute
@@ -209,6 +218,7 @@ export interface FileRouteTypes {
     | '/data'
     | '/diagnostics'
     | '/documents'
+    | '/github'
     | '/jobs'
     | '/library'
     | '/memory'
@@ -231,6 +241,7 @@ export interface FileRouteTypes {
     | '/data'
     | '/diagnostics'
     | '/documents'
+    | '/github'
     | '/jobs'
     | '/library'
     | '/memory'
@@ -253,6 +264,7 @@ export interface FileRouteTypes {
     | '/data'
     | '/diagnostics'
     | '/documents'
+    | '/github'
     | '/jobs'
     | '/library'
     | '/memory'
@@ -276,6 +288,7 @@ export interface RootRouteChildren {
   DataRoute: typeof DataRoute
   DiagnosticsRoute: typeof DiagnosticsRoute
   DocumentsRoute: typeof DocumentsRoute
+  GithubRoute: typeof GithubRoute
   JobsRoute: typeof JobsRoute
   LibraryRoute: typeof LibraryRoute
   MemoryRoute: typeof MemoryRoute
@@ -346,6 +359,13 @@ declare module '@tanstack/react-router' {
       path: '/documents'
       fullPath: '/documents'
       preLoaderRoute: typeof DocumentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/github': {
+      id: '/github'
+      path: '/github'
+      fullPath: '/github'
+      preLoaderRoute: typeof GithubRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/jobs': {
@@ -444,6 +464,7 @@ const rootRouteChildren: RootRouteChildren = {
   DataRoute: DataRoute,
   DiagnosticsRoute: DiagnosticsRoute,
   DocumentsRoute: DocumentsRoute,
+  GithubRoute: GithubRoute,
   JobsRoute: JobsRoute,
   LibraryRoute: LibraryRoute,
   MemoryRoute: MemoryRoute,
