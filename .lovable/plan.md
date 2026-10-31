@@ -1,40 +1,73 @@
-# MI AI: diagnóstico y plan por etapas (especificación universal)
+# MI AI, Etapa 1: Núcleo universal (incluye ampliación y correcciones)
 
-## Por qué la app se ve tan sencilla
-Hasta ahora solo se aprobó y se construyó la Fase 1: la base segura sobre la que se apoya todo lo demás. Las herramientas, la parte creativa, los agentes y el espacio de trabajo nunca entraron en ese alcance.
+Este plan amplía lo que ya existe; no lo reescribe. Cada función se reportará como: Diseñada, Programada, Integrada, Probada en web, Probada en Android o Probada en dispositivo físico.
 
-## Diagnóstico: lo que ya funciona y se conserva
-| Pieza | Estado | Uso en las etapas nuevas |
-|---|---|---|
-| Proyectos, chats y memoria aislados por proyecto | Probado en tu Poco C40 | Base para la biblioteca y el historial |
-| Base de datos local cifrada (SQLCipher) | Compilada para Android | Guarda modelos, trabajos y archivos |
-| API Keys cifradas con Android Keystore | Programado | Se usa igual para todos los proveedores nuevos |
-| Proveedores de texto con prueba real (incluido Azure) | Probado en tu Poco C40 | Se convierte en el primer adaptador del nuevo núcleo |
-| Respaldo y restauración cifrados | Programado y probado en web | Se amplía a los archivos generados |
-| APK automática en GitHub | Funciona | Igual para cada etapa |
+## 1. Arquitectura existente que se conserva
+| Pieza | Decisión |
+|---|---|
+| Proyectos, chats y memoria aislados (Repo con `projectId`) | Se reutiliza sin cambios |
+| SQLCipher en Android, sql.js en la vista web | Se reutiliza y solo se agregan tablas |
+| Llave AES en Android Keystore y cifrado AES-GCM de las API Keys | Se reutiliza y se amplía a archivos |
+| Proveedores de texto y Azure, con su prueba de conexión real | Se envuelven como el primer adaptador, sin cambiar su comportamiento |
+| Respaldo y restauración cifrados | Se amplía con modelos, trabajos y activos |
+| Capacitor, APK automática y script de preparación de Android | Se reutiliza; solo se agrega el plugin de archivos |
 
-No se reemplaza nada de lo anterior.
+Antes de modificar cada pieza se revisará su código y se documentará en el informe si se reutiliza, se amplía o se corrige.
 
-## Etapas (en orden de dependencia)
-1. **Núcleo universal (siguiente paso):** catálogo de modelos con sus capacidades reales, adaptadores por proveedor, un selector que elige el modelo adecuado para cada tarea, un gestor de trabajos largos (en cola, procesando, completado, error, cancelado, con reintento) y una biblioteca de archivos generados. Complejidad alta, pero todas las demás etapas dependen de ella.
-2. **Creación multimodal (MI AI CREATE):** imágenes y su edición, video, editor de video, audio, voz y música. Depende de la etapa 1. Complejidad muy alta, sobre todo el editor de video en un teléfono de gama baja.
-3. **Productividad:** documentos, presentaciones, hojas de cálculo, investigación web, análisis de imágenes y de datos.
-4. **Espacio profesional:** archivos, editor, terminal o Termux, SSH, GitHub y nubes.
-5. **Inteligencia avanzada:** agentes, orquestación, automatizaciones y herramientas encadenadas.
+## 2. Arquitectura nueva
+```text
+Pantallas: Modelos · Biblioteca · Trabajos · Chat (selector)
+        |
+   Model Router  -> explica la elección; el usuario puede cambiarla
+        |
+   Job Manager (estados persistentes, recuperación)
+        |
+   Adaptadores, uno por proveedor o familia de API
+   (texto existente · imagen · audio)
+        |
+   Registry (Provider, Model, ModelVersion, Capability,
+             Endpoint, Configuration, AuthenticationReference)
+        |
+   Repo -> SQLCipher      Asset Store -> archivos cifrados privados
+```
+- **Capacidades:** las identifica un texto (`chat`, `image.generate`, `audio.tts` y las demás de la lista que diste). Su descripción (entradas, salidas, formatos, parámetros, límites, si es síncrona o asíncrona, si se puede cancelar o recuperar) se guarda como datos. Así se agregan capacidades nuevas sin cambiar la base de datos.
+- **Adaptadores:** cada uno declara las operaciones que soporta realmente, y cada operación tiene su propia prueba real y su propio estado.
+- **Router:** filtra estrictamente por la capacidad exacta y después ordena por formato, calidad, contexto, velocidad, costo conocido, disponibilidad, límites, preferencias y privacidad. Ofrece modo manual, favorito o automático. Si ningún modelo es compatible, lo dice claramente; nunca cambia de operación sin avisar.
+- **Trabajos:** estados `queued → submitting → processing → completed | failed | cancelled | interrupted | recovery_required`, con transiciones controladas. Al abrir la app se retoman los pendientes. Si el estado anterior no puede verificarse, el trabajo pasa a `recovery_required` y no se reintenta automáticamente, para no cobrarte dos veces.
+- **Flujos:** la tabla `workflow_steps` relaciona trabajos y activos de entrada y salida. Se prepara la estructura, sin motor de agentes por ahora.
 
-Cada etapa se entrega como su propia APK, y cada función con su estado: diseñada, programada, integrada, probada en web, probada en Android y probada en dispositivo físico.
+## 3. Cambios de base de datos (migración v3, solo agrega)
+`providers_registry`, `models`, `model_versions`, `capabilities`, `model_capabilities`, `endpoints`, `model_configs`, `auth_refs` (apunta a la clave cifrada ya existente, nunca la duplica), `capability_tests`, `jobs`, `job_attempts`, `assets`, `asset_relations`, `workflow_steps`.
+- Todas las tablas de proyecto llevan `project_id` y se filtran en Repo.
+- La migración convierte los proveedores actuales en registros, sin perder datos ni verificaciones.
 
-## Alcance concreto de la Etapa 1
-- Pantalla **Modelos**. Para cada modelo muestra el proveedor, su identificador, qué entradas y salidas acepta (texto, imagen, audio, video), sus límites, su estado de conexión y la fecha de la última prueba.
-- Agregar modelos a mano o importarlos de la lista que ofrece el propio proveedor cuando existe esa lista (OpenAI, Gemini, Mistral, compatibles con OpenAI, Hugging Face). Los que dejan de existir se marcan como retirados.
-- Primeros adaptadores nuevos, que ya dejan lista la etapa 2: un proveedor de imágenes (OpenAI Images o Stability) y uno de audio (ElevenLabs o Deepgram). Cada uno debe completar una operación real antes de marcarse como funcional.
-- Gestor de trabajos con progreso, cancelación y recuperación al volver a abrir la app.
-- **Biblioteca** por proyecto con imágenes, audios y archivos, vista ampliada y descarga. Todo queda cifrado en el teléfono.
-- Selector de modelo en el chat filtrado por capacidad.
+## 4. Adaptadores de esta etapa
+- **Texto (existente):** OpenAI, Anthropic, Gemini, Azure OpenAI, xAI, DeepSeek, Mistral, Cohere y compatibles con OpenAI. Se agrega importar la lista de modelos de cada proveedor cuando su API la ofrece.
+- **Imagen:** OpenAI Images (gpt-image) y Azure OpenAI con un despliegue de imágenes. Este segundo usa tu cuenta Azure. Operaciones: `image.generate` y `image.edit`.
+- **Audio:** OpenAI (`audio.tts` y `audio.transcribe`) y ElevenLabs (`audio.tts`).
+
+## 5. Riesgos y limitaciones
+- Las operaciones reales necesitan tus claves con acceso a esos modelos. Sin ellas, el proveedor queda como "Programado", nunca como "Funcional".
+- No puedo instalar ni probar en tu Poco C40. Esa columna la llenas tú.
+- El emulador de este entorno no arranca rápido. La prueba en Android se hará en GitHub Actions; si falla, se informará como no ejecutada.
+- Archivos grandes en un teléfono de gama baja: se cifran por bloques para no cargarlos completos en memoria.
+- No todos los proveedores permiten cancelar o consultar trabajos. Cada adaptador lo declara.
+
+## 6. Plan de pruebas
+- Unitarias y de integración: registro y actualización de modelos, varias capacidades por modelo, compatibilidad de adaptadores, que el router nunca elija un modelo incompatible, transiciones de trabajos, recuperación tras cerrar la app, reintentos sin duplicar cobros, cifrado e integridad de archivos (incluido un archivo alterado que debe ser rechazado), aislamiento entre proyectos, respaldo y restauración con activos, y que los proveedores actuales sigan funcionando igual.
+- Reales: una generación de imagen y una de audio con tus claves en la vista web, y después en tu teléfono.
+
+## 7. Criterios de aceptación verificables
+1. Las pruebas existentes y las nuevas pasan; ningún proveedor actual cambia su comportamiento.
+2. Un proyecto no puede ver modelos, trabajos ni activos de otro proyecto (cubierto por pruebas).
+3. Al pedir una capacidad sin modelo compatible, la app muestra un mensaje claro y no ejecuta nada.
+4. Si cierras la app con un trabajo en curso, al volver a abrirla aparece recuperado o como `recovery_required`.
+5. En el almacenamiento solo hay archivos cifrados; un archivo alterado se rechaza.
+6. La imagen y el audio generados aparecen en la Biblioteca y se pueden ver, reproducir, exportar y borrar.
+7. Se entrega la APK de la Etapa 1 con el informe de estados por función.
 
 ## Detalles técnicos
-- Contrato de capacidad normalizado (por ejemplo `chat`, `image.generate`, `audio.tts`). Un adaptador por proveedor declara las capacidades que soporta. El selector elige el modelo según la capacidad y la configuración del usuario. Nunca habrá una única función que maneje todos los proveedores.
-- Tablas nuevas: `models`, `model_capabilities`, `jobs`, `assets`. Todas filtradas por `projectId` a través de Repo.
-- Los archivos binarios se guardan en el almacenamiento de la app, cifrados con AES-GCM. En la base de datos solo queda su ubicación, para no cargar archivos grandes en la memoria.
-- Todo sigue ejecutándose en el teléfono con tus propias claves, sin servidor obligatorio.
-- Pruebas unitarias del registro de modelos, del selector, de las transiciones del gestor de trabajos y del aislamiento entre proyectos.
+- Se agrega `@capacitor/filesystem` (directorio Data) mediante `scripts/android-prepare.sh`. Escritura atómica: se escribe en un archivo temporal, se verifica y se renombra.
+- Formato de archivo cifrado: encabezado con la versión de la llave, y bloques de 1 MB, cada uno con IV único y su etiqueta de integridad GCM. Las llaves llevan versión para poder rotarlas.
+- En la vista web, los activos se guardan en la base sql.js, solo para desarrollo, con el mismo formato cifrado.
+- Contratos en TypeScript: `CapabilitySpec`, `ProviderAdapter { supports(), run(), poll?(), cancel?() }`, `RouterDecision { model, reasons[] }`.
