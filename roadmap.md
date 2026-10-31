@@ -1,6 +1,6 @@
 # MI AI — Fase 1
-- [ ] Continuación aprobada: generar APK actualizado y documentar validación real y bloqueos
-- [ ] Reforzar autoprueba Android de recuperación y contraseña incorrecta; ejecutar regresión
+- [x] Continuación aprobada: generar APK actualizado build.3 y documentar validación real y bloqueos
+- [x] Reforzar autoprueba Android de recuperación y contraseña incorrecta; 50/50 pruebas automáticas PASS
 - [x] Revisar desaparición de proveedor: usuario confirma modelo/chat funcionando; reforzar persistencia inmediata y probar recarga/navegación
 - [x] Corregir destroy is not a function al actualizar/salir del chat; causa confirmada en navegador del usuario y regresión probada
 - [x] Corregir rechazo de URL Azure /openai/v1/chat/completions; solicitud real con clave ficticia devuelve HTTP 401 (sin generación verificada)
@@ -9,7 +9,8 @@
 - [x] Implementar solicitud real obligatoria antes de guardar, diagnóstico seguro y estado persistente
 - [x] Documentar pruebas realizadas y limitaciones Android/credenciales
 - [ ] Bloqueado: comprobar generación real con credenciales del usuario, errores reales de clave/modelo y timeout de proveedor
-- [ ] Pendiente: compilar esta actualización y probarla en Android (entorno Android no disponible en esta sesión)
+- [x] Compilar actualización build.3 Debug y Release sin firma; verificar ABIs, Android 11, manifiesto y firma Debug
+- [ ] Bloqueado: instalar/abrir y validar actualización en emulador; arranque sin KVM no completó antes del límite
 - [x] Base de datos (SQLite/SQLCipher nativo, sql.js en vista previa) con aislamiento por proyecto
 - [x] Proyectos, chats con streaming y cambio de modelo, memoria versionada, documentos
 - [x] Conexiones de proveedores (11 tipos, incluido Azure OpenAI) con API keys cifradas por clave en Keystore
