@@ -1,5 +1,15 @@
 # MI AI Fase 1 — Informe de pruebas (31-oct-2026, compilación 0.1.0-build.2)
 
+## Actualización: chat y validación de modelos — 31-oct-2026
+- Causa confirmada del fallo de la vista previa: sql.js selecciona `sql-wasm-browser.js` y solicita `/wasm/sql-wasm-browser.wasm`; solo existía el archivo `sql-wasm.wasm`. Las peticiones devolvían 404 y la inicialización abortaba. No se encontró evidencia de un fallo de montaje o de registro de la ruta del chat. Se añadió el binario browser exacto de la dependencia y una prueba de regresión.
+- **Programado:** Probar conexión en formulario; Guardar modelo solo tras respuesta real válida; invalidación al cambiar campos; solicitudes específicas por proveedor; timeout 20 s; diagnóstico sanitizado; estados persistentes, repetición de pruebas y actualización del estado tras fallos en chat. Las credenciales de borrador no se escriben en almacenamiento.
+- **Probado en navegador Chromium:** creación de proyecto, entrada a chat nuevo, reapertura mediante recarga del chat existente, sin errores JavaScript; formulario con guardado bloqueado, dirección mal formada, endpoint real que devuelve 404 y fallo real de red. Verificado en 360×627 y 1280×1800, sin desbordamiento horizontal en el formulario.
+- **Pruebas automáticas:** 32/32 PASS en Vitest/sql.js: 21 contratos de proveedores y diagnóstico, 8 repositorio/cifrado/aislamiento/estado, 2 rutas, 1 archivo WebAssembly. Los contratos de proveedores usan respuestas controladas exclusivamente como pruebas unitarias; NO acreditan conexiones reales exitosas.
+- **Pendiente con proveedores reales:** credencial válida y generación efectiva; API Key incorrecta contra proveedor real; modelo inexistente contra proveedor real; timeout de proveedor real. No había credenciales autorizadas disponibles. No se simuló una conexión exitosa en la aplicación.
+- **Android:** esta actualización no se ha compilado ni ejecutado en emulador o dispositivo físico. El APK build.2 anterior NO contiene estos cambios. El fallo WebAssembly pertenece a la rama web; Android usa SQLCipher y no depende de ese archivo. La validación de proveedores sí se comparte con Android y requiere comprobarse allí. No se modificaron SQLCipher, Keystore ni la configuración de seguridad nativa.
+
+El resto del informe corresponde a la compilación anterior y no acredita estas mejoras.
+
 ## 1. Compilación realizada (entorno de Lovable, Linux, JDK 21, Android SDK 35)
 | Elemento | Resultado |
 |---|---|

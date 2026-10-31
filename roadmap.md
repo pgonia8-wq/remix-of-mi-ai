@@ -1,7 +1,9 @@
 # MI AI — Fase 1
-- [ ] Corregir fallo del chat y verificar chats nuevos/existentes
-- [ ] Prueba real de proveedores antes de guardar, diagnóstico seguro y estado persistente
-- [ ] Documentar pruebas realizadas y limitaciones Android/credenciales
+- [x] Corregir fallo del chat y verificar chats nuevos/existentes en navegador
+- [x] Implementar solicitud real obligatoria antes de guardar, diagnóstico seguro y estado persistente
+- [x] Documentar pruebas realizadas y limitaciones Android/credenciales
+- [ ] Bloqueado: comprobar generación real con credenciales del usuario, errores reales de clave/modelo y timeout de proveedor
+- [ ] Pendiente: compilar esta actualización y probarla en Android (entorno Android no disponible en esta sesión)
 - [x] Base de datos (SQLite/SQLCipher nativo, sql.js en vista previa) con aislamiento por proyecto
 - [x] Proyectos, chats con streaming y cambio de modelo, memoria versionada, documentos
 - [x] Conexiones de proveedores (10 tipos) con API keys cifradas por clave en Keystore

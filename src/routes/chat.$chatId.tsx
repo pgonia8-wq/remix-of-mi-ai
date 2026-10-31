@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Send, Square } from "lucide-react";
 import { toast } from "sonner";
 import { getRepo } from "@/lib/app-db";
-import { streamChat, type ChatMsg } from "@/lib/providers";
+import { streamChat, ProviderError, type ChatMsg } from "@/lib/providers";
 import { useActiveProjectId, useMutate, useRepoQuery } from "@/lib/use-app";
 import { NeedProject, inputCls } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -68,8 +68,13 @@ function ChatPage() {
         (t) => setStreaming((out += t)),
         abort.current.signal,
       );
+      if (!out.trim()) throw new ProviderError("parameters", "El modelo no devolvió una respuesta válida.");
+      await repo.setProviderVerification(provider.id, "verified");
     } catch (e) {
-      if ((e as Error).name !== "AbortError") toast.error(navigator.onLine ? (e as Error).message : "Sin conexión: las respuestas de IA necesitan Internet.");
+      if ((e as Error).name !== "AbortError") {
+        await repo.setProviderVerification(provider.id, "error");
+        toast.error(e instanceof ProviderError ? e.message : "Error de red: no se pudo completar la respuesta del modelo.");
+      }
     } finally {
       if (out) await repo.addMessage(pid, chatId, "assistant", out, provider.id, provider.model);
       setStreaming(null);
