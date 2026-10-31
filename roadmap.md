@@ -17,6 +17,11 @@
 - [ ] Bloqueado: pruebas físicas Poco C40 / intermedio / Galaxy S26 (usuario)
 - [ ] Bloqueado: clave de firma Release (usuario)
 
+## Fase 2 — Imagen y visión (en curso)
+- [x] Visión (analizar imagen) OpenAI y Azure OpenAI + prueba real mínima + análisis guardado cifrado en Biblioteca
+- [ ] Bloqueado: prueba real de visión con tus claves
+- [ ] Siguiente: aumentar resolución / quitar fondo (requiere elegir proveedor)
+
 ## Fase 1 (completada)
 - [x] Proyectos, chats, memoria, documentos, proveedores con prueba real, Azure OpenAI, respaldo cifrado, APK build.3
 - [x] Probado por el usuario en Poco C40: APK abre, chat funciona, proveedor persiste

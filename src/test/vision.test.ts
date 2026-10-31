@@ -29,7 +29,7 @@ describe("vision", () => {
     const body = JSON.parse(String(init.body));
     expect(body.model).toBe("gpt-4o");
     expect(body.messages[0].content[1].image_url.url.startsWith("data:image/png;base64,")).toBe(true);
-    expect((init.headers as Record<string, string>).authorization).toBe("Bearer sk-secret-123");
+    expect((init.headers as Record<string, string>)["authorization"]).toBe("Bearer sk-secret-123");
   });
 
   it("Azure v1 puts deployment in body; legacy puts it in route with api-version", async () => {
