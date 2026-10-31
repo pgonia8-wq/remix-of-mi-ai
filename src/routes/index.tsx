@@ -1,24 +1,80 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
+import { Plus, Trash2, Check } from "lucide-react";
+import { toast } from "sonner";
+import { setActiveProject, useActiveProjectId, useMutate, useRepoQuery } from "@/lib/use-app";
+import { btnCls, inputCls } from "@/components/AppShell";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
-  component: Index,
+  head: () => ({
+    meta: [
+      { title: "Proyectos — MI AI" },
+      { name: "description", content: "Proyectos aislados con chats, memoria y documentos propios, guardados cifrados en tu teléfono." },
+      { property: "og:title", content: "Proyectos — MI AI" },
+      { property: "og:description", content: "Proyectos aislados con chats, memoria y documentos propios." },
+    ],
+  }),
+  component: Projects,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
-function Index() {
+function Projects() {
+  const { data: projects = [], isLoading, error } = useRepoQuery(["projects"], (r) => r.listProjects());
+  const active = useActiveProjectId();
+  const mutate = useMutate();
+  const nav = useNavigate();
+  const [name, setName] = useState("");
+  const [desc, setDesc] = useState("");
+
+  async function create() {
+    if (!name.trim()) return;
+    const p = await mutate((r) => r.createProject(name.trim(), desc.trim()));
+    setActiveProject(p.id);
+    setName("");
+    setDesc("");
+    toast.success("Proyecto creado");
+  }
+
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
+    <div className="space-y-5 p-4">
+      <h1 className="text-2xl font-bold">Proyectos</h1>
+      <div className="space-y-2 rounded-xl border bg-card p-4">
+        <input className={inputCls} placeholder="Nombre del proyecto" value={name} onChange={(e) => setName(e.target.value)} />
+        <input className={inputCls} placeholder="Descripción (opcional)" value={desc} onChange={(e) => setDesc(e.target.value)} />
+        <button className={btnCls + " w-full"} onClick={create} disabled={!name.trim()}>
+          <Plus className="h-4 w-4" /> Crear proyecto
+        </button>
+      </div>
+      {error && <p className="text-sm text-destructive">No se pudo abrir la base de datos: {String((error as Error).message)}</p>}
+      {isLoading && <p className="text-sm text-muted-foreground">Abriendo base de datos cifrada…</p>}
+      <ul className="space-y-2">
+        {projects.map((p) => (
+          <li key={p.id} className={`flex items-center gap-3 rounded-xl border p-4 ${active === p.id ? "border-primary bg-accent/40" : "bg-card"}`}>
+            <button
+              className="flex-1 text-left"
+              onClick={() => {
+                setActiveProject(p.id);
+                nav({ to: "/chats" });
+              }}
+            >
+              <div className="font-medium">{p.name}</div>
+              {p.description && <div className="text-xs text-muted-foreground">{p.description}</div>}
+            </button>
+            {active === p.id && <Check className="h-4 w-4 text-primary" />}
+            <button
+              aria-label="Eliminar proyecto"
+              className="text-muted-foreground"
+              onClick={async () => {
+                if (!confirm(`¿Eliminar "${p.name}" y todo su contenido?`)) return;
+                await mutate((r) => r.deleteProject(p.id));
+                if (active === p.id) setActiveProject(null);
+              }}
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </li>
+        ))}
+        {!isLoading && !projects.length && <p className="text-center text-sm text-muted-foreground">Aún no tienes proyectos.</p>}
+      </ul>
     </div>
   );
 }
