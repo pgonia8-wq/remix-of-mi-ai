@@ -60,3 +60,33 @@ describe("vision", () => {
     expect(JSON.stringify({ m: e.message, t: e.technical })).not.toContain("sk-secret-123");
   });
 });
+
+describe("IA: eliminar fondo y mejorar resolución", () => {
+  const imgOk = { data: [{ b64_json: TEST_PNG_B64 }] };
+  it("remove_bg on gpt-image sends images/edits with transparent PNG background", async () => {
+    const f = stub(imgOk);
+    const r = await getAdapter("openai").run(creds({}), { capability: "image.remove_bg", model: "gpt-image-1", files: [png] });
+    expect(r.kind).toBe("files");
+    const [url, init] = f.mock.calls[0]!;
+    expect(url).toBe("https://api.openai.com/v1/images/edits");
+    const form = init.body as FormData;
+    expect(form.get("background")).toBe("transparent");
+    expect(form.get("output_format")).toBe("png");
+    expect(String(form.get("prompt"))).toMatch(/background/i);
+  });
+  it("upscale works for any model on Azure v1 without gpt-image-only params", async () => {
+    const f = stub(imgOk);
+    await getAdapter("azure_openai").run(creds({ kind: "azure_openai", endpoint: "https://x.services.ai.azure.com/openai/v1" }), { capability: "image.upscale", model: "otro-modelo", files: [png] });
+    const [url, init] = f.mock.calls[0]!;
+    expect(url).toBe("https://x.services.ai.azure.com/openai/v1/images/edits");
+    const form = init.body as FormData;
+    expect(form.get("model")).toBe("otro-modelo");
+    expect(form.get("quality")).toBeNull();
+    expect(String(form.get("prompt"))).toMatch(/Upscale/);
+  });
+  it("requires an input image before any request", async () => {
+    const f = stub(imgOk);
+    await expect(getAdapter("openai").run(creds({}), { capability: "image.upscale", model: "m" })).rejects.toThrow(/imagen de entrada/);
+    expect(f).not.toHaveBeenCalled();
+  });
+});

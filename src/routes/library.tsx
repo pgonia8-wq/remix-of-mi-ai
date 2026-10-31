@@ -170,18 +170,19 @@ function AssetDetail({ a, onClose, onOpen }: { a: Asset; onClose: () => void; on
       }
     } catch (e) { toast.error((e as Error).message); }
   }
-  async function runEdit() {
-    if (!edit.trim()) return;
+  async function runEdit(capability = "image.edit") {
+    if (capability === "image.edit" && !edit.trim()) return;
     setBusy(true);
     try {
       const c = await getCore();
-      const d = route(await c.repo.registry.listModels(), { capability: "image.edit", mode: "auto" });
+      const d = route(await c.repo.registry.listModels(), { capability, mode: "auto" });
       if (!d.ok) { toast.error(d.reason); return; }
       const bytes = await c.assets.read(a.project_id, a.id);
-      await execute(c, a.project_id, d.model, { capability: "image.edit", prompt: edit, files: [{ bytes, mime: a.mime, name: `entrada.${a.format ?? "png"}` }], parentAssetId: a.id });
+      const r = await execute(c, a.project_id, d.model, { capability, ...(capability === "image.edit" ? { prompt: edit } : {}), files: [{ bytes, mime: a.mime, name: `entrada.${a.format ?? "png"}` }], parentAssetId: a.id });
       toast.success(`Nueva versión con ${d.model.name}`);
       setEdit("");
       await mutate(async () => undefined);
+      if (r.assets[0]) onOpen(r.assets[0]);
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
   }
 
@@ -211,6 +212,14 @@ function AssetDetail({ a, onClose, onOpen }: { a: Asset; onClose: () => void; on
           </div>
         )}
         {a.kind === "image" && (
+          <div className="space-y-1"><p className="text-xs text-muted-foreground">Con IA (usa el modelo que tenga la capacidad; puede tener costo)</p>
+            <div className="flex gap-1">
+              <Button size="sm" variant="outline" disabled={busy} onClick={() => runEdit("image.remove_bg")}><Wand2 /> Eliminar fondo</Button>
+              <Button size="sm" variant="outline" disabled={busy} onClick={() => runEdit("image.upscale")}><Sparkles /> Mejorar resolución</Button>
+            </div>
+          </div>
+        )}
+        {a.kind === "image" && (
           <div className="space-y-1"><p className="text-xs text-muted-foreground">Herramientas en el teléfono (sin costo, sin internet)</p>
             <div className="flex flex-wrap gap-1">{TOOLS.map((o) => <Button key={JSON.stringify(o)} size="sm" variant="outline" disabled={busy} onClick={() => tool(o)}>{describeOp(o)}</Button>)}</div>
           </div>
@@ -224,7 +233,7 @@ function AssetDetail({ a, onClose, onOpen }: { a: Asset; onClose: () => void; on
         )}
         {a.kind === "image" && (
           <div className="flex gap-2"><input className={inputCls} placeholder="Editar con instrucciones (crea versión nueva)" value={edit} onChange={(e) => setEdit(e.target.value)} />
-            <Button disabled={busy} onClick={runEdit}><Wand2 />{busy ? "…" : ""}</Button></div>
+            <Button disabled={busy} onClick={() => runEdit()}><Wand2 />{busy ? "…" : ""}</Button></div>
         )}
         <div className="grid grid-cols-3 gap-2">
           <Button variant="outline" onClick={exportFile}><Download /> Exportar</Button>

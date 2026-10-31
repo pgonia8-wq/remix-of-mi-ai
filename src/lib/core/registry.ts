@@ -25,7 +25,7 @@ export class Registry {
 
   async seedCapabilities() {
     for (const c of INITIAL_CAPABILITIES) {
-      await this.db.run(`INSERT OR IGNORE INTO capabilities (id, spec, builtin, updated_at) VALUES (?,?,1,?)`, [c.id, JSON.stringify(c), now()]);
+      await this.db.run(`INSERT INTO capabilities (id, spec, builtin, updated_at) VALUES (?,?,1,?) ON CONFLICT(id) DO UPDATE SET spec=excluded.spec, updated_at=excluded.updated_at WHERE capabilities.builtin=1`, [c.id, JSON.stringify(c), now()]);
     }
   }
   async registerCapability(c: CapabilitySpec) {
