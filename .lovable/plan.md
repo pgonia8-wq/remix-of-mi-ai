@@ -23,12 +23,19 @@
 - **Azure VM (Ubuntu)**: compilación reproducible y pruebas.
 
 ## Compilación y entrega de la APK (automática, sin pasos manuales tuyos)
-- Proyecto Android de Capacitor en el repositorio (`android/`), JDK 17, Gradle, SDK 34/35, **minSdk 30 (Android 11+)**, compatible con Poco C40 (arm64/armv7).
-- **GitHub Actions se ejecuta solo en cada sincronización a `main`**: compila, prueba y publica automáticamente una GitHub Release con ambas APK y versión autoincrementada. No necesitas crear etiquetas ni pulsar nada.
-- Pruebas automáticas en Actions con un emulador Android 11 (API 30): instalación, apertura, crear proyecto/chat, cerrar y reabrir para comprobar persistencia.
-- **Debug** siempre se publica. **Release firmada** se publica en cuanto exista tu clave de firma como secreto de GitHub.
-- Intento adicional: compilar también la APK Debug aquí en mi entorno y darte un enlace directo; si mis recursos no lo permiten, el enlace será el de la GitHub Release.
-- Scripts para tu VM Azure Ubuntu (`setup-ubuntu.sh`, `build-debug.sh`, `build-release.sh`, `test.sh`, `verify-apk.sh`) y `ANDROID.md`, como entorno reproducible alternativo.
+- Proyecto Android de Capacitor en el repositorio (`android/`), JDK 17, Gradle, SDK 34/35, **minSdk 30 (Android 11+)**, compatible con Poco C40.
+- **Cada sincronización a `main`** dispara GitHub Actions: compila, ejecuta pruebas y genera una **APK Debug de pruebas identificada por número de compilación** (p. ej. `0.1.0-build.57`). Se publica en una única versión preliminar "Última compilación de pruebas" que se reemplaza en cada commit (más el artefacto de la ejecución), sin crear una Release permanente por commit.
+- **Versiones estables** con versionado ordenado (`v0.1.0`, `v0.2.0`…): las genera el mismo flujo automáticamente cuando cambia la versión de la app en el código; tú no creas etiquetas ni ejecutas nada.
+- **ARM64 y ARMv7**: el flujo verifica que la APK incluye las librerías nativas de SQLCipher y Capacitor para ambas arquitecturas (`arm64-v8a`, `armeabi-v7a`) y falla si falta alguna.
+- Pruebas en emulador Android 11 (API 30): instalación, apertura, crear proyecto/chat, cerrar y reabrir para comprobar persistencia. El emulador de Actions es x86_64; ARMv7/ARM64 en ejecución real quedan como pendientes de tu Poco C40.
+- **Debug** siempre disponible, aunque no exista firma. **Release firmada** preparada: se publica sola en cuanto añadas tu clave de firma como secreto de GitHub.
+- Intento adicional de compilar la Debug en mi entorno; si no es posible, el enlace será el de GitHub.
+- Scripts para tu VM Azure Ubuntu (`setup-ubuntu.sh`, `build-debug.sh`, `build-release.sh`, `test.sh`, `verify-apk.sh`) y `ANDROID.md`, como entorno reproducible alternativo (opcional).
+
+## Seguridad
+- Android Keystore protege las claves criptográficas que cifran la base de datos (SQLCipher) y las API Keys.
+- Ninguna credencial en texto plano, logs ni exportaciones sin cifrar.
+- Límite honesto: en un dispositivo comprometido (root, malware) no se garantiza que las API Keys sean inaccesibles; el cifrado reduce el riesgo, no lo elimina.
 
 ## Pruebas verificables
 - **SQLCipher**: prueba que crea la base cifrada, la abre con la clave correcta y comprueba que sin clave o con clave incorrecta falla, y que el archivo no contiene texto legible.
