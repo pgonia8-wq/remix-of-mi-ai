@@ -6,6 +6,8 @@ import type { AdapterCredentials, InputFile, RunResult } from "./adapters/types"
 import type { AssetStore, Asset } from "./asset-store";
 import type { JobManager } from "./jobs";
 import type { ModelWithCaps } from "./registry";
+import { TEST_PNG_B64 } from "./adapters/vision";
+import { b64ToBytes } from "./adapters/types";
 
 export type ExecResult = { jobId: string; text?: string; assets: Asset[] };
 
@@ -24,7 +26,7 @@ export async function credentialsFor(repo: Repo, providerId: string): Promise<{ 
 function ambiguous(e: unknown) { return e instanceof ProviderError && (e.code === "network" || e.code === "timeout") && e.httpStatus === undefined; }
 
 export async function execute(deps: { repo: Repo; jobs: JobManager; assets: AssetStore }, projectId: string, model: ModelWithCaps,
-  req: { capability: string; prompt?: string; params?: Record<string, unknown>; files?: InputFile[]; parentAssetId?: string | null; signal?: AbortSignal; existingJobId?: string }): Promise<ExecResult> {
+  req: { capability: string; prompt?: string; params?: Record<string, unknown>; files?: InputFile[]; parentAssetId?: string | null; saveText?: boolean; signal?: AbortSignal; existingJobId?: string }): Promise<ExecResult> {
   if (!model.capabilities.includes(req.capability)) throw new ProviderError("parameters", `El modelo «${model.name}» no admite «${req.capability}». No se ejecutó ninguna solicitud.`);
   const { creds, adapter: adapterId } = await credentialsFor(deps.repo, model.provider_id);
   const adapter = getAdapter(adapterId);
@@ -51,6 +53,13 @@ export async function execute(deps: { repo: Repo; jobs: JobManager; assets: Asse
       }));
     }
   }
+  if (result.kind === "text" && req.saveText) {
+    // Text results (e.g. image analysis) are kept in the encrypted library, linked to their source asset.
+    saved.push(await deps.assets.put(projectId, (async function* () { yield new TextEncoder().encode(result.text); })(), {
+      kind: "text", mime: "text/plain", name: `${req.capability}-${new Date().toISOString().slice(0, 16)}.txt`, providerId: model.provider_id, modelId: model.id, capability: req.capability,
+      prompt: req.prompt ?? null, params: req.params ?? null, jobId: job.id, parentId: req.parentAssetId ?? null,
+    }));
+  }
   await deps.jobs.finishAttempt(projectId, job.id, "completed");
   await deps.jobs.transition(projectId, job.id, "completed", { phase: "received", progress: 1 });
   return { jobId: job.id, ...(result.kind === "text" ? { text: result.text } : result.kind === "files" && result.text ? { text: result.text } : {}), assets: saved };
@@ -64,12 +73,14 @@ export async function testOperation(repo: Repo, model: ModelWithCaps, capability
     if (!adapter.supports(capability)) return { ok: false, httpStatus: null, message: `El adaptador ${adapter.label} no implementa esta operación.` };
     const prompts: Record<string, { prompt: string; params?: Record<string, unknown> }> = {
       chat: { prompt: "Responde solo: OK" },
+      vision: { prompt: "¿De qué color es esta imagen? Responde con una palabra." },
       "image.generate": { prompt: "Un círculo azul sobre fondo blanco, ilustración simple", params: { size: "1024x1024", quality: "low", n: 1 } },
       "audio.tts": { prompt: "Prueba de MI AI." },
     };
     const p = prompts[capability];
     if (!p) return { ok: false, httpStatus: null, message: "Esta operación necesita un archivo de entrada; pruébala desde la Biblioteca." };
-    const r = await adapter.run(creds, { capability, model: model.remote_id, prompt: p.prompt, ...(p.params ? { params: p.params } : {}) });
+    const files = capability === "vision" ? [{ bytes: b64ToBytes(TEST_PNG_B64), mime: "image/png", name: "prueba.png" }] : undefined;
+    const r = await adapter.run(creds, { capability, model: model.remote_id, prompt: p.prompt, ...(p.params ? { params: p.params } : {}), ...(files ? { files } : {}) });
     const ok = (r.kind === "text" && r.text.trim().length > 0) || (r.kind === "files" && r.files.length > 0 && r.files[0]!.bytes.length > 100);
     return ok ? { ok: true, httpStatus: 200, message: "Operación real completada." } : { ok: false, httpStatus: 200, message: "Respuesta vacía." };
   } catch (e) {
