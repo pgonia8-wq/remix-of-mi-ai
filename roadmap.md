@@ -1,5 +1,5 @@
 # MI AI — Fase 1
-- [ ] Investigar desaparición de proveedor guardado y comprobar persistencia al regresar/recargar
+- [x] Revisar desaparición de proveedor: usuario confirma modelo/chat funcionando; reforzar persistencia inmediata y probar recarga/navegación
 - [x] Corregir destroy is not a function al actualizar/salir del chat; causa confirmada en navegador del usuario y regresión probada
 - [x] Corregir rechazo de URL Azure /openai/v1/chat/completions; solicitud real con clave ficticia devuelve HTTP 401 (sin generación verificada)
 - [x] Añadir Azure OpenAI con cuatro campos y comprobar solicitudes/errores en vista previa (sin credenciales reales)
