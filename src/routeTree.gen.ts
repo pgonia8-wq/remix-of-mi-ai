@@ -10,7 +10,10 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AgentsRouteImport } from './routes/agents'
+import { Route as AutomationRouteImport } from './routes/automation'
 import { Route as ChatsRouteImport } from './routes/chats'
+import { Route as CodeRouteImport } from './routes/code'
 import { Route as DiagnosticsRouteImport } from './routes/diagnostics'
 import { Route as DocumentsRouteImport } from './routes/documents'
 import { Route as JobsRouteImport } from './routes/jobs'
@@ -29,9 +32,24 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AgentsRoute = AgentsRouteImport.update({
+  id: '/agents',
+  path: '/agents',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AutomationRoute = AutomationRouteImport.update({
+  id: '/automation',
+  path: '/automation',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ChatsRoute = ChatsRouteImport.update({
   id: '/chats',
   path: '/chats',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CodeRoute = CodeRouteImport.update({
+  id: '/code',
+  path: '/code',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DiagnosticsRoute = DiagnosticsRouteImport.update({
@@ -97,7 +115,10 @@ const ChatChatIdRoute = ChatChatIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/agents': typeof AgentsRoute
+  '/automation': typeof AutomationRoute
   '/chats': typeof ChatsRoute
+  '/code': typeof CodeRoute
   '/diagnostics': typeof DiagnosticsRoute
   '/documents': typeof DocumentsRoute
   '/jobs': typeof JobsRoute
@@ -113,7 +134,10 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/agents': typeof AgentsRoute
+  '/automation': typeof AutomationRoute
   '/chats': typeof ChatsRoute
+  '/code': typeof CodeRoute
   '/diagnostics': typeof DiagnosticsRoute
   '/documents': typeof DocumentsRoute
   '/jobs': typeof JobsRoute
@@ -130,7 +154,10 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/agents': typeof AgentsRoute
+  '/automation': typeof AutomationRoute
   '/chats': typeof ChatsRoute
+  '/code': typeof CodeRoute
   '/diagnostics': typeof DiagnosticsRoute
   '/documents': typeof DocumentsRoute
   '/jobs': typeof JobsRoute
@@ -148,7 +175,10 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/agents'
+    | '/automation'
     | '/chats'
+    | '/code'
     | '/diagnostics'
     | '/documents'
     | '/jobs'
@@ -164,7 +194,10 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/agents'
+    | '/automation'
     | '/chats'
+    | '/code'
     | '/diagnostics'
     | '/documents'
     | '/jobs'
@@ -180,7 +213,10 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/agents'
+    | '/automation'
     | '/chats'
+    | '/code'
     | '/diagnostics'
     | '/documents'
     | '/jobs'
@@ -197,7 +233,10 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AgentsRoute: typeof AgentsRoute
+  AutomationRoute: typeof AutomationRoute
   ChatsRoute: typeof ChatsRoute
+  CodeRoute: typeof CodeRoute
   DiagnosticsRoute: typeof DiagnosticsRoute
   DocumentsRoute: typeof DocumentsRoute
   JobsRoute: typeof JobsRoute
@@ -221,11 +260,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/agents': {
+      id: '/agents'
+      path: '/agents'
+      fullPath: '/agents'
+      preLoaderRoute: typeof AgentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/automation': {
+      id: '/automation'
+      path: '/automation'
+      fullPath: '/automation'
+      preLoaderRoute: typeof AutomationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/chats': {
       id: '/chats'
       path: '/chats'
       fullPath: '/chats'
       preLoaderRoute: typeof ChatsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/code': {
+      id: '/code'
+      path: '/code'
+      fullPath: '/code'
+      preLoaderRoute: typeof CodeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/diagnostics': {
@@ -317,7 +377,10 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AgentsRoute: AgentsRoute,
+  AutomationRoute: AutomationRoute,
   ChatsRoute: ChatsRoute,
+  CodeRoute: CodeRoute,
   DiagnosticsRoute: DiagnosticsRoute,
   DocumentsRoute: DocumentsRoute,
   JobsRoute: JobsRoute,
