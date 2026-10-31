@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Download, Eye, ShieldCheck, Sparkles, Tag, Trash2, Upload, Wand2, X } from "lucide-react";
 import { VISION_MIME } from "@/lib/core/adapters/vision";
+import { applyOp, describeOp, extFor, type ImageOp } from "@/lib/core/image-tools";
 import { toast } from "sonner";
 import { useActiveProjectId, useCoreMutate, useCoreQuery } from "@/lib/use-app";
 import { getCore } from "@/lib/core";
@@ -58,7 +59,7 @@ function Library() {
         {assets.map((a) => <Thumb key={a.id} a={a} onOpen={() => setOpen(a)} />)}
       </div>
       {!assets.length && <p className="text-center text-sm text-muted-foreground">Aún no hay contenido en este proyecto.</p>}
-      {open && <AssetDetail a={open} onClose={() => setOpen(null)} />}
+      {open && <AssetDetail key={open.id} a={open} onClose={() => setOpen(null)} onOpen={setOpen} />}
     </div>
   );
 }
@@ -87,7 +88,12 @@ function Thumb({ a, onOpen }: { a: Asset; onOpen: () => void }) {
   );
 }
 
-function AssetDetail({ a, onClose }: { a: Asset; onClose: () => void }) {
+const TOOLS: ImageOp[] = [
+  { op: "rotate", deg: 90 }, { op: "flip", axis: "h" }, { op: "crop", aspect: "1:1" }, { op: "crop", aspect: "9:16" }, { op: "crop", aspect: "16:9" },
+  { op: "resize", scale: 2 }, { op: "resize", scale: 0.5 }, { op: "convert", mime: "image/jpeg", quality: 0.85 }, { op: "convert", mime: "image/webp", quality: 0.85 }, { op: "convert", mime: "image/png" },
+];
+
+function AssetDetail({ a, onClose, onOpen }: { a: Asset; onClose: () => void; onOpen: (a: Asset) => void }) {
   const { url, err } = useAssetUrl(a);
   const mutate = useCoreMutate();
   const { data: tags = [] } = useCoreQuery(["tags", a.id], (c) => c.assets.tags(a.project_id, a.id));
@@ -95,6 +101,22 @@ function AssetDetail({ a, onClose }: { a: Asset; onClose: () => void }) {
   const [edit, setEdit] = useState("");
   const [busy, setBusy] = useState(false);
   const [question, setQuestion] = useState("");
+  const { data: family = [] } = useCoreQuery(["versions", a.id], (c) => c.assets.versions(a.project_id, a.id));
+  async function tool(o: ImageOp) {
+    setBusy(true);
+    try {
+      const c = await getCore();
+      const src = await c.assets.read(a.project_id, a.id);
+      const out = await applyOp(src, a.mime, o);
+      const base = (a.name ?? "imagen").replace(/\.[a-z0-9]+$/i, "");
+      const n = await c.assets.put(a.project_id, (async function* () { yield out.bytes; })(), {
+        kind: "image", mime: out.mime, name: `${base}.${extFor(out.mime)}`, capability: "image.local", prompt: describeOp(o), params: { ...o, width: out.width, height: out.height }, parentId: a.id,
+      });
+      toast.success(`${describeOp(o)}: ${out.width}×${out.height}, nueva versión v${n.version}`);
+      await mutate(async () => undefined);
+      onOpen(n);
+    } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
+  }
   const [analysis, setAnalysis] = useState<string | null>(null);
   const [textBody, setTextBody] = useState<string | null>(null);
   useEffect(() => {
@@ -165,6 +187,16 @@ function AssetDetail({ a, onClose }: { a: Asset; onClose: () => void }) {
         <div className="flex flex-wrap gap-1">{tags.map((t) => <button key={t} onClick={() => mutate((c) => c.assets.untag(a.project_id, a.id, t))} className="rounded-full border px-2 py-0.5 text-xs">#{t} ×</button>)}</div>
         <div className="flex gap-2"><input className={inputCls} placeholder="Nueva etiqueta" value={newTag} onChange={(e) => setNewTag(e.target.value)} />
           <Button variant="outline" onClick={() => newTag.trim() && mutate((c) => c.assets.tag(a.project_id, a.id, newTag)).then(() => setNewTag(""))}><Tag /></Button></div>
+        {family.length > 1 && (
+          <div className="space-y-1"><p className="text-xs text-muted-foreground">Versiones</p>
+            <div className="flex flex-wrap gap-1">{family.map((v) => <button key={v.id} onClick={() => v.id !== a.id && onOpen(v)} className={`rounded-full border px-2 py-0.5 text-xs ${v.id === a.id ? "border-primary bg-primary text-primary-foreground" : ""}`}>v{v.version} · {v.prompt?.slice(0, 18) ?? (v.parent_id ? "derivada" : "original")}</button>)}</div>
+          </div>
+        )}
+        {a.kind === "image" && (
+          <div className="space-y-1"><p className="text-xs text-muted-foreground">Herramientas en el teléfono (sin costo, sin internet)</p>
+            <div className="flex flex-wrap gap-1">{TOOLS.map((o) => <Button key={JSON.stringify(o)} size="sm" variant="outline" disabled={busy} onClick={() => tool(o)}>{describeOp(o)}</Button>)}</div>
+          </div>
+        )}
         {a.kind === "image" && VISION_MIME.includes(a.mime) && (
           <div className="space-y-2">
             <div className="flex gap-2"><input className={inputCls} placeholder="Pregunta sobre la imagen (opcional)" value={question} onChange={(e) => setQuestion(e.target.value)} />
@@ -192,6 +224,7 @@ function Create({ projectId }: { projectId: string }) {
   const [manual, setManual] = useState("");
   const [prompt, setPrompt] = useState("");
   const [size, setSize] = useState("1024x1024");
+  const [count, setCount] = useState(1);
   const [busy, setBusy] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [answer, setAnswer] = useState<string | null>(null);
@@ -217,7 +250,7 @@ function Create({ projectId }: { projectId: string }) {
         setFile(null);
         return;
       }
-      const r = await execute(c, projectId, decision.model, { capability: cap, prompt, params: cap === "image.generate" ? { size, n: 1 } : {} });
+      const r = await execute(c, projectId, decision.model, { capability: cap, prompt, params: cap === "image.generate" ? { size, n: count } : {} });
       toast.success(`${r.assets.length} archivo(s) guardado(s) cifrados`);
       setPrompt("");
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); await mutate(async () => undefined); }
@@ -239,6 +272,7 @@ function Create({ projectId }: { projectId: string }) {
         </select>
         {mode === "manual" && <select className={inputCls} value={manual} onChange={(e) => setManual(e.target.value)}><option value="">Elige modelo</option>{compatible.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select>}
         {cap === "image.generate" && <select className={inputCls} value={size} onChange={(e) => setSize(e.target.value)}><option>1024x1024</option><option>1024x1536</option><option>1536x1024</option></select>}
+        {cap === "image.generate" && <select aria-label="Cantidad" className={inputCls + " w-16"} value={count} onChange={(e) => setCount(Number(e.target.value))}>{[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}</select>}
       </div>
       <p className={`text-xs ${decision.ok ? "text-muted-foreground" : "text-destructive"}`}>
         {decision.ok ? <>Modelo: <b>{decision.model.name}</b> — {decision.reasons.join(" · ")}</> : <>{decision.reason} <Link to="/models" className="underline">Registrar un modelo</Link></>}
