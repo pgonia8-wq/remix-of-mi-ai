@@ -22,6 +22,7 @@ import { Route as MemoryRouteImport } from './routes/memory'
 import { Route as ModelsRouteImport } from './routes/models'
 import { Route as NotesRouteImport } from './routes/notes'
 import { Route as ResearchRouteImport } from './routes/research'
+import { Route as ServersRouteImport } from './routes/servers'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as StudyRouteImport } from './routes/study'
 import { Route as ToolsRouteImport } from './routes/tools'
@@ -92,6 +93,11 @@ const ResearchRoute = ResearchRouteImport.update({
   path: '/research',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ServersRoute = ServersRouteImport.update({
+  id: '/servers',
+  path: '/servers',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -127,6 +133,7 @@ export interface FileRoutesByFullPath {
   '/models': typeof ModelsRoute
   '/notes': typeof NotesRoute
   '/research': typeof ResearchRoute
+  '/servers': typeof ServersRoute
   '/settings': typeof SettingsRoute
   '/study': typeof StudyRoute
   '/tools': typeof ToolsRoute
@@ -146,6 +153,7 @@ export interface FileRoutesByTo {
   '/models': typeof ModelsRoute
   '/notes': typeof NotesRoute
   '/research': typeof ResearchRoute
+  '/servers': typeof ServersRoute
   '/settings': typeof SettingsRoute
   '/study': typeof StudyRoute
   '/tools': typeof ToolsRoute
@@ -166,6 +174,7 @@ export interface FileRoutesById {
   '/models': typeof ModelsRoute
   '/notes': typeof NotesRoute
   '/research': typeof ResearchRoute
+  '/servers': typeof ServersRoute
   '/settings': typeof SettingsRoute
   '/study': typeof StudyRoute
   '/tools': typeof ToolsRoute
@@ -187,6 +196,7 @@ export interface FileRouteTypes {
     | '/models'
     | '/notes'
     | '/research'
+    | '/servers'
     | '/settings'
     | '/study'
     | '/tools'
@@ -206,6 +216,7 @@ export interface FileRouteTypes {
     | '/models'
     | '/notes'
     | '/research'
+    | '/servers'
     | '/settings'
     | '/study'
     | '/tools'
@@ -225,6 +236,7 @@ export interface FileRouteTypes {
     | '/models'
     | '/notes'
     | '/research'
+    | '/servers'
     | '/settings'
     | '/study'
     | '/tools'
@@ -245,6 +257,7 @@ export interface RootRouteChildren {
   ModelsRoute: typeof ModelsRoute
   NotesRoute: typeof NotesRoute
   ResearchRoute: typeof ResearchRoute
+  ServersRoute: typeof ServersRoute
   SettingsRoute: typeof SettingsRoute
   StudyRoute: typeof StudyRoute
   ToolsRoute: typeof ToolsRoute
@@ -344,6 +357,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ResearchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/servers': {
+      id: '/servers'
+      path: '/servers'
+      fullPath: '/servers'
+      preLoaderRoute: typeof ServersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -389,6 +409,7 @@ const rootRouteChildren: RootRouteChildren = {
   ModelsRoute: ModelsRoute,
   NotesRoute: NotesRoute,
   ResearchRoute: ResearchRoute,
+  ServersRoute: ServersRoute,
   SettingsRoute: SettingsRoute,
   StudyRoute: StudyRoute,
   ToolsRoute: ToolsRoute,
