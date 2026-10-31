@@ -1,4 +1,20 @@
-# MI AI Fase 1 — Informe de pruebas (31-oct-2026, compilación 0.1.0-build.3)
+# MI AI — Informe de pruebas
+
+## Entrega actual: build.4 — 31-oct-2026
+- **Programado:** Fases 1–5 y entrega parcial de la nueva Fase 6 (antes 8). Agentes configurables por proyecto, herramientas autorizadas, selección de modelo por capacidad, permiso explícito para memoria, límites de solicitudes; flujos editables y propuestas IA, secuencias, condición sobre resultado anterior, repeticiones 1–3, aprobación humana, historial, activación y cancelación entre pasos. Ejecución de un paso por acción del usuario; no se presenta como autonomía completa.
+- **Código:** JavaScript síncrono real en QuickJS WASM dentro de un worker; sin DOM, red, almacenamiento, módulos ni puente Capacitor. Límites del runtime: 16 MiB de memoria QuickJS (no representa todo el consumo WASM), pila 256 KiB, ejecución 1,5 segundos; fuente 60 000 caracteres, salida 16 000. Worker terminado al cancelar o tras 10 segundos incluyendo carga. Archivos cifrados con versiones; propuestas de generación/refactor/pruebas/documentación requieren un modelo de chat y no se ejecutan automáticamente.
+- **Compilación realizada:** `assembleDebug`, Gradle BUILD SUCCESSFUL, 204 tareas; APK `com.miai.app`, versionName 0.1.0-build.4, versionCode 4. Android SDK 35 / JDK 21. Firma Debug verificada. MinSdk 30 y SQLCipher ARM64, ARMv7 y x86_64 comprobados dentro del APK. Plugin Keystore compilado; no ejecutado aquí. No se generó Release en esta entrega.
+- **Pruebas automáticas:** 148/148 PASS en 14 archivos Vitest/sql.js/QuickJS; incluye 11 nuevas pruebas sobre aislamiento de agentes/proyectos, aprobación forzada, permisos de herramientas, recuperación sin repetición automática, formatos y límites, respaldo/borrado, variables y motor JavaScript.
+- **Probado en web:** Chromium 1280×1800 y 360×627: crear agente, guardar y recargar; crear flujo local, solicitar aprobación, aprobar, comprobar nota desde Notas; ejecutar `console.log(input); 2 + 2` con salida real `Prueba real` y `4`; guardar código cifrado y recuperar tras recarga. Sin errores JavaScript y sin desbordamiento horizontal. Los éxitos locales no simulan éxitos de proveedores.
+- **Probado en emulador Android:** ninguna prueba realizada en build.4. No se lanzó el emulador sin aceleración para evitar repetir la espera anterior. Instalación, apertura, SQLCipher, Keystore, micrófono, archivos, copia entre dispositivos y worker de código pendientes en Android.
+- **Probado en dispositivo físico:** el usuario confirmó build.3 en Poco C40 (abre, chat y proveedor funcionan y persisten). No hay confirmación de build.4. Bibliotecas incluidas no acreditan ejecución real ARM64/ARMv7.
+- **Pendiente con proveedores:** agentes/modelos, planificación con IA, generación y herramientas externas reales no probados con credenciales del usuario.
+- **Alcance de Fase 6 aún pendiente:** terminal/Termux/Termius, SSH/SFTP, Git/GitHub, cloud externo, programación Android, disparadores automáticos, ramas generales, delegación autónoma y resolución de conflictos. No se anuncia la fase completa ni un entorno de ingeniería completo.
+- **Instalación:** no desinstalar build.3 para solucionar un posible conflicto de firma: borraría los datos. No se ha comprobado que la firma Debug actual coincida con la de build.3; conservar una copia cifrada antes de probar la actualización.
+
+---
+
+# Histórico: Fase 1 — compilación 0.1.0-build.3
 
 ## Entrega actual — 31-oct-2026, 20:19 UTC
 - **Compilación realizada:** Debug 0.1.0-build.3 y Release sin firma, Gradle BUILD SUCCESSFUL (472 tareas). Incluyen Azure OpenAI, validación real previa al guardado, correcciones de chat y persistencia de vista previa. Preparación y compilación ejecutadas en copia aislada con JDK 21 y Android SDK 35.
