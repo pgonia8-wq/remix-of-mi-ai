@@ -5,6 +5,7 @@ export const PROVIDER_KINDS: { kind: ProviderKind; label: string; endpoint: stri
   { kind: "anthropic", label: "Anthropic", endpoint: "https://api.anthropic.com/v1", model: "claude-3-5-sonnet-latest" },
   { kind: "gemini", label: "Google Gemini", endpoint: "https://generativelanguage.googleapis.com/v1beta", model: "gemini-1.5-flash" },
   { kind: "azure", label: "Azure AI Foundry", endpoint: "https://TU-RECURSO.openai.azure.com", model: "gpt-4o", needsDeployment: true, needsVersion: true },
+  { kind: "azure_openai", label: "Azure OpenAI", endpoint: "", model: "", needsDeployment: true, needsVersion: true },
   { kind: "xai", label: "xAI", endpoint: "https://api.x.ai/v1", model: "grok-2-latest" },
   { kind: "deepseek", label: "DeepSeek", endpoint: "https://api.deepseek.com/v1", model: "deepseek-chat" },
   { kind: "mistral", label: "Mistral", endpoint: "https://api.mistral.ai/v1", model: "mistral-large-latest" },
@@ -43,17 +44,21 @@ const trim = (s: string) => s.replace(/\/+$/, "");
 function buildRequest(p: ProviderCall, messages: ChatMsg[]): { url: string; init: RequestInit; parse: (data: any) => string | null } {
   const defaults = PROVIDER_KINDS.find((k) => k.kind === p.kind);
   if (!defaults) throw new ProviderError("endpoint", "Endpoint incorrecto: proveedor desconocido.");
+  const azure = p.kind === "azure" || p.kind === "azure_openai";
   const ep = trim(p.endpoint?.trim() || defaults.endpoint);
+  let endpoint: URL;
   try {
-    const url = new URL(ep);
-    if (!["https:", "http:"].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error();
+    endpoint = new URL(ep);
+    if (!["https:", "http:"].includes(endpoint.protocol) || endpoint.username || endpoint.password || endpoint.hash) throw new Error();
+    if ([...endpoint.searchParams.keys()].some(key => !azure || key !== "api-version")) throw new Error();
   } catch {
     throw new ProviderError("endpoint", "Endpoint incorrecto: utiliza una URL HTTP o HTTPS sin credenciales ni parámetros.");
   }
-  if (!p.model.trim() || (p.kind === "azure" && !p.deployment?.trim())) throw new ProviderError("model", "Modelo o deployment inexistente: completa el identificador.");
+  if ((p.kind !== "azure_openai" && !p.model.trim()) || (azure && !p.deployment?.trim())) throw new ProviderError("model", "Modelo o deployment inexistente: completa el identificador.");
+  if (p.kind === "azure_openai" && !p.apiVersion?.trim()) throw new ProviderError("parameters", "Versión de API requerida: introduce la versión de Azure OpenAI.");
   if (!["custom", "openai_compatible"].includes(p.kind) && !p.apiKey?.trim()) throw new ProviderError("key", "API Key inválida: falta la credencial.");
   const key = p.apiKey ?? "";
-  const x = extra(p);
+  const x = p.kind === "azure_openai" ? {} : extra(p);
   if (p.kind === "anthropic") {
     const system = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n");
     return {
@@ -92,13 +97,20 @@ function buildRequest(p: ProviderCall, messages: ChatMsg[]): { url: string; init
   // OpenAI-style: openai, azure, xai, deepseek, mistral, compatible, custom
   let url = `${ep}/chat/completions`;
   const headers: Record<string, string> = { "content-type": "application/json" };
-  if (p.kind === "azure") {
-    url = `${ep}/openai/deployments/${encodeURIComponent(p.deployment || p.model)}/chat/completions?api-version=${encodeURIComponent(p.apiVersion || "2024-10-21")}`;
+  if (azure) {
+    // Accept a resource URL or a copied deployment chat-completions URL.
+    // Explicit form fields remain authoritative; never duplicate the route.
+    const path = trim(endpoint.pathname);
+    let base: string;
+    if (path === "" || path === "/openai") base = endpoint.origin;
+    else if (/^\/openai\/deployments\/[^/]+\/chat\/completions$/.test(path)) base = endpoint.origin;
+    else throw new ProviderError("endpoint", "URL de Azure incorrecta: usa la URL del recurso o la URL completa de chat/completions.");
+    url = `${base}/openai/deployments/${encodeURIComponent(p.deployment?.trim() || p.model)}/chat/completions?api-version=${encodeURIComponent(p.apiVersion?.trim() || "2024-10-21")}`;
     headers["api-key"] = key;
   } else if (key) headers["authorization"] = `Bearer ${key}`;
   return {
     url,
-    init: { method: "POST", headers, body: JSON.stringify({ model: p.model, stream: true, messages, ...x }) },
+    init: { method: "POST", headers, body: JSON.stringify({ ...(azure ? {} : { model: p.model }), stream: true, messages, ...x }) },
     parse: (d) => d.choices?.[0]?.delta?.content ?? null,
   };
 }
@@ -172,7 +184,7 @@ export async function testProvider(p: ProviderCall, timeoutMs = 20000): Promise<
   } catch (e) {
     if (controller.signal.aborted) return { ok: false, code: "timeout", message: "Error de red o timeout: se agotó el tiempo de espera." };
     if (e instanceof ProviderError) return { ok: false, code: e.code, message: redactSecret(e.message, p.apiKey), ...(e.httpStatus !== undefined ? { httpStatus: e.httpStatus } : {}), ...(e.technical ? { technical: redactSecret(e.technical, p.apiKey) } : {}) };
-    return { ok: false, code: "network", message: "Error de red: no se pudo alcanzar el endpoint. Revisa Internet, DNS, TLS y permisos de acceso del navegador (CORS)." };
+    return { ok: false, code: "network", message: p.kind === "azure_openai" || p.kind === "azure" ? "No se pudo alcanzar Azure desde este entorno. Revisa Internet y la URL; la vista previa puede bloquear la solicitud por CORS o por restricciones de red del recurso. Sin respuesta HTTP no se puede confirmar si la clave o el deployment son válidos." : "Error de red: no se pudo alcanzar el endpoint. Revisa Internet, DNS, TLS y permisos de acceso del navegador (CORS)." };
   } finally { clearTimeout(timer); }
 }
 

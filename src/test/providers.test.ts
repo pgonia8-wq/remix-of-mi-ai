@@ -58,14 +58,14 @@ describe("provider adapter contracts (controlled responses, not live verificatio
   it.each(PROVIDER_KINDS)("uses $kind authentication and payload", async ({ kind, endpoint, model }) => {
     const data = kind === "anthropic" ? { type: "content_block_delta", delta: { text: "OK" } } : kind === "gemini" ? { candidates: [{ content: { parts: [{ text: "OK" }] } }] } : kind === "cohere" ? { type: "content-delta", delta: { message: { content: { text: "OK" } } } } : { choices: [{ delta: { content: "OK" } }] };
     const fetcher = vi.fn().mockResolvedValue(sse(data)); vi.stubGlobal("fetch", fetcher);
-    const result = await testProvider({ ...draft, kind, endpoint: kind === "custom" ? "https://custom.example/v1" : endpoint, model, deployment: "deployment", apiVersion: "2024-10-21" });
+    const result = await testProvider({ ...draft, kind, endpoint: kind === "custom" ? "https://custom.example/v1" : kind === "azure_openai" ? "https://resource.openai.azure.com" : endpoint, model, deployment: "deployment", apiVersion: "2024-10-21" });
     expect(result.ok).toBe(true); // parser contract only; this is NOT a real connection
     const [url, init] = fetcher.mock.calls[0] ?? [];
     const body = JSON.parse(init.body);
     expect(init.method).toBe("POST");
     if (kind === "anthropic") { expect(url).toContain("/messages"); expect(init.headers["x-api-key"]).toBe(draft.apiKey); expect(body.max_tokens).toBe(4096); }
     else if (kind === "gemini") { expect(url).toContain(":streamGenerateContent?alt=sse"); expect(init.headers["x-goog-api-key"]).toBe(draft.apiKey); expect(body.contents[0].parts[0].text).toBe("Responde solo: OK"); }
-    else if (kind === "azure") { expect(url).toContain("/deployments/deployment/chat/completions?api-version=2024-10-21"); expect(init.headers["api-key"]).toBe(draft.apiKey); }
+    else if (kind === "azure" || kind === "azure_openai") { expect(url).toContain("/deployments/deployment/chat/completions?api-version=2024-10-21"); expect(init.headers["api-key"]).toBe(draft.apiKey); expect(body).not.toHaveProperty("model"); }
     else { expect(init.headers.authorization).toBe(`Bearer ${draft.apiKey}`); expect(url).toContain(kind === "cohere" ? "/chat" : "/chat/completions"); }
   });
   it("requires success for the exact current configuration before saving", () => {
@@ -74,5 +74,30 @@ describe("provider adapter contracts (controlled responses, not live verificatio
     const success = { ok: true as const, checkedAt: 1 };
     expect(canSaveModel(draft, draft, success)).toBe(true);
     for (const field of ["endpoint", "apiKey", "model", "deployment", "apiVersion", "extraParams", "kind"]) expect(canSaveModel({ ...draft, [field]: "changed" }, draft, success)).toBe(false);
+  });
+  const azure: ProviderCall = { kind: "azure_openai", endpoint: "https://resource.openai.azure.com/", apiKey: draft.apiKey, model: "", deployment: "my-deployment", apiVersion: "2024-10-21" };
+  it("connects Azure OpenAI using only URL, API key, deployment and version", async () => {
+    const fetcher = vi.fn().mockResolvedValue(sse({ choices: [{ delta: { content: "OK" } }] }));
+    vi.stubGlobal("fetch", fetcher);
+    expect((await testProvider({ ...azure, extraParams: "not JSON" })).ok).toBe(true);
+    const [url, init] = fetcher.mock.calls[0] ?? [];
+    expect(url).toBe("https://resource.openai.azure.com/openai/deployments/my-deployment/chat/completions?api-version=2024-10-21");
+    expect(init.headers).toEqual({ "content-type": "application/json", "api-key": draft.apiKey });
+    expect(JSON.parse(init.body)).toEqual({ stream: true, messages: [{ role: "user", content: "Responde solo: OK" }] });
+  });
+  it.each(["https://resource.openai.azure.com/openai", "https://resource.openai.azure.com/openai/deployments/old/chat/completions?api-version=old"])("normalizes Azure URL %s without duplicating deployment paths", async endpoint => {
+    const fetcher = vi.fn().mockResolvedValue(sse({ choices: [{ delta: { content: "OK" } }] }));
+    vi.stubGlobal("fetch", fetcher);
+    await testProvider({ ...azure, endpoint });
+    expect(fetcher.mock.calls[0]?.[0]).toBe("https://resource.openai.azure.com/openai/deployments/my-deployment/chat/completions?api-version=2024-10-21");
+  });
+  it.each(["endpoint", "apiKey", "deployment", "apiVersion"] as const)("requires Azure OpenAI field %s before sending", async field => {
+    const fetcher = vi.fn(); vi.stubGlobal("fetch", fetcher);
+    expect((await testProvider({ ...azure, [field]: "" })).ok).toBe(false);
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it("does not misreport Azure browser network failures as invalid credentials", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    expect(await testProvider(azure)).toMatchObject({ ok: false, code: "network" });
   });
 });

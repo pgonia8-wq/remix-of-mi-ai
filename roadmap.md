@@ -1,4 +1,5 @@
 # MI AI — Fase 1
+- [x] Añadir Azure OpenAI con cuatro campos y comprobar solicitudes/errores en vista previa (sin credenciales reales)
 - [x] Corregir fallo del chat y verificar chats nuevos/existentes en navegador
 - [x] Implementar solicitud real obligatoria antes de guardar, diagnóstico seguro y estado persistente
 - [x] Documentar pruebas realizadas y limitaciones Android/credenciales
@@ -6,7 +7,7 @@
 - [ ] Pendiente: compilar esta actualización y probarla en Android (entorno Android no disponible en esta sesión)
 - [x] Base de datos (SQLite/SQLCipher nativo, sql.js en vista previa) con aislamiento por proyecto
 - [x] Proyectos, chats con streaming y cambio de modelo, memoria versionada, documentos
-- [x] Conexiones de proveedores (10 tipos) con API keys cifradas por clave en Keystore
+- [x] Conexiones de proveedores (11 tipos, incluido Azure OpenAI) con API keys cifradas por clave en Keystore
 - [x] Exportar/importar cifrado (prueba de recuperación completa)
 - [x] APK Debug compilado y verificado (arm64/armv7, minSdk 30)
 - [x] GitHub Actions + scripts Ubuntu + ANDROID.md + informe
