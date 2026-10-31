@@ -6,6 +6,8 @@ import type { MemoryKind } from "@/lib/db/repo";
 import { useActiveProjectId, useMutate, useRepoQuery } from "@/lib/use-app";
 import { deletePrivateFile, isTextFile, savePrivateFile } from "@/lib/files";
 import { NeedProject, btnCls, btnGhost, inputCls } from "@/components/AppShell";
+import { extractText, docKind, DOC_ACCEPT } from "@/lib/docs/extract";
+import { SemanticIndex } from "@/components/SemanticIndex";
 
 export const Route = createFileRoute("/memory")({
   head: () => ({
@@ -42,7 +44,7 @@ function MemoryPage() {
       </div>
       {tab === "memoria" && <MemoryTab pid={pid} />}
       {tab === "docs" && <DocsTab pid={pid} />}
-      {tab === "buscar" && <SearchTab pid={pid} />}
+      {tab === "buscar" && <><SemanticIndex pid={pid} /><SearchTab pid={pid} /></>}
     </div>
   );
 }
@@ -116,7 +118,7 @@ function DocsTab({ pid }: { pid: string }) {
     for (const f of Array.from(files ?? [])) {
       try {
         const filePath = await savePrivateFile(pid, f);
-        const text = isTextFile(f) ? await f.text() : null;
+        const text = isTextFile(f) ? await f.text() : docKind(f.name, f.type) !== "unsupported" ? (await extractText(new Uint8Array(await f.arrayBuffer()), f.name, f.type)).text || null : null;
         await mutate((r) => r.addDoc(pid, { name: f.name, mime: f.type, size: f.size, text, filePath }));
       } catch (e) {
         toast.error(`No se pudo guardar ${f.name}: ${(e as Error).message}`);
@@ -127,7 +129,7 @@ function DocsTab({ pid }: { pid: string }) {
     <div className="space-y-3">
       <label className={btnCls + " w-full cursor-pointer"}>
         <Upload className="h-4 w-4" /> Añadir documentos
-        <input type="file" multiple className="hidden" onChange={(e) => upload(e.target.files)} />
+        <input type="file" multiple accept={DOC_ACCEPT} className="hidden" onChange={(e) => upload(e.target.files)} />
       </label>
       {docs.map((d) => (
         <div key={d.id} className="flex items-center gap-3 rounded-xl border bg-card p-3 text-sm">

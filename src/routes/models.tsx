@@ -32,6 +32,7 @@ function Models() {
   const mutate = useCoreMutate();
   const [adding, setAdding] = useState(false);
   const [eleven, setEleven] = useState(false);
+  const [tavily, setTavily] = useState(false);
   const models = data?.models ?? [], providers = data?.providers ?? [], caps = data?.caps ?? [];
 
   async function importCatalog(providerId: string, adapterId: string) {
@@ -58,7 +59,8 @@ function Models() {
 
       <section className="space-y-2 rounded-xl border bg-card p-3 text-sm">
         <div className="flex items-center justify-between"><h2 className="font-semibold">Proveedores</h2>
-          <Button size="sm" variant="outline" onClick={() => setEleven((v) => !v)}><Plus /> ElevenLabs</Button></div>
+          <div className="flex gap-1"><Button size="sm" variant="outline" onClick={() => setEleven((v) => !v)}><Plus /> ElevenLabs</Button><Button size="sm" variant="outline" onClick={() => setTavily((v) => !v)}><Plus /> Tavily</Button></div></div>
+        {tavily && <TavilyForm onDone={() => setTavily(false)} />}
         {eleven && <ElevenLabsForm onDone={() => setEleven(false)} />}
         {!providers.length && <p className="text-xs text-muted-foreground">Sin proveedores. Agrega uno en Ajustes.</p>}
         {providers.map((p) => (
@@ -137,7 +139,7 @@ function ModelCard({ m, allCaps }: { m: ModelWithCaps; allCaps: string[] }) {
 
 function getAdapterForModel(m: ModelWithCaps) {
   const kind = m.provider_kind;
-  return getAdapter(kind === "openai" ? "openai" : kind === "azure_openai" || kind === "azure" ? "azure_openai" : kind === "elevenlabs" ? "elevenlabs" : `text:${kind}`);
+  return getAdapter(kind === "openai" ? "openai" : kind === "azure_openai" || kind === "azure" ? "azure_openai" : kind === "elevenlabs" ? "elevenlabs" : kind === "tavily" ? "tavily" : `text:${kind}`);
 }
 
 function RegisterModel({ providers, caps, onDone }: { providers: { id: string; name: string }[]; caps: string[]; onDone: () => void }) {
@@ -188,6 +190,28 @@ function ElevenLabsForm({ onDone }: { onDone: () => void }) {
     <div className="space-y-2">
       <input className={inputCls} type="password" autoComplete="off" placeholder="API key de ElevenLabs" value={key} onChange={(e) => setKey(e.target.value)} />
       <Button className="w-full" onClick={save}>Guardar ElevenLabs</Button>
+    </div>
+  );
+}
+
+function TavilyForm({ onDone }: { onDone: () => void }) {
+  const mutate = useCoreMutate();
+  const [key, setKey] = useState("");
+  async function save() {
+    if (!key.trim()) { toast.error("Introduce tu API key de Tavily."); return; }
+    await mutate(async (c) => {
+      const pid = await c.repo.saveProvider({ name: "Tavily", kind: "tavily", model: "search", apiKey: key.trim() });
+      const mid = await c.repo.registry.upsertModel({ providerId: pid, remoteId: "search", source: "manual" });
+      await c.repo.registry.setModelCapabilities(mid, ["research.web"]);
+    });
+    setKey("");
+    toast.success("Buscador Tavily guardado con la clave cifrada. Usa «Probar» en research.web.");
+    onDone();
+  }
+  return (
+    <div className="space-y-2">
+      <input className={inputCls} type="password" autoComplete="off" placeholder="API key de Tavily (tvly-…)" value={key} onChange={(e) => setKey(e.target.value)} />
+      <Button className="w-full" onClick={save}>Guardar Tavily</Button>
     </div>
   );
 }

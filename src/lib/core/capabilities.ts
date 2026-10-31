@@ -29,7 +29,8 @@ export const INITIAL_CAPABILITIES: CapabilitySpec[] = [
   base("chat", "Chat", ["text"], ["text"], { params: { temperature: { type: "number", min: 0, max: 2 } } }),
   base("reasoning", "Razonamiento", ["text"], ["text"]),
   base("vision", "Visión", ["text", "image"], ["text"], { mimeIn: ["image/png", "image/jpeg", "image/webp"], maxInputBytes: 20_000_000 }),
-  base("document.analyze", "Análisis de documentos", ["document", "text"], ["text"], { mimeIn: ["application/pdf", "text/plain"] }),
+  base("research.web", "Buscar en internet", ["text"], ["text"], { restrictions: ["Cita siempre las fuentes"] }),
+  base("document.analyze", "Análisis de documentos", ["document", "text"], ["text"], { mimeIn: ["application/pdf", "text/plain", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "text/csv"] }),
   base("image.generate", "Generar imagen", ["text"], ["image"], {
     mimeOut: ["image/png", "image/jpeg", "image/webp"], formats: ["png", "jpeg", "webp"],
     params: { size: { type: "enum", values: ["1024x1024", "1024x1536", "1536x1024", "auto"], default: "1024x1024" }, quality: { type: "enum", values: ["low", "medium", "high", "auto"], default: "auto" }, n: { type: "number", min: 1, max: 4, default: 1 } },

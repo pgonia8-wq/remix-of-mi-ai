@@ -1,12 +1,12 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { FolderKanban, MessagesSquare, Brain, Settings, Images, Boxes } from "lucide-react";
+import { FolderKanban, MessagesSquare, LayoutGrid, Settings, Images, Boxes } from "lucide-react";
 import type { ReactNode } from "react";
 import { useActiveProjectId, useRepoQuery } from "@/lib/use-app";
 
 const tabs = [
   { to: "/", label: "Proyectos", icon: FolderKanban },
   { to: "/chats", label: "Chats", icon: MessagesSquare },
-  { to: "/memory", label: "Memoria", icon: Brain },
+  { to: "/tools", label: "Más", icon: LayoutGrid },
   { to: "/library", label: "Biblioteca", icon: Images },
   { to: "/models", label: "Modelos", icon: Boxes },
   { to: "/settings", label: "Ajustes", icon: Settings },

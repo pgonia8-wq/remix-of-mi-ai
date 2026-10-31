@@ -15,6 +15,7 @@ const now = () => Date.now();
 /** Which adapter family handles a provider kind. Text kinds reuse the existing on-device adapter. */
 export function adapterFor(kind: string): string {
   if (kind === "elevenlabs") return "elevenlabs";
+  if (kind === "tavily") return "tavily";
   if (kind === "azure_openai" || kind === "azure") return "azure_openai";
   if (kind === "openai") return "openai";
   return `text:${kind}`;
@@ -60,7 +61,7 @@ export class Registry {
       );
       await this.db.run(`INSERT OR IGNORE INTO auth_refs (id, provider_id, legacy_provider_id) VALUES (?,?,?)`, [p.id, p.id, p.id]);
       const remote = (p.kind === "azure_openai" || p.kind === "azure" ? p.deployment : p.model)?.trim();
-      if (remote && p.kind !== "elevenlabs") {
+      if (remote && p.kind !== "elevenlabs" && p.kind !== "tavily") {
         const mid = await this.upsertModel({ providerId: p.id, remoteId: remote, name: remote, source: "legacy" });
         await this.db.run(`INSERT OR IGNORE INTO model_capabilities (model_id, capability_id) VALUES (?, 'chat')`, [mid]);
       }

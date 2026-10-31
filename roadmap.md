@@ -30,8 +30,21 @@
 - [x] Transcribir y traducir audio (OpenAI, Azure OpenAI, ElevenLabs Scribe), grabando o subiendo archivo
 - [x] Clonar voz (ElevenLabs) con consentimiento obligatorio; solo se guarda el ID de la voz
 - [x] Chat: dictado por micrófono y «Leer en voz alta»; permiso de micrófono en Android
-- [ ] Siguiente: compilar APK de Fases 1–3 y corregir errores de compilación
 - [ ] Bloqueado: pruebas reales con claves del usuario
+
+## Fase 4 — Documentos y productividad (completada en código)
+- [x] Leer PDF, Word, Excel/CSV y texto en el teléfono; resumir, preguntar, extraer tablas, datos clave y pendientes
+- [x] Crear documentos con plantillas y exportar a PDF, Word, Excel y Markdown
+- [x] Notas y tareas por proyecto; tareas extraídas de un texto con IA
+
+## Fase 5 — Investigación y educación (completada en código)
+- [x] Investigación web con Tavily (clave del usuario), búsqueda profunda, citas numeradas y aviso de citas inválidas
+- [x] Memoria inteligente (embeddings OpenAI/Azure) usada automáticamente por el chat
+- [x] Estudio: explicar, cuestionarios, tarjetas con repaso espaciado, planes de estudio
+
+## Siguiente
+- [ ] Compilar APK de Fases 1–5 y corregir errores de compilación
+- [ ] Bloqueado: pruebas reales con claves del usuario (Azure, Tavily, ElevenLabs)
 
 ## Fase 1 (completada)
 - [x] Proyectos, chats, memoria, documentos, proveedores con prueba real, Azure OpenAI, respaldo cifrado, APK build.3

@@ -9,7 +9,10 @@ export type OutputFile = { bytes: Uint8Array; mime: string; name: string };
 export type RunResult =
   | { kind: "text"; text: string }
   | { kind: "files"; files: OutputFile[]; text?: string }
-  | { kind: "remote"; remoteId: string };
+  | { kind: "remote"; remoteId: string }
+  | { kind: "vectors"; vectors: number[][] }
+  | { kind: "search"; results: SearchResult[] };
+export type SearchResult = { title: string; url: string; snippet: string };
 
 /** What an adapter can really do for one capability. */
 export type OperationSupport = { async: boolean; cancel: boolean; poll: boolean; recover: boolean; idempotencyHeader: string | null };

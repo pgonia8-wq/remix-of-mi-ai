@@ -2,6 +2,7 @@
 import { streamChat, ProviderError } from "../../providers";
 import { call, requireKey } from "./http";
 import { visionBody, parseVision } from "./vision";
+import { embeddingBody, embeddingInputs, parseEmbeddings } from "./embeddings";
 import { OPENAI_VOICES, parseSpeech, parseTranscript, speechBody, transcriptionForm } from "./audio";
 import { b64ToBytes, sync, trimSlash, type AdapterCredentials, type ProviderAdapter, type RunRequest, type RunResult } from "./types";
 
@@ -61,7 +62,7 @@ const base = (c: AdapterCredentials) => trimSlash(c.endpoint?.trim() || "https:/
 export const openaiAdapter: ProviderAdapter = {
   id: "openai",
   label: "OpenAI",
-  operations: { chat: sync(), vision: sync(), "image.generate": sync(), "image.edit": sync(), "image.upscale": sync(), "image.remove_bg": sync(), "audio.tts": sync(), "audio.transcribe": sync(), "audio.translate": sync() },
+  operations: { chat: sync(), vision: sync(), "image.generate": sync(), "image.edit": sync(), "image.upscale": sync(), "image.remove_bg": sync(), "audio.tts": sync(), "audio.transcribe": sync(), "audio.translate": sync(), embedding: sync() },
   async listVoices() { return OPENAI_VOICES.map((v) => ({ id: v, name: v })); },
   supports(cap) { return cap in this.operations; },
   async run(c, r) {
@@ -69,6 +70,10 @@ export const openaiAdapter: ProviderAdapter = {
     const auth = { authorization: `Bearer ${key}` };
     switch (r.capability) {
       case "chat": return chatViaLegacy(c, r);
+      case "embedding": {
+        const res = await call(`${base(c)}/embeddings`, { method: "POST", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify(embeddingBody(r, true)), signal: r.signal ?? null }, key);
+        return parseEmbeddings(await res.json(), embeddingInputs(r).length);
+      }
       case "vision": {
         const res = await call(`${base(c)}/chat/completions`, { method: "POST", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify(visionBody(r, true)), signal: r.signal ?? null }, key);
         return { kind: "text", text: parseVision(await res.json()) };

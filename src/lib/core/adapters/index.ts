@@ -4,6 +4,7 @@ import { chatViaLegacy } from "./openai";
 import { openaiAdapter } from "./openai";
 import { azureAdapter } from "./azure";
 import { elevenlabsAdapter } from "./elevenlabs";
+import { tavilyAdapter } from "./tavily";
 import { sync, trimSlash, type ProviderAdapter } from "./types";
 import { PROVIDER_KINDS } from "../../providers";
 
@@ -36,6 +37,7 @@ export function getAdapter(adapterId: string): ProviderAdapter {
   if (adapterId === "openai") return openaiAdapter;
   if (adapterId === "azure_openai") return azureAdapter;
   if (adapterId === "elevenlabs") return elevenlabsAdapter;
+  if (adapterId === "tavily") return tavilyAdapter;
   return textAdapter(adapterId.replace(/^text:/, ""));
 }
 
