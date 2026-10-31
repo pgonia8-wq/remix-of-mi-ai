@@ -11,6 +11,13 @@ export function interpolate(text: string, input: string, previous: string) {
 }
 // Confirmation is never delegated to model output or disabled by a generated plan.
 export function needsApproval(s: Step) { return s.approval || s.tool !== "chat"; }
+export function branchCursor(steps: Step[], cursor: number, passed: boolean) {
+  const s = steps[cursor]; if (!s) throw new Error("Paso inexistente");
+  const target = passed ? s.next : s.otherwise;
+  if (target === null) return steps.length;
+  if (target) { const i = steps.findIndex((x) => x.id === target || x.id.startsWith(`${target}:`)); if (i < 0) throw new Error("Destino inexistente"); return i; }
+  return cursor + 1;
+}
 export async function advance(core: Core, projectId: string, id: string, approved = false, retryConfirmed = false): Promise<Run> {
   const key = `${projectId}:${id}`;
   if (locks.has(key)) throw new Error("Este flujo ya está ejecutándose.");
@@ -24,6 +31,12 @@ export async function advance(core: Core, projectId: string, id: string, approve
     const flow = flowSchema.parse(JSON.parse(r.definition));
     const steps = expandSteps(flow.steps), s = steps[r.cursor];
     if (!s) throw new Error("Paso inexistente");
+    const events = await runs.events(repo, projectId, id);
+    if (events.filter((e) => ["completed", "skipped"].includes(e.kind)).length >= 60) throw new Error("Límite de pasos alcanzado; revisa las ramas del flujo.");
+    for (const dep of s.dependsOn ?? []) {
+      const required = steps.filter((x) => x.id.startsWith(`${dep}:`));
+      if (!required.every((x) => events.some((e) => e.step_id === x.id && e.kind === "completed"))) throw new Error("Dependencia no completada: " + dep);
+    }
     const update = async (status: Run["status"], error: string | null = null) => {
       await repo.sql.run("UPDATE workflow_runs SET status=?, error=?, updated_at=? WHERE project_id=? AND id=?", [status, error, Date.now(), projectId, id]);
     };
@@ -46,11 +59,16 @@ export async function advance(core: Core, projectId: string, id: string, approve
       if (cfg.memory) memory = (await repo.buildContext(projectId, s.prompt)).slice(0, 12_000);
     }
     let previous = "";
-    if (r.output) previous = new TextDecoder().decode(await core.assets.read(projectId, r.output)).slice(0, 60_000);
+    if (r.output) {
+      const asset = await core.assets.get(projectId, r.output);
+      if (asset?.mime.startsWith("text/")) previous = new TextDecoder().decode(await core.assets.read(projectId, r.output)).slice(0, 60_000);
+      else if (asset) previous = `Archivo generado: ${asset.name ?? asset.id} (${asset.mime}).`;
+    }
     const prompt = interpolate(s.prompt, r.input, previous);
     if (s.contains && !previous.toLocaleLowerCase().includes(s.contains.toLocaleLowerCase())) {
       await runs.event(repo, projectId, id, s, "skipped", "Condición no cumplida");
-      await repo.sql.run("UPDATE workflow_runs SET cursor=?,status=?,updated_at=? WHERE project_id=? AND id=?", [r.cursor + 1, r.cursor + 1 >= steps.length ? "completed" : "ready", Date.now(), projectId, id]);
+      const next = branchCursor(steps, r.cursor, false);
+      await repo.sql.run("UPDATE workflow_runs SET cursor=?,status=?,updated_at=? WHERE project_id=? AND id=?", [next, next >= steps.length ? "completed" : "ready", Date.now(), projectId, id]);
     } else {
       await update("running");
       try {
@@ -83,7 +101,8 @@ export async function advance(core: Core, projectId: string, id: string, approve
         }
         await repo.sql.run("INSERT OR REPLACE INTO workflow_steps (id,project_id,workflow_id,step_index,capability_id,job_id,input_assets,output_assets,status) VALUES (?,?,?,?,?,?,?,?,?)", [crypto.randomUUID(), projectId, id, r.cursor, s.tool, jobId, JSON.stringify(r.output ? [r.output] : []), JSON.stringify(output ? [output] : []), "completed"]);
         await runs.event(repo, projectId, id, s, "completed", jobId ? `Trabajo ${jobId}` : "Operación local completada");
-        await repo.sql.run("UPDATE workflow_runs SET cursor=?,output=?,status=?,error=NULL,updated_at=? WHERE project_id=? AND id=?", [r.cursor + 1, output, r.cursor + 1 >= steps.length ? "completed" : "ready", Date.now(), projectId, id]);
+        const next = branchCursor(steps, r.cursor, true);
+        await repo.sql.run("UPDATE workflow_runs SET cursor=?,output=?,status=?,error=NULL,updated_at=? WHERE project_id=? AND id=?", [next, output, next >= steps.length ? "completed" : "ready", Date.now(), projectId, id]);
       } catch {
         // Do not copy provider/VM error payloads into orchestration logs.
         await update("recovery_required", "El paso no confirmó su resultado. Revisa Trabajos y el historial antes de repetir; puede haber coste o acciones duplicadas.");

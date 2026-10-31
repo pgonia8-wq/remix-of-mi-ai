@@ -2,7 +2,7 @@ import type { Repo } from "../db/repo";
 import type { Core } from "../core";
 import { askModel, extractJson } from "../core/ai";
 import { agents, flowSchema, runs, workflows, type Flow, type Step } from "./store";
-import { advance, expandSteps } from "./runner";
+import { advance, expandSteps, branchCursor } from "./runner";
 
 const active = new Set<string>();
 export async function runUntilPause(core: Core, p: string, id: string, approved = false, signal?: AbortSignal) {
@@ -15,18 +15,7 @@ export async function runUntilPause(core: Core, p: string, id: string, approved 
     return r;
   } finally { active.delete(key); }
 }
-export function nextCursor(steps: Step[], cursor: number, passed: boolean) {
-  const s = steps[cursor];
-  if (!s) throw new Error("Paso inexistente");
-  const target = passed ? s.next : s.otherwise;
-  if (target === null) return steps.length;
-  if (target) {
-    const i = steps.findIndex((x) => x.id === target || x.id.startsWith(`${target}:`));
-    if (i < 0) throw new Error("Destino inexistente");
-    return i;
-  }
-  return cursor + 1;
-}
+export const nextCursor = branchCursor;
 export async function delegatePlan(core: Core, p: string, goal: string): Promise<Flow> {
   const team = (await agents.list(core.repo, p)).filter((a) => a.enabled);
   if (!team.length) throw new Error("Crea al menos un agente activo.");
