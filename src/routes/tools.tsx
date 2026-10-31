@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Brain, FileText, GraduationCap, ListChecks, Search, Activity, ShieldCheck, Bot, Workflow, Code, Briefcase, Server, BarChart3 } from "lucide-react";
+import { Brain, FileText, GraduationCap, ListChecks, Search, Activity, ShieldCheck, Bot, Workflow, Code, Briefcase, Server, BarChart3, Music, Video, Box } from "lucide-react";
 
 export const Route = createFileRoute("/tools")({
   head: () => ({
@@ -16,6 +16,9 @@ export const Route = createFileRoute("/tools")({
 });
 
 const ITEMS = [
+  { to: "/music", icon: Music, label: "Música y sonido", desc: "" },
+  { to: "/video", icon: Video, label: "Video", desc: "" },
+  { to: "/models3d", icon: Box, label: "Modelos 3D", desc: "" },
   { to: "/workspace", icon: Briefcase, label: "Espacio profesional", desc: "" },
   { to: "/servers", icon: Server, label: "Servidores", desc: "" },
   { to: "/data", icon: BarChart3, label: "Datos y presupuestos", desc: "" },
