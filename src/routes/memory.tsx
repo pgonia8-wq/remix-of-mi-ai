@@ -14,6 +14,8 @@ export const Route = createFileRoute("/memory")({
       { name: "description", content: "Hechos, decisiones e hipótesis versionados y documentos privados del proyecto, con búsqueda local." },
       { property: "og:title", content: "Memoria y documentos — MI AI" },
       { property: "og:description", content: "Memoria versionada y documentos privados del proyecto." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: MemoryPage,
