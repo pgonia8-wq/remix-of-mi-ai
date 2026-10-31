@@ -11,6 +11,7 @@ import { execute } from "@/lib/core/executor";
 import type { Asset } from "@/lib/core/asset-store";
 import { isNative } from "@/lib/app-db";
 import { NeedProject, inputCls } from "@/components/AppShell";
+import { AudioStudio } from "@/components/AudioStudio";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/library")({
@@ -29,8 +30,10 @@ export const Route = createFileRoute("/library")({
 
 const CREATE_CAPS = [
   { id: "image.generate", label: "Imagen" },
-  { id: "audio.tts", label: "Voz" },
   { id: "vision", label: "Analizar" },
+  { id: "audio.tts", label: "Voz" },
+  { id: "audio.transcribe", label: "Transcribir" },
+  { id: "audio.voice_clone", label: "Clonar" },
 ];
 
 function Library() {
@@ -285,7 +288,8 @@ function Create({ projectId }: { projectId: string }) {
 
   return (
     <section className="space-y-2 rounded-xl border bg-card p-3 text-sm">
-      <div className="flex gap-1">{CREATE_CAPS.map((c) => <button key={c.id} onClick={() => setCap(c.id)} className={`flex-1 rounded-lg border px-2 py-1.5 text-xs ${cap === c.id ? "border-primary bg-primary text-primary-foreground" : ""}`}>{c.label}</button>)}</div>
+      <div className="flex flex-wrap gap-1">{CREATE_CAPS.map((c) => <button key={c.id} onClick={() => setCap(c.id)} className={`flex-1 rounded-lg border px-2 py-1.5 text-xs ${cap === c.id ? "border-primary bg-primary text-primary-foreground" : ""}`}>{c.label}</button>)}</div>
+      {cap.startsWith("audio.") ? <AudioStudio key={cap} projectId={projectId} cap={cap as "audio.tts"} /> : <>
       {cap === "vision" && (
         <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed p-3 text-xs">
           <Upload className="h-4 w-4" /> {file ? file.name : "Elegir imagen (PNG, JPEG, WEBP, GIF)"}
@@ -306,6 +310,7 @@ function Create({ projectId }: { projectId: string }) {
       </p>
       <Button className="w-full" disabled={busy || !decision.ok} onClick={run}><Sparkles />{busy ? "Procesando…" : cap === "vision" ? "Analizar" : "Generar"}</Button>
       {answer !== null && <p className="whitespace-pre-wrap rounded-lg border bg-background p-2 text-sm">{answer}</p>}
+      </>}
     </section>
   );
 }
