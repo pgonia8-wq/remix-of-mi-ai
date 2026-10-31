@@ -12,6 +12,8 @@ export const Route = createFileRoute("/")({
       { name: "description", content: "Proyectos aislados con chats, memoria y documentos propios, guardados cifrados en tu teléfono." },
       { property: "og:title", content: "Proyectos — MI AI" },
       { property: "og:description", content: "Proyectos aislados con chats, memoria y documentos propios." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: Projects,

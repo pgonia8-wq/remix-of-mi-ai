@@ -10,6 +10,8 @@ export const Route = createFileRoute("/chats")({
       { name: "description", content: "Conversaciones del proyecto activo con cualquier proveedor de IA." },
       { property: "og:title", content: "Chats — MI AI" },
       { property: "og:description", content: "Conversaciones del proyecto activo." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: Chats,
