@@ -80,6 +80,7 @@ export async function advance(core: Core, projectId: string, id: string, approve
           await repo.sql.run("UPDATE workflow_runs SET calls=calls+1 WHERE project_id=? AND id=?", [projectId, id]);
           await runs.event(repo, projectId, id, s, "request", `${s.tool} · ${d.model.name}`);
           const result = await execute(core, projectId, d.model, { capability: s.tool, prompt: `${instructions}${memory}\n\n${prompt}`, saveText: true });
+          if (result.pending) throw new Error("El trabajo remoto requiere revisión de su resultado antes del siguiente paso.");
           jobId = result.jobId;
           text = result.text ?? (result.results ? result.results.map((x) => `${x.title}\n${x.url}\n${x.snippet}`).join("\n\n") : "");
           const first = result.assets[0];

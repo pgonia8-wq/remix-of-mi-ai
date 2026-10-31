@@ -29,6 +29,7 @@ function Studio({ pid, kind }: { pid: string; kind: StudioKind }) {
   const { data: assets = [] } = useCoreQuery(["media-assets", pid, kind], async (c) => (await c.assets.list(pid)).filter((a) => kind === "music" ? ["music.generate", "audio.sfx"].includes(a.capability_id ?? "") : a.kind === kind));
   const { data: jobs = [] } = useCoreQuery(["media-jobs", pid, kind], async (c) => (await c.jobs.list(pid)).filter((j) => OPTIONS[kind].some((o) => o.id === j.capability_id)));
   const mutate = useCoreMutate(), upload = useRef<HTMLInputElement | null>(null);
+  const importInput = useRef<HTMLInputElement | null>(null);
   const [capability, setCapability] = useState(OPTIONS[kind][0]?.id ?? ""), [prompt, setPrompt] = useState("");
   const [modelId, setModelId] = useState(""), [seconds, setSeconds] = useState(kind === "music" ? 30 : 5), [instrumental, setInstrumental] = useState(true);
   const [ratio, setRatio] = useState("1280:720"), [license, setLicense] = useState(""), [busy, setBusy] = useState(false), [file, setFile] = useState<File | null>(null), [open, setOpen] = useState<Asset | null>(null);
@@ -60,7 +61,16 @@ function Studio({ pid, kind }: { pid: string; kind: StudioKind }) {
     {open && <p className="text-xs">Nueva versión de {open.name}</p>}
     <Button disabled={busy || !compatible.length || !prompt.trim()} onClick={generate}><Play />{busy ? "Procesando…" : "Generar"}</Button>
     {jobs.filter((j) => !!j.remote_id && ["processing", "interrupted", "recovery_required"].includes(j.status)).map((j) => <div key={j.id} className="flex items-center gap-2 border-b py-2 text-xs"><span className="min-w-0 flex-1">{j.capability_id} · {j.status}{j.progress !== null ? ` · ${Math.round(j.progress * 100)} %` : ""}</span><Button variant="outline" size="sm" disabled={busy} onClick={() => act(async (core) => { const r = await pollRemoteJob(core, pid, j.id); toast.success(r.pending ? "Sigue procesando" : "Archivo guardado cifrado"); })}><RefreshCw />Consultar</Button></div>)}
-    <div className="space-y-2 border-t pt-3"><h2 className="font-semibold">Biblioteca</h2>{assets.map((a) => <Button variant="outline" key={a.id} className="w-full justify-start truncate" onClick={() => setOpen(a)}>{a.name} · v{a.version}</Button>)}</div>
+    <div className="space-y-2 border-t pt-3"><div className="flex items-center justify-between"><h2 className="font-semibold">Biblioteca</h2><Button variant="outline" size="sm" onClick={() => importInput.current?.click()}><Upload />Importar</Button></div>
+      <input ref={importInput} type="file" aria-label="Importar archivo de medios" className="hidden" accept={kind === "model3d" ? ".glb" : kind === "music" ? "audio/*" : "video/mp4"} onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; act(async (core) => {
+        if (f.size > 50 * 1024 * 1024) throw new Error("Máximo 50 MB para importar en este estudio.");
+        const bytes = new Uint8Array(await f.arrayBuffer());
+        if (kind === "model3d" && new TextDecoder().decode(bytes.subarray(0, 4)) !== "glTF") throw new Error("El archivo no es GLB.");
+        const asset = await core.assets.put(pid, (async function* () { yield bytes; })(), { kind: kind === "music" ? "audio" : kind, mime: kind === "model3d" ? "model/gltf-binary" : f.type || "video/mp4", name: f.name, capability: kind === "music" ? "music.generate" : null, params: { license: license.trim() || "Licencia del archivo importado no verificada", source: "import" } });
+        setOpen(asset);
+      }); e.target.value = ""; }} />
+      {assets.map((a) => <Button variant="outline" key={a.id} className="w-full justify-start truncate" onClick={() => setOpen(a)}>{a.name} · v{a.version}</Button>)}
+    </div>
     {open && <MediaPreview asset={open} onClose={() => setOpen(null)} />}
   </div>;
 }
