@@ -44,7 +44,8 @@ function Settings() {
       try {
         JSON.parse(form.extraParams);
       } catch {
-        return toast.error("Parámetros extra debe ser JSON válido");
+        toast.error("Parámetros extra debe ser JSON válido");
+        return;
       }
     }
     await mutate((r) => r.saveProvider({ ...form, apiKey: form.apiKey || undefined }, editId ?? undefined));
@@ -138,7 +139,10 @@ function Backup() {
   const mutate = useMutate();
   const [pw, setPw] = useState("");
   async function doExport() {
-    if (pw.length < 8) return toast.error("Usa una contraseña de al menos 8 caracteres");
+    if (pw.length < 8) {
+      toast.error("Usa una contraseña de al menos 8 caracteres");
+      return;
+    }
     const sealed = await sealWithPassword(pw, JSON.stringify(await (await getRepo()).dumpAll()));
     const name = `miai-${new Date().toISOString().slice(0, 10)}.miai`;
     if (isNative()) {

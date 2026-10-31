@@ -15,7 +15,7 @@ export type MemoryVersion = { id: string; item_id: string; version: number; kind
 export type Doc = { id: string; project_id: string; name: string; mime: string | null; size: number; text_content: string | null; file_path: string | null; created_at: number };
 export type ProviderKind = "openai" | "anthropic" | "gemini" | "azure" | "xai" | "deepseek" | "mistral" | "cohere" | "openai_compatible" | "custom";
 export type Provider = { id: string; name: string; kind: ProviderKind; endpoint: string | null; deployment: string | null; model: string; api_version: string | null; extra_params: string | null; enabled: number; created_at: number; has_key: boolean };
-export type ProviderInput = { name: string; kind: ProviderKind; endpoint?: string; apiKey?: string; deployment?: string; model: string; apiVersion?: string; extraParams?: string; enabled?: boolean };
+export type ProviderInput = { name: string; kind: ProviderKind; endpoint?: string; apiKey?: string | undefined; deployment?: string; model: string; apiVersion?: string; extraParams?: string; enabled?: boolean };
 
 export class IsolationError extends Error {}
 
