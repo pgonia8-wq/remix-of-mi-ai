@@ -2,6 +2,7 @@
 import { streamChat, ProviderError } from "../../providers";
 import { call, requireKey } from "./http";
 import { visionBody, parseVision } from "./vision";
+import { OPENAI_VOICES, parseSpeech, parseTranscript, speechBody, transcriptionForm } from "./audio";
 import { b64ToBytes, sync, trimSlash, type AdapterCredentials, type ProviderAdapter, type RunRequest, type RunResult } from "./types";
 
 export async function chatViaLegacy(c: AdapterCredentials, r: RunRequest): Promise<RunResult> {
@@ -60,7 +61,8 @@ const base = (c: AdapterCredentials) => trimSlash(c.endpoint?.trim() || "https:/
 export const openaiAdapter: ProviderAdapter = {
   id: "openai",
   label: "OpenAI",
-  operations: { chat: sync(), vision: sync(), "image.generate": sync(), "image.edit": sync(), "image.upscale": sync(), "image.remove_bg": sync(), "audio.tts": sync(), "audio.transcribe": sync() },
+  operations: { chat: sync(), vision: sync(), "image.generate": sync(), "image.edit": sync(), "image.upscale": sync(), "image.remove_bg": sync(), "audio.tts": sync(), "audio.transcribe": sync(), "audio.translate": sync() },
+  async listVoices() { return OPENAI_VOICES.map((v) => ({ id: v, name: v })); },
   supports(cap) { return cap in this.operations; },
   async run(c, r) {
     const key = requireKey(c.apiKey);
@@ -83,21 +85,14 @@ export const openaiAdapter: ProviderAdapter = {
         return { kind: "files", files: parseImages(await res.json(), "png") };
       }
       case "audio.tts": {
-        const res = await call(`${base(c)}/audio/speech`, { method: "POST", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify({ model: r.model, input: r.prompt ?? "", voice: r.params?.["voice"] ?? "alloy", response_format: "mp3" }), signal: r.signal ?? null }, key);
-        const bytes = new Uint8Array(await res.arrayBuffer());
-        if (bytes.length < 100) throw new ProviderError("parameters", "Respuesta inválida: audio vacío.", 200);
-        return { kind: "files", files: [{ bytes, mime: "audio/mpeg", name: "voz.mp3" }] };
+        const res = await call(`${base(c)}/audio/speech`, { method: "POST", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify(speechBody(r, true)), signal: r.signal ?? null }, key);
+        return parseSpeech(res);
       }
-      case "audio.transcribe": {
-        const file = r.files?.[0];
-        if (!file) throw new ProviderError("parameters", "Transcribir requiere un archivo de audio.");
-        const f = new FormData();
-        f.append("model", r.model);
-        f.append("file", new Blob([file.bytes as BlobPart], { type: file.mime }), file.name);
-        const res = await call(`${base(c)}/audio/transcriptions`, { method: "POST", headers: auth, body: f, signal: r.signal ?? null }, key);
-        const d = await res.json();
-        if (typeof d?.text !== "string") throw new ProviderError("parameters", "Respuesta inválida: sin transcripción.", 200);
-        return { kind: "text", text: d.text };
+      case "audio.transcribe":
+      case "audio.translate": {
+        const tr = r.capability === "audio.translate";
+        const res = await call(`${base(c)}/audio/${tr ? "translations" : "transcriptions"}`, { method: "POST", headers: auth, body: transcriptionForm(r, true, tr), signal: r.signal ?? null }, key);
+        return parseTranscript(res, !!r.params?.["allowEmpty"]);
       }
     }
     throw new ProviderError("parameters", `OpenAI no implementa «${r.capability}» en este adaptador.`);

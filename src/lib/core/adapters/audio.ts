@@ -44,10 +44,10 @@ export async function parseSpeech(res: Response): Promise<RunResult> {
   return { kind: "files", files: [{ bytes, mime: "audio/mpeg", name: "voz.mp3" }] };
 }
 
-export async function parseTranscript(res: Response): Promise<RunResult> {
+export async function parseTranscript(res: Response, allowEmpty = false): Promise<RunResult> {
   const d = await res.json().catch(() => null);
   if (typeof d?.text !== "string") throw new ProviderError("parameters", "Respuesta inválida: sin transcripción.", 200);
-  if (!d.text.trim()) throw new ProviderError("parameters", "No se detectó voz en el audio.", 200);
+  if (!d.text.trim() && !allowEmpty) throw new ProviderError("parameters", "No se detectó voz en el audio.", 200);
   return { kind: "text", text: d.text };
 }
 
