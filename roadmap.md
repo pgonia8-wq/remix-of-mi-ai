@@ -43,8 +43,14 @@
 - [x] Estudio: explicar, cuestionarios, tarjetas con repaso espaciado, planes de estudio
 
 ## Siguiente
-- [ ] Compilar APK de Fases 1–5 y corregir errores de compilación
+- [ ] Fase 6 (antes 8): agentes, automatización y código con ejecución aislada
+- [ ] Compilar APK de Fases 1–6 y corregir errores de compilación
 - [ ] Bloqueado: pruebas reales con claves del usuario (Azure, Tavily, ElevenLabs)
+
+## Orden pendiente solicitado
+- Fase 7 (antes 9): espacio profesional
+- Fase 8 (antes 7): música
+- Fase 9 (antes 6): video y 3D
 
 ## Fase 1 (completada)
 - [x] Proyectos, chats, memoria, documentos, proveedores con prueba real, Azure OpenAI, respaldo cifrado, APK build.3
