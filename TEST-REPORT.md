@@ -1,5 +1,12 @@
 # MI AI Fase 1 — Informe de pruebas (31-oct-2026, compilación 0.1.0-build.2)
 
+## Actualización: Azure OpenAI — 31-oct-2026
+- **Programado:** proveedor Azure OpenAI separado, con únicamente URL, API Key, deployment y versión; nombre/modelo internos derivados del deployment, sin pedir JSON. Solicitud con `api-key`, deployment en ruta y versión en query, sin modelo independiente en el cuerpo. Admite URL del recurso y URL completa de deployment; los campos explícitos de deployment/versión prevalecen. Las llamadas siguen en el dispositivo.
+- **Causa posible identificada, no confirmada para la solicitud del usuario:** antes se rechazaban URLs con `?api-version` y se duplicaba la ruta al pegar una URL completa. No se dispone de la URL ni de la respuesta HTTP de su intento para establecer su causa exacta.
+- **Probado en Chromium, 1280×1800 y 360×627:** cuatro campos, ausencia de modelo/JSON, diagnóstico de credencial faltante, guardado bloqueado, sin errores JavaScript ni desbordamiento horizontal.
+- **Pruebas unitarias:** solicitudes con URL raíz/completa, campos obligatorios, encabezados, cuerpo sin modelo/JSON, errores de red y persistencia/restauración sin claves; respuestas controladas solo en pruebas, nunca para simular éxito en la app.
+- **Pendiente:** respuesta real de Azure con credenciales autorizadas; compilación de esta actualización; emulador Android y Poco C40. Sin respuesta HTTP no se puede distinguir CORS, red o restricciones del recurso. El APK anterior no incluye Azure OpenAI.
+
 ## Actualización: chat y validación de modelos — 31-oct-2026
 - Causa confirmada del fallo de la vista previa: sql.js selecciona `sql-wasm-browser.js` y solicita `/wasm/sql-wasm-browser.wasm`; solo existía el archivo `sql-wasm.wasm`. Las peticiones devolvían 404 y la inicialización abortaba. No se encontró evidencia de un fallo de montaje o de registro de la ruta del chat. Se añadió el binario browser exacto de la dependencia y una prueba de regresión.
 - **Programado:** Probar conexión en formulario; Guardar modelo solo tras respuesta real válida; invalidación al cambiar campos; solicitudes específicas por proveedor; timeout 20 s; diagnóstico sanitizado; estados persistentes, repetición de pruebas y actualización del estado tras fallos en chat. Las credenciales de borrador no se escriben en almacenamiento.

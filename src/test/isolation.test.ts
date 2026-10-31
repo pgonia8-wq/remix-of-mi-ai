@@ -64,6 +64,17 @@ describe("memoria versionada", () => {
 });
 
 describe("API keys", () => {
+  it("preserves Azure OpenAI connection fields across save/read/backup without exporting its key", async () => {
+    const id = await repo.saveProvider({ name: "Azure OpenAI · deployment", kind: "azure_openai", endpoint: "https://resource.openai.azure.com", apiKey: "TEST-AZURE-KEY", deployment: "deployment", model: "deployment", apiVersion: "2024-10-21", extraParams: "" });
+    expect((await repo.listProviders())[0]).toMatchObject({ id, kind: "azure_openai", deployment: "deployment", model: "deployment", api_version: "2024-10-21", extra_params: "", has_key: true });
+    const dump = await repo.dumpAll();
+    expect(JSON.stringify(dump)).not.toContain("TEST-AZURE-KEY");
+    const SQL = await initSqlJs();
+    const fresh = new Repo(wrapSqlJs(new SQL.Database()), makeVault(await importRawKey(randomBytes(32))));
+    await fresh.migrate();
+    await fresh.restoreAll(dump as { tables: Record<string, Record<string, unknown>[]> });
+    expect((await fresh.listProviders())[0]).toMatchObject({ kind: "azure_openai", endpoint: "https://resource.openai.azure.com", deployment: "deployment", api_version: "2024-10-21", has_key: false, verification_status: "unverified" });
+  });
   it("stores verification status, invalidates edits and resets it after restore", async () => {
     const id = await repo.saveProvider({ name: "x", kind: "openai", model: "m" });
     expect((await repo.listProviders())[0]?.verification_status).toBe("unverified");
