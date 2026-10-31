@@ -12,10 +12,13 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ChatsRouteImport } from './routes/chats'
 import { Route as DiagnosticsRouteImport } from './routes/diagnostics'
+import { Route as DocumentsRouteImport } from './routes/documents'
 import { Route as JobsRouteImport } from './routes/jobs'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as MemoryRouteImport } from './routes/memory'
 import { Route as ModelsRouteImport } from './routes/models'
+import { Route as NotesRouteImport } from './routes/notes'
+import { Route as ResearchRouteImport } from './routes/research'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as ChatChatIdRouteImport } from './routes/chat.$chatId'
@@ -33,6 +36,11 @@ const ChatsRoute = ChatsRouteImport.update({
 const DiagnosticsRoute = DiagnosticsRouteImport.update({
   id: '/diagnostics',
   path: '/diagnostics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocumentsRoute = DocumentsRouteImport.update({
+  id: '/documents',
+  path: '/documents',
   getParentRoute: () => rootRouteImport,
 } as any)
 const JobsRoute = JobsRouteImport.update({
@@ -55,6 +63,16 @@ const ModelsRoute = ModelsRouteImport.update({
   path: '/models',
   getParentRoute: () => rootRouteImport,
 } as any)
+const NotesRoute = NotesRouteImport.update({
+  id: '/notes',
+  path: '/notes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResearchRoute = ResearchRouteImport.update({
+  id: '/research',
+  path: '/research',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -75,10 +93,13 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/chats': typeof ChatsRoute
   '/diagnostics': typeof DiagnosticsRoute
+  '/documents': typeof DocumentsRoute
   '/jobs': typeof JobsRoute
   '/library': typeof LibraryRoute
   '/memory': typeof MemoryRoute
   '/models': typeof ModelsRoute
+  '/notes': typeof NotesRoute
+  '/research': typeof ResearchRoute
   '/settings': typeof SettingsRoute
   '/tools': typeof ToolsRoute
   '/chat/$chatId': typeof ChatChatIdRoute
@@ -87,10 +108,13 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/chats': typeof ChatsRoute
   '/diagnostics': typeof DiagnosticsRoute
+  '/documents': typeof DocumentsRoute
   '/jobs': typeof JobsRoute
   '/library': typeof LibraryRoute
   '/memory': typeof MemoryRoute
   '/models': typeof ModelsRoute
+  '/notes': typeof NotesRoute
+  '/research': typeof ResearchRoute
   '/settings': typeof SettingsRoute
   '/tools': typeof ToolsRoute
   '/chat/$chatId': typeof ChatChatIdRoute
@@ -100,10 +124,13 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/chats': typeof ChatsRoute
   '/diagnostics': typeof DiagnosticsRoute
+  '/documents': typeof DocumentsRoute
   '/jobs': typeof JobsRoute
   '/library': typeof LibraryRoute
   '/memory': typeof MemoryRoute
   '/models': typeof ModelsRoute
+  '/notes': typeof NotesRoute
+  '/research': typeof ResearchRoute
   '/settings': typeof SettingsRoute
   '/tools': typeof ToolsRoute
   '/chat/$chatId': typeof ChatChatIdRoute
@@ -114,10 +141,13 @@ export interface FileRouteTypes {
     | '/'
     | '/chats'
     | '/diagnostics'
+    | '/documents'
     | '/jobs'
     | '/library'
     | '/memory'
     | '/models'
+    | '/notes'
+    | '/research'
     | '/settings'
     | '/tools'
     | '/chat/$chatId'
@@ -126,10 +156,13 @@ export interface FileRouteTypes {
     | '/'
     | '/chats'
     | '/diagnostics'
+    | '/documents'
     | '/jobs'
     | '/library'
     | '/memory'
     | '/models'
+    | '/notes'
+    | '/research'
     | '/settings'
     | '/tools'
     | '/chat/$chatId'
@@ -138,10 +171,13 @@ export interface FileRouteTypes {
     | '/'
     | '/chats'
     | '/diagnostics'
+    | '/documents'
     | '/jobs'
     | '/library'
     | '/memory'
     | '/models'
+    | '/notes'
+    | '/research'
     | '/settings'
     | '/tools'
     | '/chat/$chatId'
@@ -151,10 +187,13 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ChatsRoute: typeof ChatsRoute
   DiagnosticsRoute: typeof DiagnosticsRoute
+  DocumentsRoute: typeof DocumentsRoute
   JobsRoute: typeof JobsRoute
   LibraryRoute: typeof LibraryRoute
   MemoryRoute: typeof MemoryRoute
   ModelsRoute: typeof ModelsRoute
+  NotesRoute: typeof NotesRoute
+  ResearchRoute: typeof ResearchRoute
   SettingsRoute: typeof SettingsRoute
   ToolsRoute: typeof ToolsRoute
   ChatChatIdRoute: typeof ChatChatIdRoute
@@ -181,6 +220,13 @@ declare module '@tanstack/react-router' {
       path: '/diagnostics'
       fullPath: '/diagnostics'
       preLoaderRoute: typeof DiagnosticsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/documents': {
+      id: '/documents'
+      path: '/documents'
+      fullPath: '/documents'
+      preLoaderRoute: typeof DocumentsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/jobs': {
@@ -211,6 +257,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ModelsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/notes': {
+      id: '/notes'
+      path: '/notes'
+      fullPath: '/notes'
+      preLoaderRoute: typeof NotesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/research': {
+      id: '/research'
+      path: '/research'
+      fullPath: '/research'
+      preLoaderRoute: typeof ResearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -239,10 +299,13 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ChatsRoute: ChatsRoute,
   DiagnosticsRoute: DiagnosticsRoute,
+  DocumentsRoute: DocumentsRoute,
   JobsRoute: JobsRoute,
   LibraryRoute: LibraryRoute,
   MemoryRoute: MemoryRoute,
   ModelsRoute: ModelsRoute,
+  NotesRoute: NotesRoute,
+  ResearchRoute: ResearchRoute,
   SettingsRoute: SettingsRoute,
   ToolsRoute: ToolsRoute,
   ChatChatIdRoute: ChatChatIdRoute,
