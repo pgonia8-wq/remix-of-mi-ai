@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { FolderKanban, MessagesSquare, Brain, Settings } from "lucide-react";
+import { FolderKanban, MessagesSquare, Brain, Settings, Images, Boxes } from "lucide-react";
 import type { ReactNode } from "react";
 import { useActiveProjectId, useRepoQuery } from "@/lib/use-app";
 
@@ -7,6 +7,8 @@ const tabs = [
   { to: "/", label: "Proyectos", icon: FolderKanban },
   { to: "/chats", label: "Chats", icon: MessagesSquare },
   { to: "/memory", label: "Memoria", icon: Brain },
+  { to: "/library", label: "Biblioteca", icon: Images },
+  { to: "/models", label: "Modelos", icon: Boxes },
   { to: "/settings", label: "Ajustes", icon: Settings },
 ] as const;
 
@@ -26,11 +28,11 @@ export function AppShell({ children }: { children: ReactNode }) {
       <main className={`flex-1 ${inChat ? "" : "pb-24"}`}>{children}</main>
       {!inChat && (
         <nav className="fixed inset-x-0 bottom-0 z-10 border-t bg-card/95 backdrop-blur">
-          <div className="mx-auto grid max-w-2xl grid-cols-4">
+          <div className="mx-auto grid max-w-2xl grid-cols-6">
             {tabs.map(({ to, label, icon: Icon }) => {
               const active = to === "/" ? path === "/" : path.startsWith(to);
               return (
-                <Link key={to} to={to} className={`flex flex-col items-center gap-1 py-2.5 text-xs ${active ? "text-primary" : "text-muted-foreground"}`}>
+                <Link key={to} to={to} className={`flex flex-col items-center gap-1 py-2.5 text-[10px] ${active ? "text-primary" : "text-muted-foreground"}`}>
                   <Icon className="h-5 w-5" />
                   {label}
                 </Link>
