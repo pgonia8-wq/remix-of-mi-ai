@@ -6,7 +6,7 @@ import { useActiveProjectId, useRepoQuery } from "@/lib/use-app";
 const tabs = [
   { to: "/", label: "Proyectos", icon: FolderKanban },
   { to: "/chats", label: "Chats", icon: MessagesSquare },
-  { to: "/memory", label: "Memoria", icon: Brain },
+  { to: "/tools", label: "Herramientas", icon: Brain },
   { to: "/library", label: "Biblioteca", icon: Images },
   { to: "/models", label: "Modelos", icon: Boxes },
   { to: "/settings", label: "Ajustes", icon: Settings },
