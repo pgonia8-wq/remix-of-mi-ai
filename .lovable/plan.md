@@ -2,6 +2,28 @@
 
 Este plan amplía lo que ya existe; no lo reescribe. Cada operación de cada proveedor se reporta por separado como: Diseñada, Programada, Integrada, Probada en web, Probada en Android o Probada en dispositivo físico.
 
+## 0. Plan integral de MI AI (alcance universal completo)
+Antes de escribir código, se crean dos documentos dentro del proyecto:
+- `docs/ESPECIFICACION-MAESTRA.md`: une tus cinco documentos en una sola visión y marca qué decisiones aprobadas aplica cada parte. No hay contradicciones: el alcance universal se monta sobre este núcleo local, cifrado y para Android.
+- `docs/INVENTARIO-CAPACIDADES.md`: una ficha por cada capacidad de las secciones 2 a 22 con sus nueve datos (estado actual, trabajo pendiente, dependencias, tecnología, proveedor o API, costos y limitaciones, pruebas, criterio de aceptación y fase). Nada se elimina: lo que dependa de una API, un acceso, un presupuesto o un hardware que todavía no existe queda documentado como "pendiente por dependencia".
+
+Fases decididas por dependencia técnica (cada una entrega su propia APK):
+| Fase | Contenido | Depende de |
+|---|---|---|
+| 1. Núcleo universal | Este plan: registro, router, trabajos, biblioteca, cifrado de archivos, respaldos y diagnóstico | Fase 1 actual (hecha) |
+| 2. Imagen y visión | Crear y editar imágenes, galería con versiones, OCR, análisis de fotos y documentos | 1 |
+| 3. Audio y voz | Texto a voz, transcripción, traducción de voz, conversación por voz en tiempo real | 1 |
+| 4. Documentos y productividad | Editor de documentos, PDF y Word, presentaciones, hojas de cálculo, análisis de datos | 1, 2 (OCR) |
+| 5. Investigación y educación | Búsqueda web con fuentes, investigación profunda, tutor, cuestionarios | 1, 4 |
+| 6. Video | Generación por trabajos largos y editor con línea de tiempo (FFmpeg nativo) | 1, 2, 3 |
+| 7. Música y sonido | Música, efectos y separación de pistas | 1, 3, 6 |
+| 8. Agentes y automatizaciones | Herramientas, varios agentes, flujos encadenados y tareas programadas | 1 a 5 (flujos preparados en la fase 1) |
+| 9. Espacio profesional | Archivos, editor de código, ejecución, Termux, SSH, GitHub y nubes | 1, 8 |
+
+Las fases 2 y 3 se pueden construir en paralelo. Costos, cuotas, privacidad, derechos y consentimiento (secciones 21 y 22) son transversales: se aplican en cada fase. Cada operación muestra si se procesa en el teléfono o en un proveedor externo, y su costo conocido o "desconocido".
+
+Esta aprobación cubre: los dos documentos y la Fase 1 descrita abajo. Las fases 2 a 9 se presentarán una por una, con su propio plan.
+
 ## 1. Arquitectura existente que se conserva
 | Pieza | Decisión |
 |---|---|
