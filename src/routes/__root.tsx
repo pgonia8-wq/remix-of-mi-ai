@@ -12,6 +12,8 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { Toaster } from "sonner";
+import { AppShell } from "../components/AppShell";
 
 function NotFoundComponent() {
   return (
@@ -78,14 +80,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "MI AI" },
+      { name: "description", content: "Asistente de IA privado para Android con proyectos aislados." },
+      { name: "theme-color", content: "#1c1916" },
+      { property: "og:title", content: "MI AI" },
+      { property: "og:description", content: "Asistente de IA privado para Android con proyectos aislados." },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:card", content: "summary" },
     ],
     links: [
       {
@@ -93,6 +94,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         href: appCss,
       },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Grotesk:wght@500;700&display=swap" },
     ],
   }),
   shellComponent: RootShell,
@@ -103,7 +106,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="es" className="dark">
       <head>
         <HeadContent />
       </head>
@@ -117,11 +120,31 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  useEffect(() => {
+    // CI-only hook on Android: miai://selftest/write|verify
+    let off: (() => void) | undefined;
+    import("@capacitor/core").then(async ({ Capacitor }) => {
+      if (!Capacitor.isNativePlatform()) return;
+      const { App } = await import("@capacitor/app");
+      const { runSelfTest } = await import("../lib/selftest");
+      const handle = (url?: string) => {
+        const m = url?.match(/^miai:\/\/selftest\/(write|verify)/);
+        if (m) runSelfTest(m[1] as "write" | "verify");
+      };
+      handle((await App.getLaunchUrl())?.url);
+      const h = await App.addListener("appUrlOpen", (e) => handle(e.url));
+      off = () => h.remove();
+    });
+    return () => off?.();
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
+      <AppShell>
+        <Outlet />
+      </AppShell>
+      <Toaster theme="dark" position="top-center" />
     </QueryClientProvider>
   );
 }
