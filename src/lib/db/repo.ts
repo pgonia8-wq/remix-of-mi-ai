@@ -227,7 +227,7 @@ export class Repo {
     const out: Record<string, unknown[]> = {};
     for (const t of tables) out[t] = await this.db.all(`SELECT * FROM ${t}`);
     const providers = await this.listProviders();
-    out.providers = providers.map(({ has_key: _h, ...p }) => p); // without api_key_enc
+    out["providers"] = providers.map(({ has_key: _h, ...p }) => p); // without api_key_enc
     return { app: "MI AI", v: 1, exportedAt: now(), tables: out };
   }
   async restoreAll(dump: { tables: Record<string, Record<string, unknown>[]> }) {

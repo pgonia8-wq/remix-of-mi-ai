@@ -79,7 +79,7 @@ function buildRequest(p: ProviderCall, messages: ChatMsg[]): { url: string; init
   if (p.kind === "azure") {
     url = `${ep}/openai/deployments/${encodeURIComponent(p.deployment || p.model)}/chat/completions?api-version=${encodeURIComponent(p.apiVersion || "2024-10-21")}`;
     headers["api-key"] = key;
-  } else if (key) headers.authorization = `Bearer ${key}`;
+  } else if (key) headers["authorization"] = `Bearer ${key}`;
   return {
     url,
     init: { method: "POST", headers, body: JSON.stringify({ model: p.model, stream: true, messages, ...x }) },
@@ -90,7 +90,7 @@ function buildRequest(p: ProviderCall, messages: ChatMsg[]): { url: string; init
 /** Streams text deltas. API key is only placed in request headers — never logged. */
 export async function streamChat(p: ProviderCall, messages: ChatMsg[], onDelta: (t: string) => void, signal?: AbortSignal) {
   const { url, init, parse } = buildRequest(p, messages);
-  const res = await fetch(url, { ...init, signal });
+  const res = await fetch(url, { ...init, signal: signal ?? null });
   if (!res.ok || !res.body) {
     const body = (await res.text().catch(() => "")).slice(0, 400);
     throw new Error(`El proveedor respondió ${res.status}${body ? `: ${body}` : ""}`);

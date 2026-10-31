@@ -56,7 +56,7 @@ function MemoryTab({ pid }: { pid: string }) {
 
   async function save() {
     if (!text.trim()) return;
-    await mutate((r) => (editing ? r.editMemory(pid, editing, kind, text.trim()) : r.addMemory(pid, kind, text.trim())));
+    await mutate<unknown>((r) => (editing ? r.editMemory(pid, editing, kind, text.trim()) : r.addMemory(pid, kind, text.trim())));
     setText("");
     setEditing(null);
   }
