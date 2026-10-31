@@ -14,6 +14,7 @@ import { Route as AgentsRouteImport } from './routes/agents'
 import { Route as AutomationRouteImport } from './routes/automation'
 import { Route as ChatsRouteImport } from './routes/chats'
 import { Route as CodeRouteImport } from './routes/code'
+import { Route as DataRouteImport } from './routes/data'
 import { Route as DiagnosticsRouteImport } from './routes/diagnostics'
 import { Route as DocumentsRouteImport } from './routes/documents'
 import { Route as JobsRouteImport } from './routes/jobs'
@@ -26,6 +27,7 @@ import { Route as ServersRouteImport } from './routes/servers'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as StudyRouteImport } from './routes/study'
 import { Route as ToolsRouteImport } from './routes/tools'
+import { Route as WorkspaceRouteImport } from './routes/workspace'
 import { Route as ChatChatIdRouteImport } from './routes/chat.$chatId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -51,6 +53,11 @@ const ChatsRoute = ChatsRouteImport.update({
 const CodeRoute = CodeRouteImport.update({
   id: '/code',
   path: '/code',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DataRoute = DataRouteImport.update({
+  id: '/data',
+  path: '/data',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DiagnosticsRoute = DiagnosticsRouteImport.update({
@@ -113,6 +120,11 @@ const ToolsRoute = ToolsRouteImport.update({
   path: '/tools',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WorkspaceRoute = WorkspaceRouteImport.update({
+  id: '/workspace',
+  path: '/workspace',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ChatChatIdRoute = ChatChatIdRouteImport.update({
   id: '/chat/$chatId',
   path: '/chat/$chatId',
@@ -125,6 +137,7 @@ export interface FileRoutesByFullPath {
   '/automation': typeof AutomationRoute
   '/chats': typeof ChatsRoute
   '/code': typeof CodeRoute
+  '/data': typeof DataRoute
   '/diagnostics': typeof DiagnosticsRoute
   '/documents': typeof DocumentsRoute
   '/jobs': typeof JobsRoute
@@ -137,6 +150,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/study': typeof StudyRoute
   '/tools': typeof ToolsRoute
+  '/workspace': typeof WorkspaceRoute
   '/chat/$chatId': typeof ChatChatIdRoute
 }
 export interface FileRoutesByTo {
@@ -145,6 +159,7 @@ export interface FileRoutesByTo {
   '/automation': typeof AutomationRoute
   '/chats': typeof ChatsRoute
   '/code': typeof CodeRoute
+  '/data': typeof DataRoute
   '/diagnostics': typeof DiagnosticsRoute
   '/documents': typeof DocumentsRoute
   '/jobs': typeof JobsRoute
@@ -157,6 +172,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/study': typeof StudyRoute
   '/tools': typeof ToolsRoute
+  '/workspace': typeof WorkspaceRoute
   '/chat/$chatId': typeof ChatChatIdRoute
 }
 export interface FileRoutesById {
@@ -166,6 +182,7 @@ export interface FileRoutesById {
   '/automation': typeof AutomationRoute
   '/chats': typeof ChatsRoute
   '/code': typeof CodeRoute
+  '/data': typeof DataRoute
   '/diagnostics': typeof DiagnosticsRoute
   '/documents': typeof DocumentsRoute
   '/jobs': typeof JobsRoute
@@ -178,6 +195,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/study': typeof StudyRoute
   '/tools': typeof ToolsRoute
+  '/workspace': typeof WorkspaceRoute
   '/chat/$chatId': typeof ChatChatIdRoute
 }
 export interface FileRouteTypes {
@@ -188,6 +206,7 @@ export interface FileRouteTypes {
     | '/automation'
     | '/chats'
     | '/code'
+    | '/data'
     | '/diagnostics'
     | '/documents'
     | '/jobs'
@@ -200,6 +219,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/study'
     | '/tools'
+    | '/workspace'
     | '/chat/$chatId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -208,6 +228,7 @@ export interface FileRouteTypes {
     | '/automation'
     | '/chats'
     | '/code'
+    | '/data'
     | '/diagnostics'
     | '/documents'
     | '/jobs'
@@ -220,6 +241,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/study'
     | '/tools'
+    | '/workspace'
     | '/chat/$chatId'
   id:
     | '__root__'
@@ -228,6 +250,7 @@ export interface FileRouteTypes {
     | '/automation'
     | '/chats'
     | '/code'
+    | '/data'
     | '/diagnostics'
     | '/documents'
     | '/jobs'
@@ -240,6 +263,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/study'
     | '/tools'
+    | '/workspace'
     | '/chat/$chatId'
   fileRoutesById: FileRoutesById
 }
@@ -249,6 +273,7 @@ export interface RootRouteChildren {
   AutomationRoute: typeof AutomationRoute
   ChatsRoute: typeof ChatsRoute
   CodeRoute: typeof CodeRoute
+  DataRoute: typeof DataRoute
   DiagnosticsRoute: typeof DiagnosticsRoute
   DocumentsRoute: typeof DocumentsRoute
   JobsRoute: typeof JobsRoute
@@ -261,6 +286,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   StudyRoute: typeof StudyRoute
   ToolsRoute: typeof ToolsRoute
+  WorkspaceRoute: typeof WorkspaceRoute
   ChatChatIdRoute: typeof ChatChatIdRoute
 }
 
@@ -299,6 +325,13 @@ declare module '@tanstack/react-router' {
       path: '/code'
       fullPath: '/code'
       preLoaderRoute: typeof CodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/data': {
+      id: '/data'
+      path: '/data'
+      fullPath: '/data'
+      preLoaderRoute: typeof DataRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/diagnostics': {
@@ -385,6 +418,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ToolsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/workspace': {
+      id: '/workspace'
+      path: '/workspace'
+      fullPath: '/workspace'
+      preLoaderRoute: typeof WorkspaceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/chat/$chatId': {
       id: '/chat/$chatId'
       path: '/chat/$chatId'
@@ -401,6 +441,7 @@ const rootRouteChildren: RootRouteChildren = {
   AutomationRoute: AutomationRoute,
   ChatsRoute: ChatsRoute,
   CodeRoute: CodeRoute,
+  DataRoute: DataRoute,
   DiagnosticsRoute: DiagnosticsRoute,
   DocumentsRoute: DocumentsRoute,
   JobsRoute: JobsRoute,
@@ -413,6 +454,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   StudyRoute: StudyRoute,
   ToolsRoute: ToolsRoute,
+  WorkspaceRoute: WorkspaceRoute,
   ChatChatIdRoute: ChatChatIdRoute,
 }
 export const routeTree = rootRouteImport
