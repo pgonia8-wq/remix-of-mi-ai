@@ -1,4 +1,6 @@
 # MI AI — Fase 1
+- [ ] Continuación aprobada: generar APK actualizado y documentar validación real y bloqueos
+- [ ] Reforzar autoprueba Android de recuperación y contraseña incorrecta; ejecutar regresión
 - [x] Revisar desaparición de proveedor: usuario confirma modelo/chat funcionando; reforzar persistencia inmediata y probar recarga/navegación
 - [x] Corregir destroy is not a function al actualizar/salir del chat; causa confirmada en navegador del usuario y regresión probada
 - [x] Corregir rechazo de URL Azure /openai/v1/chat/completions; solicitud real con clave ficticia devuelve HTTP 401 (sin generación verificada)
