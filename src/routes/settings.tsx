@@ -53,7 +53,7 @@ function Settings() {
           <h1 className="text-2xl font-bold">Proveedores</h1>
           {!editing && <Button onClick={() => setEditing("new")}><Plus /> Añadir</Button>}
         </div>
-        {editing && <ProviderForm provider={editing === "new" ? undefined : editing} onClose={() => setEditing(null)} />}
+        {editing && <ProviderForm key={editing === "new" ? "new" : editing.id} provider={editing === "new" ? undefined : editing} onClose={() => setEditing(null)} />}
         {providers.map((p) => (
           <div key={p.id} className="space-y-2 rounded-md border bg-card p-3 text-sm">
             <div className="flex items-center gap-2">
@@ -67,7 +67,7 @@ function Settings() {
             </div>
             <p className={p.verification_status === "error" ? "text-destructive" : "text-muted-foreground"}>{p.verification_status === "verified" ? "Conectado y verificado" : p.verification_status === "error" ? "Error de conexión" : "No verificado"}</p>
             {p.checked_at && <p className="text-xs text-muted-foreground">Última prueba: {new Date(p.checked_at).toLocaleString()}</p>}
-            <Button variant="outline" className="w-full" disabled={busy === p.id} onClick={() => test(p)}><Plug />{busy === p.id ? "Conectando..." : "Probar conexión"}</Button>
+            <Button variant="outline" className="w-full" disabled={busy !== null} onClick={() => test(p)}><Plug />{busy === p.id ? "Conectando..." : "Probar conexión"}</Button>
             <ConnectionDiagnostic result={diagnostics[p.id] ?? null} />
           </div>
         ))}

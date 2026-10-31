@@ -167,7 +167,7 @@ export async function testProvider(p: ProviderCall, timeoutMs = 20000): Promise<
   try {
     let out = "";
     await Promise.race([streamChat(p, [{ role: "user", content: "Responde solo: OK" }], (t) => { out += t; }, controller.signal), timeout]);
-    if (!out.trim()) throw new ProviderError("parameters", "Respuesta inválida: no se recibió texto generado por el modelo.");
+    if (!out.trim()) throw new ProviderError("parameters", "Respuesta inválida: no se recibió texto generado por el modelo.", 200);
     return { ok: true, checkedAt: Date.now() };
   } catch (e) {
     if (controller.signal.aborted) return { ok: false, code: "timeout", message: "Error de red o timeout: se agotó el tiempo de espera." };
