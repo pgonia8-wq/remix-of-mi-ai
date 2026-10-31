@@ -9,6 +9,7 @@ import { agents, workflows, runs, TOOLS, type Flow, type Step, type Workflow, ty
 import { advance } from "@/lib/automation/runner";
 import { planFlow } from "@/lib/automation/planner";
 import { delegatePlan, runUntilPause, schedules } from "@/lib/automation/control";
+import { reviewRun } from "@/lib/automation/review";
 
 export const Route = createFileRoute("/automation")({ head: () => ({ meta: [
   { title: "Automatización — MI AI" }, { name: "description", content: "Flujos multimodelo con aprobaciones, condiciones e historial local." },
@@ -67,6 +68,7 @@ function Automation({ pid }: { pid: string }) {
 function RunItem({ pid, run: r, busy, action }: { pid: string; run: Run; busy: boolean; action: (fn: Parameters<ReturnType<typeof useCoreMutate>>[0]) => Promise<void> }) {
   const { data: events = [] } = useCoreQuery(["events", pid, r.id, r.updated_at], (c) => runs.events(c.repo, pid, r.id));
   const [show, setShow] = useState(false);
+  const [review, setReview] = useState<{ conflicts: string[]; recommendation: string } | null>(null);
   const flow = JSON.parse(r.definition) as Flow;
   const uncertain = ["failed", "recovery_required"].includes(r.status);
   return <div className="space-y-2 rounded-lg border bg-card p-3">
@@ -78,8 +80,10 @@ function RunItem({ pid, run: r, busy, action }: { pid: string; run: Run; busy: b
       {!["completed", "cancelled", "running"].includes(r.status) && <Button variant="outline" disabled={busy} onClick={() => action((c) => runs.cancel(c.repo, pid, r.id))}>Cancelar</Button>}
       {r.status === "ready" && <Button variant="outline" disabled={busy} onClick={() => action((c) => runUntilPause(c, pid, r.id))}>Ejecutar hasta aprobación</Button>}
       <Button variant="ghost" onClick={() => setShow(!show)}>Historial</Button>
+      {r.output && <Button variant="outline" disabled={busy} onClick={() => { if (!confirm("¿Enviar los resultados de este flujo al modelo para revisar conflictos? Puede tener coste.")) return; action(async (c) => { setReview(await reviewRun(c, pid, r.id)); }); }}>Revisar conflictos</Button>}
       {r.output && <Link to="/library" className="text-xs text-primary underline">Resultado en Biblioteca</Link>}
     </div>
     {show && <div className="space-y-1 border-t pt-2">{events.map((e) => <p key={e.id} className="break-words text-xs"><span className="text-muted-foreground">{new Date(e.created_at).toLocaleTimeString()} · {e.step_id} · {e.agent_id ? "Agente " + e.agent_id.slice(0, 8) : "Sin agente"}</span><br />{e.kind}: {e.detail}</p>)}</div>}
+    {review && <div className="space-y-2 border-t pt-2 text-sm">{review.conflicts.map((c,i) => <p className="text-destructive" key={i}>{c}</p>)}<p>{review.recommendation}</p><p className="text-xs text-muted-foreground">Revisión propuesta; ninguna decisión se aplicó automáticamente.</p></div>}
   </div>;
 }

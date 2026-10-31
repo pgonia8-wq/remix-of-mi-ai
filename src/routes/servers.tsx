@@ -41,7 +41,7 @@ function Servers({ pid }: { pid: string }) {
       <textarea aria-label="Clave de host confiable" className={inputCls} rows={3} placeholder="Entrada known_hosts obtenida por una vía confiable" value={config.knownHosts} onChange={(e) => setConfig({ ...config, knownHosts: e.target.value })} />
       <Button disabled={!name.trim() || !config.knownHosts.trim()} onClick={async () => { try { await mutate(async (c) => { setId(await connections.save(c.repo, pid, name, config)); }); setEdit(false); } catch { toast.error("Revisa los datos de conexión."); } }}>Guardar conexión</Button>
     </div>}
-    <select aria-label="Conexión" className={inputCls} value={id} onChange={(e) => { setId(e.target.value); setPassword(""); }}><option value="">Selecciona servidor</option>{list.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+    <select aria-label="Conexión" className={inputCls} value={id} onChange={(e) => { setId(e.target.value); setPassword(""); }}><option value="">Selecciona servidor</option>{list.filter((c) => c.kind === "ssh").map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
     <input aria-label="Contraseña SSH" type="password" autoComplete="off" className={inputCls} placeholder="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} />
     <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />Guardar contraseña cifrada en este dispositivo</label>
     <h2 className="font-semibold">Terminal remota</h2>
