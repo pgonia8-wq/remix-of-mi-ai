@@ -3,6 +3,8 @@ import type { Core } from "../core";
 import { askModel, extractJson } from "../core/ai";
 import { agents, flowSchema, runs, workflows, type Flow, type Step } from "./store";
 import { advance, expandSteps, branchCursor } from "./runner";
+import { isNative } from "../app-db";
+import { MiaiSchedule } from "./native-schedules";
 
 const active = new Set<string>();
 export async function runUntilPause(core: Core, p: string, id: string, approved = false, signal?: AbortSignal) {
@@ -30,7 +32,12 @@ export const schedules = {
     if (!p || !Number.isFinite(due) || due <= Date.now()) throw new Error("Elige una fecha futura.");
     if (!await workflows.get(repo, p, workflowId)) throw new Error("Flujo ajeno al proyecto");
     const id = crypto.randomUUID();
-    await repo.sql.run("INSERT INTO schedules VALUES (?,?,?,?,?,'scheduled',NULL,?)", [id, p, workflowId, due, input.slice(0, 60000), Date.now()]); return id;
+    await repo.sql.run("INSERT INTO schedules VALUES (?,?,?,?,?,'scheduled',NULL,?)", [id, p, workflowId, due, input.slice(0, 60000), Date.now()]);
+    if (isNative()) {
+      await MiaiSchedule.requestNotifications();
+      await MiaiSchedule.schedule({ id, dueAt: due });
+    }
+    return id;
   },
   list(repo: Repo, p: string) { if (!p) throw new Error("projectId requerido"); return repo.sql.all<Schedule>("SELECT * FROM schedules WHERE project_id=? ORDER BY due_at", [p]); },
   async start(repo: Repo, p: string, id: string) {
@@ -41,9 +48,16 @@ export const schedules = {
     await repo.sql.run("UPDATE schedules SET status='starting' WHERE project_id=? AND id=?", [p, id]);
     const run = await runs.create(repo, p, s.workflow_id, s.input);
     await repo.sql.run("UPDATE schedules SET status='started',run_id=? WHERE project_id=? AND id=?", [run, p, id]);
+    if (isNative()) await MiaiSchedule.cancel({ id });
     return run;
   },
-  remove(repo: Repo, p: string, id: string) { if (!p) throw new Error("projectId requerido"); return repo.sql.run("DELETE FROM schedules WHERE project_id=? AND id=?", [p, id]); },
+  async remove(repo: Repo, p: string, id: string) {
+    if (!p) throw new Error("projectId requerido");
+    const [owned] = await repo.sql.all("SELECT id FROM schedules WHERE project_id=? AND id=?", [p, id]);
+    if (!owned) return;
+    if (isNative()) await MiaiSchedule.cancel({ id });
+    await repo.sql.run("DELETE FROM schedules WHERE project_id=? AND id=?", [p, id]);
+  },
 };
 // Expanded source step IDs retain deterministic identities across recovery.
 export const completedDependency = (steps: Step[], id: string, completed: Set<string>) => expandSteps(steps.filter((s) => s.id === id)).every((s) => completed.has(s.id));
