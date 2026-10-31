@@ -3,7 +3,7 @@
 import { ProviderError } from "../../providers";
 import { call, requireKey } from "./http";
 import { visionBody, parseVision } from "./vision";
-import { chatViaLegacy, editForm, imageBody, parseImages } from "./openai";
+import { derivedEdit, chatViaLegacy, editForm, imageBody, parseImages } from "./openai";
 import { sync, trimSlash, type AdapterCredentials, type ProviderAdapter } from "./types";
 
 export function azureUrl(c: AdapterCredentials, deployment: string, op: "images/generations" | "images/edits" | "chat/completions"): { url: string; v1: boolean } {
@@ -22,10 +22,11 @@ export function azureUrl(c: AdapterCredentials, deployment: string, op: "images/
 export const azureAdapter: ProviderAdapter = {
   id: "azure_openai",
   label: "Azure OpenAI",
-  operations: { chat: sync(), vision: sync(), "image.generate": sync(), "image.edit": sync() },
+  operations: { chat: sync(), vision: sync(), "image.generate": sync(), "image.edit": sync(), "image.upscale": sync(), "image.remove_bg": sync() },
   supports(cap) { return cap in this.operations; },
   async run(c, r) {
     const key = requireKey(c.apiKey);
+    if (r.capability === "image.upscale" || r.capability === "image.remove_bg") return azureAdapter.run(c, derivedEdit(r));
     if (r.capability === "chat") return chatViaLegacy({ ...c, deployment: r.model || c.deployment }, r);
     const deployment = r.model || c.deployment || "";
     if (!deployment.trim()) throw new ProviderError("model", "Deployment inexistente: indica el deployment de imágenes.");

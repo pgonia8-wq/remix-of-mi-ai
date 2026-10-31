@@ -34,7 +34,25 @@ export function editForm(r: RunRequest, withModel: boolean) {
   f.append("prompt", r.prompt ?? "");
   for (const file of r.files ?? []) f.append("image[]", new Blob([file.bytes as BlobPart], { type: file.mime }), file.name);
   if (r.params?.["size"]) f.append("size", String(r.params["size"]));
+  if (r.params?.["background"]) f.append("background", String(r.params["background"]));
+  if (r.params?.["output_format"]) f.append("output_format", String(r.params["output_format"]));
+  if (r.params?.["quality"]) f.append("quality", String(r.params["quality"]));
   return f;
+}
+
+/**
+ * AI background removal and resolution enhancement for any model on the OpenAI-style images/edits contract.
+ * Works with whichever model the user marks with these capabilities; the instruction keeps the subject unchanged.
+ */
+export function derivedEdit(r: RunRequest): RunRequest {
+  if (!r.files?.length) throw new ProviderError("parameters", "Esta operación requiere una imagen de entrada.");
+  const gptImage = /gpt-image/i.test(r.model);
+  if (r.capability === "image.remove_bg") {
+    return { ...r, capability: "image.edit", prompt: r.prompt?.trim() || "Remove the background completely. Keep the main subject exactly as it is, with clean precise edges and its original colors. Transparent background.",
+      params: { ...r.params, ...(gptImage ? { background: "transparent", output_format: "png" } : {}) } };
+  }
+  return { ...r, capability: "image.edit", prompt: r.prompt?.trim() || "Upscale and enhance this exact image: increase sharpness, fine detail and clarity, reduce noise and compression artifacts. Do not change composition, subjects, colors, text or style.",
+    params: { ...r.params, ...(gptImage ? { quality: "high" } : {}) } };
 }
 
 const base = (c: AdapterCredentials) => trimSlash(c.endpoint?.trim() || "https://api.openai.com/v1");
@@ -42,7 +60,7 @@ const base = (c: AdapterCredentials) => trimSlash(c.endpoint?.trim() || "https:/
 export const openaiAdapter: ProviderAdapter = {
   id: "openai",
   label: "OpenAI",
-  operations: { chat: sync(), vision: sync(), "image.generate": sync(), "image.edit": sync(), "audio.tts": sync(), "audio.transcribe": sync() },
+  operations: { chat: sync(), vision: sync(), "image.generate": sync(), "image.edit": sync(), "image.upscale": sync(), "image.remove_bg": sync(), "audio.tts": sync(), "audio.transcribe": sync() },
   supports(cap) { return cap in this.operations; },
   async run(c, r) {
     const key = requireKey(c.apiKey);
@@ -57,6 +75,8 @@ export const openaiAdapter: ProviderAdapter = {
         const res = await call(`${base(c)}/images/generations`, { method: "POST", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify(imageBody(r)), signal: r.signal ?? null }, key);
         return { kind: "files", files: parseImages(await res.json(), String(r.params?.["output_format"] ?? "png")) };
       }
+      case "image.upscale":
+      case "image.remove_bg": return openaiAdapter.run(c, derivedEdit(r));
       case "image.edit": {
         if (!r.files?.length) throw new ProviderError("parameters", "Editar imagen requiere al menos una imagen de entrada.");
         const res = await call(`${base(c)}/images/edits`, { method: "POST", headers: auth, body: editForm(r, true), signal: r.signal ?? null }, key);
