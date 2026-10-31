@@ -82,3 +82,27 @@ describe("exportación cifrada", () => {
     expect(JSON.parse(await openWithPassword("clave-larga", sealed)).x).toBe("contenido-privado");
   });
 });
+
+describe("exportar e importar un proyecto completo", () => {
+  it("recupera conversaciones, memoria (con versiones) y documentos; rechaza contraseña incorrecta", async () => {
+    const a = await repo.createProject("Proyecto X", "desc");
+    const c = await repo.createChat(a.id, "chat 1");
+    await repo.addMessage(a.id, c.id, "user", "hola");
+    await repo.addMessage(a.id, c.id, "assistant", "respuesta");
+    const mid = await repo.addMemory(a.id, "hecho", "m1");
+    await repo.editMemory(a.id, mid, "decision", "m2");
+    await repo.addDoc(a.id, { name: "n.md", mime: "text/markdown", size: 5, text: "notas", filePath: "docs/x/n.md" });
+    const sealed = await sealWithPassword("contraseña-ok", JSON.stringify(await repo.dumpAll()));
+    await expect(openWithPassword("mala", sealed)).rejects.toThrow("Contraseña incorrecta");
+
+    const SQL = await initSqlJs();
+    const fresh = new Repo(wrapSqlJs(new SQL.Database()), makeVault(await importRawKey(randomBytes(32))));
+    await fresh.migrate();
+    await fresh.restoreAll(JSON.parse(await openWithPassword("contraseña-ok", sealed)));
+    expect((await fresh.listProjects())[0].name).toBe("Proyecto X");
+    expect((await fresh.listMessages(a.id, c.id)).map((m) => m.content)).toEqual(["hola", "respuesta"]);
+    expect((await fresh.listMemory(a.id))[0].content).toBe("m2");
+    expect((await fresh.memoryHistory(a.id, mid)).length).toBe(2);
+    expect((await fresh.listDocs(a.id))[0].text_content).toBe("notas");
+  });
+});
