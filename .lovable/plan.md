@@ -22,18 +22,24 @@
 - **GitHub**: repositorio, versiones y Releases con la APK.
 - **Azure VM (Ubuntu)**: compilación reproducible y pruebas.
 
-## Compilación y entrega de la APK
-- Proyecto Android de Capacitor incluido en el repositorio (`android/`), JDK 17, Gradle, Android SDK 34/35.
-- Scripts: `scripts/setup-ubuntu.sh` (instala JDK, SDK, Node), `scripts/build-debug.sh`, `scripts/build-release.sh`, `scripts/test.sh`, `scripts/verify-apk.sh` (apksigner + aapt).
-- **GitHub Actions**: al publicar una etiqueta `v*`, compila Debug y Release firmada, ejecuta pruebas y publica ambas APK como GitHub Release con enlace de descarga. Firma con tu keystore guardado como secreto de GitHub (nunca en el repo).
-- Opción equivalente: runner autoalojado de GitHub en tu VM Azure, para que la compilación ocurra allí.
-- `ANDROID.md`, `CHANGELOG.md`, `.gitignore` que excluye keystores, `.env` y secretos; pruebas de aislamiento entre proyectos.
+## Compilación y entrega de la APK (automática, sin pasos manuales tuyos)
+- Proyecto Android de Capacitor en el repositorio (`android/`), JDK 17, Gradle, SDK 34/35, **minSdk 30 (Android 11+)**, compatible con Poco C40 (arm64/armv7).
+- **GitHub Actions se ejecuta solo en cada sincronización a `main`**: compila, prueba y publica automáticamente una GitHub Release con ambas APK y versión autoincrementada. No necesitas crear etiquetas ni pulsar nada.
+- Pruebas automáticas en Actions con un emulador Android 11 (API 30): instalación, apertura, crear proyecto/chat, cerrar y reabrir para comprobar persistencia.
+- **Debug** siempre se publica. **Release firmada** se publica en cuanto exista tu clave de firma como secreto de GitHub.
+- Intento adicional: compilar también la APK Debug aquí en mi entorno y darte un enlace directo; si mis recursos no lo permiten, el enlace será el de la GitHub Release.
+- Scripts para tu VM Azure Ubuntu (`setup-ubuntu.sh`, `build-debug.sh`, `build-release.sh`, `test.sh`, `verify-apk.sh`) y `ANDROID.md`, como entorno reproducible alternativo.
 
-## Lo que necesito de ti (no puedo hacerlo yo desde aquí)
-- **Conectar GitHub** desde Lovable (Conectores → GitHub): el código se sincroniza solo; yo no puedo crear el repositorio ni subirlo por mi cuenta.
-- **Crear tu keystore de firma** (comando incluido en `ANDROID.md`) y añadirlo como secreto en GitHub.
-- **Publicar la etiqueta `v0.1.0`** (o yo te dejo el flujo para lanzarlo con un botón en GitHub Actions).
-- No tengo acceso a tu VM Azure ni a un emulador Android: no podré afirmar que la APK se instaló y abrió hasta que tú lo pruebes en tu teléfono o la compilación en Actions lo confirme. No declararé nada como compilado o probado sin evidencia real.
+## Pruebas verificables
+- **SQLCipher**: prueba que crea la base cifrada, la abre con la clave correcta y comprueba que sin clave o con clave incorrecta falla, y que el archivo no contiene texto legible.
+- **API keys / Keystore**: prueba que la clave se guarda solo cifrada vía Keystore, que no aparece en la base, en preferencias, en logcat ni en las copias exportadas.
+- **Aislamiento**: pruebas que intentan leer chats, documentos y memoria de otro proyecto por consulta directa, búsqueda de texto y contexto inyectado al modelo; todas deben devolver vacío o error.
+- Informe final con tres columnas separadas: compilado / probado en emulador / pendiente de tu teléfono físico.
+
+## Intervención tuya, solo lo indispensable
+1. **Conectar GitHub** en Lovable (Conectores → GitHub): es un permiso que solo tú puedes dar; después todo se sincroniza solo.
+2. **Clave de firma Release**: te daré un comando de un solo paso para generarla en tu equipo y la subes como secreto del repositorio. Nunca entra en el código.
+- No tengo acceso a tu VM Azure ni a tu teléfono: lo que dependa de ellos lo marcaré como pendiente, sin simular resultados.
 
 ## Fuera de la Fase 1
 Multiagentes, selección automática de modelo, imágenes/video/audio, investigación web, ejecución de código, documentos/presentaciones, conectores externos.
