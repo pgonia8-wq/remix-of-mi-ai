@@ -1,5 +1,6 @@
 // @vitest-environment node
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import { github } from "@/lib/github";
 import initSqlJs from "sql.js";
 import { Repo } from "@/lib/db/repo";
 import { wrapSqlJs } from "@/lib/db/sql";
@@ -12,7 +13,23 @@ import { analyzeColumn, costScenario, readTables } from "@/lib/data-analysis";
 let repo: Repo;
 const flow = (): Flow => ({ maxCalls: 2, steps: [{ id: "1", name: "A", tool: "chat", prompt: "", agentId: null, approval: true, contains: "", repeat: 1, next: "3", otherwise: "2" }, { id: "2", name: "B", tool: "chat", prompt: "", agentId: null, approval: true, contains: "", repeat: 1 }, { id: "3", name: "C", tool: "chat", prompt: "", agentId: null, approval: true, contains: "", repeat: 1 }] });
 beforeEach(async () => { const SQL = await initSqlJs(); repo = new Repo(wrapSqlJs(new SQL.Database()), { encrypt: async (x) => "encrypted:" + x.split("").reverse().join(""), decrypt: async (x) => x.slice(10).split("").reverse().join("") }); await repo.migrate(); });
+afterEach(() => vi.unstubAllGlobals());
 describe("Fases 6 y 7", () => {
+  it("GitHub exige respuesta real válida y rechaza tokens antes de guardarlos", async () => {
+    const p = await repo.createProject("A");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response('{"message":"bad"}', { status: 401 })));
+    await expect(github.save(repo, p.id, "owner", "repo", "test-token")).rejects.toThrow(/401/);
+    expect(await connections.list(repo, p.id)).toEqual([]);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response('{}')));
+    await expect(github.verify("test-token")).rejects.toThrow(/identidad/);
+  });
+  it("GitHub no permite publicar desde otro proyecto", async () => {
+    const a = await repo.createProject("A"), b = await repo.createProject("B");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response('{"login":"tester"}')));
+    const id = await github.save(repo,a.id,"owner","repo","test-token");
+    await expect(github.request(repo,b.id,id,"file.txt",{ content:"x",message:"test" })).rejects.toThrow(/ajeno/);
+    expect(JSON.stringify(await repo.dumpAll())).not.toContain("test-token");
+  });
   it("las ramas envían a destinos distintos y null termina", () => {
     const f = flow(), s = expandSteps(f.steps); expect(branchCursor(s, 0, true)).toBe(2); expect(branchCursor(s, 0, false)).toBe(1);
     const first = s[0]; if (!first) throw new Error("Fixture"); first.next = null; expect(branchCursor(s, 0, true)).toBe(3);
