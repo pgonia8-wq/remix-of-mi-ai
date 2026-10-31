@@ -6,15 +6,15 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
-// CAPACITOR=1 produces a static SPA shell bundled inside the Android APK (no server).
+// CAPACITOR=1 prerenders the app shell to dist/client/index.html, which Capacitor bundles
+// inside the Android APK. The app then runs fully on-device (no server).
 const capacitor = process.env.CAPACITOR === "1";
 
 export default defineConfig({
-  tanstackStart: capacitor
-    ? { spa: { enabled: true, prerender: { outputPath: "/index.html" } } }
-    : {
-        // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
-        // nitro/vite builds from this
-        server: { entry: "server" },
-      },
+  tanstackStart: {
+    // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
+    // nitro/vite builds from this
+    server: { entry: "server" },
+    ...(capacitor ? { prerender: { enabled: true, crawlLinks: false }, pages: [{ path: "/" }] } : {}),
+  },
 });
