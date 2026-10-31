@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { NeedProject, inputCls } from "@/components/AppShell";
 import { useActiveProjectId, useCoreMutate, useCoreQuery } from "@/lib/use-app";
 import { workspace, type WorkspaceItem } from "@/lib/workspace";
-import { DOC_ACCEPT, extractText } from "@/lib/docs/extract";
+import { extractText } from "@/lib/docs/extract";
 import { saveExport } from "@/lib/save-export";
 import type { Core } from "@/lib/core";
 export const Route = createFileRoute("/workspace")({ head: () => ({ meta: [
@@ -17,6 +17,7 @@ export const Route = createFileRoute("/workspace")({ head: () => ({ meta: [
 const LINKS = [
   { to: "/documents", label: "Documentos" }, { to: "/data", label: "Datos y presupuestos" },
   { to: "/code", label: "Editor" }, { to: "/servers", label: "Terminal y servidores" },
+  { to: "/github", label: "GitHub" },
   { to: "/notes", label: "Notas y tareas" }, { to: "/research", label: "Investigación" },
   { to: "/agents", label: "Agentes" }, { to: "/automation", label: "Flujos" },
   { to: "/library", label: "Biblioteca" }, { to: "/jobs", label: "Trabajos" },
