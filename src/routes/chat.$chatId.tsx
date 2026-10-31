@@ -61,7 +61,14 @@ function ChatPage() {
     if (!messages.length) await repo.updateChat(pid, chatId, { title: text.slice(0, 48) });
     await refetch();
     const history = await repo.listMessages(pid, chatId);
-    const ctx = await repo.buildContext(pid, text);
+    let ctx = await repo.buildContext(pid, text);
+    try {
+      // Smart memory: when an embedding model and an index exist, add the most relevant fragments.
+      const { getCore } = await import("@/lib/core");
+      const { searchProject } = await import("@/lib/core/semantic");
+      const hits = await searchProject(await getCore(), pid, text, 5);
+      if (hits.length) ctx += "\n\nFragmentos relevantes (memoria inteligente):\n" + hits.map((h) => `- (${h.source_type}) ${h.text.slice(0, 800)}`).join("\n");
+    } catch { /* semantic search is optional; keyword context still applies */ }
     const msgs: ChatMsg[] = [
       { role: "system", content: `Eres MI AI, un asistente privado. Usa este contexto del proyecto:\n\n${ctx}` },
       ...history.map((m) => ({ role: m.role, content: m.content })),
