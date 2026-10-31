@@ -23,13 +23,28 @@ const join = (head: Uint8Array, recs: Uint8Array[]) => { const parts = [head, ..
 const rejects = (f: Uint8Array, dek: Uint8Array, c = ctx) => expect(verifyAsset(memorySource(f), c, dek)).rejects.toBeInstanceOf(AssetIntegrityError);
 
 describe("formato cifrado de activos (AES-256-GCM por bloques)", () => {
-  for (const [name, size] of [["vacío", 0], ["pequeño", 10], ["exacto a un bloque", BS], ["mediano", BS * 5 + 123], ["grande (2 MiB)", 2 * 1024 * 1024 + 7]] as const) {
+  for (const [name, size] of [["vacío", 0], ["pequeño", 10], ["exacto a un bloque", BS], ["mediano", BS * 5 + 123]] as const) {
     it(`cifra y descifra un archivo ${name}`, async () => {
       const data = rand(size);
       const { file, dek } = await enc(data);
       expect(await readAll(memorySource(file), ctx, dek)).toEqual(data);
     });
   }
+
+  it("archivo grande (8 MiB) en flujo: nunca retiene más de un bloque por pieza emitida y se recupera íntegro", async () => {
+    const MBs = 1024 * 1024, total = 8 * MBs + 3;
+    async function* gen() { for (let i = 0; i < total; i += 300_000) { const n = Math.min(300_000, total - i); const b = new Uint8Array(n); b.fill(i % 251); yield b; } }
+    const dek = newDek();
+    const pieces: Uint8Array[] = [];
+    let maxPiece = 0;
+    for await (const p of encryptAsset(gen(), ctx, dek, { blockSize: MBs, concurrency: 2 })) { maxPiece = Math.max(maxPiece, p.length); pieces.push(p); }
+    expect(maxPiece).toBeLessThanOrEqual(MBs + 16 + 4);
+    const file = await collect((async function* () { yield* pieces; })());
+    let size = 0, ok = true, i = 0;
+    for await (const blk of decryptAsset(memorySource(file), ctx, dek)) { if (blk.length > MBs) ok = false; for (let j = 0; j < blk.length; j += 4093) if (blk[j] !== Math.floor((i + j) / 300_000) * 300_000 % 251) ok = false; size += blk.length; i += blk.length; }
+    expect(ok).toBe(true);
+    expect(size).toBe(total);
+  }, 60_000);
 
   it("la concurrencia no altera el resultado ni el orden", async () => {
     const data = rand(BS * 9 + 5), dek = newDek(), prefix = new Uint8Array([1, 2, 3, 4]);
