@@ -23,7 +23,7 @@ export class IsolationError extends Error {}
 
 // Catalog + project data from migration v3 included in backups. Excluded on purpose: capability_tests
 // (verification claims reset on restore), key_versions (device-bound), asset_blobs (bytes travel separately).
-const BACKUP_TABLES_V3 = ["capabilities", "providers_registry", "endpoints", "auth_refs", "models", "model_versions", "model_capabilities", "model_configs", "jobs", "job_attempts", "assets", "asset_tags", "asset_relations", "workflow_steps", "voices", "notes", "tasks", "embeddings", "flashcards", "agents", "workflows", "workflow_runs", "execution_events"] as const;
+const BACKUP_TABLES_V3 = ["capabilities", "providers_registry", "endpoints", "auth_refs", "models", "model_versions", "model_capabilities", "model_configs", "jobs", "job_attempts", "assets", "asset_tags", "asset_relations", "workflow_steps", "voices", "notes", "tasks", "embeddings", "flashcards", "agents", "workflows", "workflow_runs", "execution_events", "connections", "schedules", "workspace_items", "tool_favorites"] as const;
 
 const uid = () => crypto.randomUUID();
 const now = () => Date.now();
@@ -39,6 +39,17 @@ export class Repo {
 
   readonly registry: Registry;
   get sql(): SqlDb { return this.db; }
+
+  async saveConnectionSecret(projectId: string, id: string, secret: string) {
+    need(projectId);
+    if (!(await this.db.all("SELECT id FROM connections WHERE project_id=? AND id=?", [projectId, id])).length) throw new IsolationError("Conexión ajena al proyecto");
+    await this.db.run("INSERT OR REPLACE INTO connection_secrets VALUES (?,?,?)", [projectId, id, await this.vault.encrypt(secret)]);
+  }
+  async getConnectionSecret(projectId: string, id: string) {
+    need(projectId);
+    const [r] = await this.db.all<{ secret_enc: string }>("SELECT s.secret_enc FROM connection_secrets s JOIN connections c ON c.id=s.connection_id AND c.project_id=s.project_id WHERE s.project_id=? AND s.connection_id=?", [projectId, id]);
+    return r ? this.vault.decrypt(r.secret_enc) : null;
+  }
 
   async migrate() {
     for (const s of SCHEMA) await this.db.run(s);
