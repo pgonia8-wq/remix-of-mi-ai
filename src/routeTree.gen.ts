@@ -11,7 +11,11 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ChatsRouteImport } from './routes/chats'
+import { Route as DiagnosticsRouteImport } from './routes/diagnostics'
+import { Route as JobsRouteImport } from './routes/jobs'
+import { Route as LibraryRouteImport } from './routes/library'
 import { Route as MemoryRouteImport } from './routes/memory'
+import { Route as ModelsRouteImport } from './routes/models'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ChatChatIdRouteImport } from './routes/chat.$chatId'
 
@@ -25,9 +29,29 @@ const ChatsRoute = ChatsRouteImport.update({
   path: '/chats',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DiagnosticsRoute = DiagnosticsRouteImport.update({
+  id: '/diagnostics',
+  path: '/diagnostics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JobsRoute = JobsRouteImport.update({
+  id: '/jobs',
+  path: '/jobs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LibraryRoute = LibraryRouteImport.update({
+  id: '/library',
+  path: '/library',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MemoryRoute = MemoryRouteImport.update({
   id: '/memory',
   path: '/memory',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ModelsRoute = ModelsRouteImport.update({
+  id: '/models',
+  path: '/models',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -44,14 +68,22 @@ const ChatChatIdRoute = ChatChatIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/chats': typeof ChatsRoute
+  '/diagnostics': typeof DiagnosticsRoute
+  '/jobs': typeof JobsRoute
+  '/library': typeof LibraryRoute
   '/memory': typeof MemoryRoute
+  '/models': typeof ModelsRoute
   '/settings': typeof SettingsRoute
   '/chat/$chatId': typeof ChatChatIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/chats': typeof ChatsRoute
+  '/diagnostics': typeof DiagnosticsRoute
+  '/jobs': typeof JobsRoute
+  '/library': typeof LibraryRoute
   '/memory': typeof MemoryRoute
+  '/models': typeof ModelsRoute
   '/settings': typeof SettingsRoute
   '/chat/$chatId': typeof ChatChatIdRoute
 }
@@ -59,22 +91,58 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/chats': typeof ChatsRoute
+  '/diagnostics': typeof DiagnosticsRoute
+  '/jobs': typeof JobsRoute
+  '/library': typeof LibraryRoute
   '/memory': typeof MemoryRoute
+  '/models': typeof ModelsRoute
   '/settings': typeof SettingsRoute
   '/chat/$chatId': typeof ChatChatIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/chats' | '/memory' | '/settings' | '/chat/$chatId'
+  fullPaths:
+    | '/'
+    | '/chats'
+    | '/diagnostics'
+    | '/jobs'
+    | '/library'
+    | '/memory'
+    | '/models'
+    | '/settings'
+    | '/chat/$chatId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/chats' | '/memory' | '/settings' | '/chat/$chatId'
-  id: '__root__' | '/' | '/chats' | '/memory' | '/settings' | '/chat/$chatId'
+  to:
+    | '/'
+    | '/chats'
+    | '/diagnostics'
+    | '/jobs'
+    | '/library'
+    | '/memory'
+    | '/models'
+    | '/settings'
+    | '/chat/$chatId'
+  id:
+    | '__root__'
+    | '/'
+    | '/chats'
+    | '/diagnostics'
+    | '/jobs'
+    | '/library'
+    | '/memory'
+    | '/models'
+    | '/settings'
+    | '/chat/$chatId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ChatsRoute: typeof ChatsRoute
+  DiagnosticsRoute: typeof DiagnosticsRoute
+  JobsRoute: typeof JobsRoute
+  LibraryRoute: typeof LibraryRoute
   MemoryRoute: typeof MemoryRoute
+  ModelsRoute: typeof ModelsRoute
   SettingsRoute: typeof SettingsRoute
   ChatChatIdRoute: typeof ChatChatIdRoute
 }
@@ -95,11 +163,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/diagnostics': {
+      id: '/diagnostics'
+      path: '/diagnostics'
+      fullPath: '/diagnostics'
+      preLoaderRoute: typeof DiagnosticsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/jobs': {
+      id: '/jobs'
+      path: '/jobs'
+      fullPath: '/jobs'
+      preLoaderRoute: typeof JobsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/library': {
+      id: '/library'
+      path: '/library'
+      fullPath: '/library'
+      preLoaderRoute: typeof LibraryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/memory': {
       id: '/memory'
       path: '/memory'
       fullPath: '/memory'
       preLoaderRoute: typeof MemoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/models': {
+      id: '/models'
+      path: '/models'
+      fullPath: '/models'
+      preLoaderRoute: typeof ModelsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -122,7 +218,11 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ChatsRoute: ChatsRoute,
+  DiagnosticsRoute: DiagnosticsRoute,
+  JobsRoute: JobsRoute,
+  LibraryRoute: LibraryRoute,
   MemoryRoute: MemoryRoute,
+  ModelsRoute: ModelsRoute,
   SettingsRoute: SettingsRoute,
   ChatChatIdRoute: ChatChatIdRoute,
 }
