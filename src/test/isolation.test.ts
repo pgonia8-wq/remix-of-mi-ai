@@ -64,6 +64,19 @@ describe("memoria versionada", () => {
 });
 
 describe("API keys", () => {
+  it("stores verification status, invalidates edits and resets it after restore", async () => {
+    const id = await repo.saveProvider({ name: "x", kind: "openai", model: "m" });
+    expect((await repo.listProviders())[0]?.verification_status).toBe("unverified");
+    await repo.setProviderVerification(id, "verified");
+    expect((await repo.listProviders())[0]?.verification_status).toBe("verified");
+    await repo.setProviderVerification(id, "error");
+    expect((await repo.listProviders())[0]?.verification_status).toBe("error");
+    await repo.saveProvider({ name: "x", kind: "openai", model: "new" }, id);
+    expect((await repo.listProviders())[0]?.verification_status).toBe("unverified");
+    await repo.setProviderVerification(id, "verified");
+    await repo.restoreAll(await repo.dumpAll() as { tables: Record<string, Record<string, unknown>[]> });
+    expect((await repo.listProviders())[0]?.verification_status).toBe("unverified");
+  });
   it("se guardan cifradas, no en texto plano, y no se exportan", async () => {
     const id = await repo.saveProvider({ name: "x", kind: "openai", model: "m", apiKey: "sk-SENTINEL-123" });
     const bytes = new TextDecoder("latin1").decode(raw.export());

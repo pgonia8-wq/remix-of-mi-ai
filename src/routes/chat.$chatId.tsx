@@ -6,6 +6,7 @@ import { getRepo } from "@/lib/app-db";
 import { streamChat, type ChatMsg } from "@/lib/providers";
 import { useActiveProjectId, useMutate, useRepoQuery } from "@/lib/use-app";
 import { NeedProject, inputCls } from "@/components/AppShell";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/chat/$chatId")({
   head: () => ({
@@ -14,6 +15,8 @@ export const Route = createFileRoute("/chat/$chatId")({
       { name: "description", content: "Chat con streaming y cambio de modelo sin perder el historial." },
       { property: "og:title", content: "Conversación — MI AI" },
       { property: "og:description", content: "Chat con streaming y cambio de modelo." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: ChatPage,
@@ -23,17 +26,19 @@ function ChatPage() {
   const { chatId } = Route.useParams();
   const pid = useActiveProjectId();
   const mutate = useMutate();
-  const { data: chat } = useRepoQuery(["chat", pid, chatId], (r) => r.getChat(pid!, chatId), !!pid);
-  const { data: messages = [], refetch } = useRepoQuery(["messages", pid, chatId], (r) => r.listMessages(pid!, chatId), !!pid);
+  const { data: chat, error: chatError, isLoading } = useRepoQuery(["chat", pid, chatId], (r) => pid ? r.getChat(pid, chatId) : Promise.resolve(null), !!pid);
+  const { data: messages = [], error: messagesError, refetch } = useRepoQuery(["messages", pid, chatId], (r) => pid ? r.listMessages(pid, chatId) : Promise.resolve([]), !!pid);
   const { data: providers = [] } = useRepoQuery(["providers"], (r) => r.listProviders());
   const enabled = providers.filter((p) => p.enabled);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
   const end = useRef<HTMLDivElement>(null);
-  useEffect(() => end.current?.scrollIntoView(), [messages.length, streaming]);
+  useEffect(() => end.current?.scrollIntoView?.(), [messages.length, streaming]);
 
   if (!pid) return <NeedProject />;
+  if (chatError || messagesError) return <div role="alert" className="space-y-3 p-4"><p>No se pudieron recuperar los datos del chat.</p><Button variant="outline" onClick={() => mutate(async () => undefined).catch(() => toast.error("No se pudo abrir el almacenamiento local."))}>Reintentar</Button></div>;
+  if (isLoading) return <p role="status" className="p-4 text-sm text-muted-foreground">Abriendo chat…</p>;
   if (chat === null) return <div className="p-6 text-sm text-muted-foreground">Este chat no pertenece al proyecto activo.</div>;
   const providerId = chat?.provider_id ?? enabled[0]?.id ?? null;
   const provider = providers.find((p) => p.id === providerId);

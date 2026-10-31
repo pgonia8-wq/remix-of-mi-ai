@@ -14,4 +14,10 @@ describe("App routing", () => {
 
     expect(matches.at(-1)?.routeId).not.toBe(rootRouteId);
   });
+  it("matches both new and existing chat identifiers", () => {
+    const router = createRouter({ routeTree, context: { queryClient: new QueryClient() } });
+    for (const id of ["new-chat-id", "existing-chat-id"]) {
+      expect(router.matchRoutes(`/chat/${id}`).at(-1)?.routeId).toBe("/chat/$chatId");
+    }
+  });
 });
