@@ -43,6 +43,7 @@
 - [x] Estudio: explicar, cuestionarios, tarjetas con repaso espaciado, planes de estudio
 
 ## Siguiente
+- [ ] Solicitud actual: ampliar Fase 6 (motor de flujos, delegación revisada, desarrollo e integraciones) y construir Fase 7 (espacio profesional)
 - [x] Fase 6 (antes 8), entrega parcial: agentes por proyecto, secuencias revisadas, condiciones de texto, repeticiones limitadas, historial, aprobación, límites y JavaScript aislado
 - [x] Compilar APK build.4 con Fases 1–5 y la entrega parcial de Fase 6; comprobar firma, minSdk y ABI
 - [ ] Fase 6 pendiente: terminal/Termux, SSH/SFTP, Git/GitHub, integraciones externas con autorización (sin conectores implementados)
