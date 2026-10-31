@@ -49,18 +49,40 @@ APIs oficiales, endpoints compatibles y futuros modelos locales
   - Android Keystore guarda una llave maestra no exportable. Usa StrongBox si existe y funciona, y si no, el nivel disponible en el teléfono.
   - Cada archivo tiene su propia llave de datos, envuelta (cifrada) con la llave maestra.
   - La app detecta y registra qué protección tiene realmente el teléfono, y no dice "hardware" sin haberlo comprobado.
+- **IV únicos garantizados, sin depender del azar:**
+  - Nonce de 96 bits = prefijo aleatorio de 32 bits por archivo + contador de bloque de 64 bits.
+  - Cada archivo usa su propia llave de datos, nueva en cada escritura, así que la pareja llave–IV nunca se repite. Esto se cumple también en reintentos, en recuperaciones y al rotar llaves, porque re-cifrar siempre crea una llave nueva.
+  - El contador solo avanza, tiene un límite que se controla y la escritura es secuencial, sin bloques fuera de orden.
 - **Formato de archivo versionado:**
-  - Encabezado autenticado con formato, versión, activo, versión de llave, tamaño de bloque, tamaño original, número de bloques y datos de recuperación.
-  - Cada bloque lleva un IV único, su etiqueta GCM y un AAD que lo ata al activo, al proyecto, a la versión, a su posición, a la llave y a si es el último bloque.
-  - Así se rechaza cualquier bloque alterado, reordenado, duplicado o eliminado. Nunca se entrega contenido verificado solo en parte.
-- **Perfiles de rendimiento:** se eligen según lo que el teléfono tiene de verdad (memoria disponible, núcleos, arquitectura, espacio libre, batería y temperatura cuando Android lo informa), no según su nombre comercial.
+  - Encabezado autenticado (también en archivos vacíos) con formato, versión, activo, proyecto, versión de llave, tamaño de bloque y datos de recuperación.
+  - Cada bloque lleva su IV, su etiqueta GCM y un AAD que lo ata al activo, al proyecto, a la versión, a la llave y a su posición.
+  - **Registro final autenticado:** certifica el activo, el proyecto, la versión, la llave, el total de bloques, el tamaño original, el orden y que el archivo terminó. Sin este registro, el archivo se considera incompleto.
+  - Se rechaza cualquier bloque alterado, reordenado, duplicado o eliminado. Nunca se entrega contenido verificado solo en parte.
+- **Perfiles de rendimiento:** se eligen según lo que el teléfono tiene de verdad (memoria disponible, núcleos, arquitectura, espacio libre, batería y temperatura cuando Android lo informa), no según su nombre comercial. Los tamaños de bloque y de buffer, la concurrencia, la memoria y la frecuencia de escritura se ajustan durante el trabajo; los valores de abajo solo son el punto de partida.
   - Económico: bloques de 1 MB, una operación a la vez y escritura progresiva.
-  - Intermedio: bloques de 1 a 2 MB y algo de concurrencia.
-  - Alto: bloques de hasta 4 MB y más concurrencia, solo si hay memoria libre y temperatura normal.
+  - Intermedio: bloques de 2 MB, con el cifrado de un bloque solapado con la escritura del anterior.
+  - Alto: bloques de 4 MB y más bloques preparados en paralelo, solo si hay memoria libre y temperatura normal. Siempre se escriben en orden.
   - Ningún perfil desactiva la verificación, reutiliza IV ni acorta las llaves.
 - **Escritura atómica:** archivo temporal privado, cifrado desde el primer byte, verificación, renombrado y, al final, registro en la base. Al abrir la app se limpian los temporales abandonados. Un archivo incompleto nunca queda registrado.
 - **Rotación de llaves:** con versiones. Se vuelven a envolver las llaves de datos sin volver a cifrar los archivos. Se puede interrumpir y reanudar, y una llave antigua no se borra mientras algún archivo la use.
-- **Respaldo a otro teléfono:** las llaves del Keystore no se pueden transferir. Por eso el respaldo vuelve a envolver las llaves de datos con una llave derivada de tu contraseña de respaldo (PBKDF2-SHA256, 600 000 iteraciones, con versión). La contraseña nunca se guarda ni aparece en registros. Las API Keys nunca se incluyen.
+- **Llave de respaldo:**
+  - Se deriva de tu contraseña con Argon2id, cuyos parámetros se ajustan a la memoria del teléfono dentro de límites seguros y documentados. Si Argon2id no está disponible, se usa PBKDF2-HMAC-SHA256 con al menos 600 000 iteraciones.
+  - Cada respaldo guarda la sal, el algoritmo, la versión, los parámetros y su formato. La contraseña y la llave derivada nunca se guardan ni aparecen en registros.
+  - La app recomienda contraseñas fuertes y verifica que el respaldo sea auténtico antes de restaurar.
+- **Restauración en otro teléfono, paso a paso:**
+  1. Verificar el respaldo.
+  2. Pedir la contraseña.
+  3. Derivar la llave de recuperación.
+  4. Recuperar y verificar las llaves de datos.
+  5. Crear una jerarquía de llaves nueva en el Keystore del teléfono nuevo.
+  6. Volver a envolver las llaves de datos para ese teléfono.
+  7. Restaurar los activos.
+  8. Verificar la integridad de todo.
+  
+  Si se interrumpe, se puede reanudar, y nunca se modifica el archivo de respaldo. Las API Keys no viajan en el respaldo: se te piden de nuevo y se comprueban con una prueba de conexión.
+- **Pantalla de diagnóstico:**
+  - Muestra el nivel real del Keystore, si StrongBox está disponible y si se usa de verdad, la arquitectura, la memoria, el perfil elegido, el tamaño de bloque, la concurrencia, los tiempos de cifrado y descifrado, la memoria máxima usada, y los errores y limitaciones.
+  - Guarda los resultados por separado para cada teléfono, para que el Poco C40, un intermedio y el Galaxy S26 queden registrados aparte.
 - **Límite honesto:** este cifrado no protege por completo ante un teléfono comprometido, malware con privilegios o alguien con acceso legítimo a la app.
 
 ## 6. Pantallas
@@ -100,4 +122,7 @@ Tu mensaje llegó cortado en el criterio 5. Si ese criterio o los siguientes dic
 ## Detalles técnicos
 - Cifrado nativo: un plugin de Capacitor propio (Kotlin), generado desde `android-prepare.sh`, con `KeyGenParameterSpec`, StrongBox de forma opcional y AES/GCM por streaming. Solo se transfieren bloques entre la interfaz y la parte nativa, nunca el archivo completo. En la vista web se usa el mismo formato con WebCrypto y los activos en sql.js, solo para desarrollo.
 - Las llaves de datos se envuelven con AES-256-GCM (llave maestra en el Keystore) y la versión queda en `key_versions`.
-- AAD = `assetId|projectId|formatVer|keyId|blockIndex|isFinal`. El encabezado se autentica como AAD del primer bloque, y una etiqueta final cubre el número total de bloques.
+- AAD de cada bloque = `hash(encabezado)|assetId|projectId|formatVer|keyId|blockIndex`.
+- Registro final: un bloque GCM con contador = 2^64−1 (reservado) que cifra `{totalBlocks, originalSize, sha256 de las etiquetas de los bloques}`. Así queda autenticado incluso con cero bloques de datos.
+- Argon2id con libsodium o argon2 en Kotlin en Android, y argon2-wasm en la vista web. Parámetros iniciales: 64 MiB y 3 pasadas, que bajan hasta un mínimo de 19 MiB y 2 pasadas en teléfonos con poca memoria.
+- Aceptación criptográfica: el motor no se considera terminado hasta superar todas las pruebas del documento de cierre técnico (unicidad de IV, encabezado, bloques, registro final, manipulaciones, interrupciones, rotación, contraseña correcta e incorrecta, migración a otro teléfono y archivos grandes con poca memoria).
