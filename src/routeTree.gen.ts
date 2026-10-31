@@ -22,12 +22,15 @@ import { Route as JobsRouteImport } from './routes/jobs'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as MemoryRouteImport } from './routes/memory'
 import { Route as ModelsRouteImport } from './routes/models'
+import { Route as Models3dRouteImport } from './routes/models3d'
+import { Route as MusicRouteImport } from './routes/music'
 import { Route as NotesRouteImport } from './routes/notes'
 import { Route as ResearchRouteImport } from './routes/research'
 import { Route as ServersRouteImport } from './routes/servers'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as StudyRouteImport } from './routes/study'
 import { Route as ToolsRouteImport } from './routes/tools'
+import { Route as VideoRouteImport } from './routes/video'
 import { Route as WorkspaceRouteImport } from './routes/workspace'
 import { Route as ChatChatIdRouteImport } from './routes/chat.$chatId'
 
@@ -96,6 +99,16 @@ const ModelsRoute = ModelsRouteImport.update({
   path: '/models',
   getParentRoute: () => rootRouteImport,
 } as any)
+const Models3dRoute = Models3dRouteImport.update({
+  id: '/models3d',
+  path: '/models3d',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MusicRoute = MusicRouteImport.update({
+  id: '/music',
+  path: '/music',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const NotesRoute = NotesRouteImport.update({
   id: '/notes',
   path: '/notes',
@@ -126,6 +139,11 @@ const ToolsRoute = ToolsRouteImport.update({
   path: '/tools',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VideoRoute = VideoRouteImport.update({
+  id: '/video',
+  path: '/video',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WorkspaceRoute = WorkspaceRouteImport.update({
   id: '/workspace',
   path: '/workspace',
@@ -151,12 +169,15 @@ export interface FileRoutesByFullPath {
   '/library': typeof LibraryRoute
   '/memory': typeof MemoryRoute
   '/models': typeof ModelsRoute
+  '/models3d': typeof Models3dRoute
+  '/music': typeof MusicRoute
   '/notes': typeof NotesRoute
   '/research': typeof ResearchRoute
   '/servers': typeof ServersRoute
   '/settings': typeof SettingsRoute
   '/study': typeof StudyRoute
   '/tools': typeof ToolsRoute
+  '/video': typeof VideoRoute
   '/workspace': typeof WorkspaceRoute
   '/chat/$chatId': typeof ChatChatIdRoute
 }
@@ -174,12 +195,15 @@ export interface FileRoutesByTo {
   '/library': typeof LibraryRoute
   '/memory': typeof MemoryRoute
   '/models': typeof ModelsRoute
+  '/models3d': typeof Models3dRoute
+  '/music': typeof MusicRoute
   '/notes': typeof NotesRoute
   '/research': typeof ResearchRoute
   '/servers': typeof ServersRoute
   '/settings': typeof SettingsRoute
   '/study': typeof StudyRoute
   '/tools': typeof ToolsRoute
+  '/video': typeof VideoRoute
   '/workspace': typeof WorkspaceRoute
   '/chat/$chatId': typeof ChatChatIdRoute
 }
@@ -198,12 +222,15 @@ export interface FileRoutesById {
   '/library': typeof LibraryRoute
   '/memory': typeof MemoryRoute
   '/models': typeof ModelsRoute
+  '/models3d': typeof Models3dRoute
+  '/music': typeof MusicRoute
   '/notes': typeof NotesRoute
   '/research': typeof ResearchRoute
   '/servers': typeof ServersRoute
   '/settings': typeof SettingsRoute
   '/study': typeof StudyRoute
   '/tools': typeof ToolsRoute
+  '/video': typeof VideoRoute
   '/workspace': typeof WorkspaceRoute
   '/chat/$chatId': typeof ChatChatIdRoute
 }
@@ -223,12 +250,15 @@ export interface FileRouteTypes {
     | '/library'
     | '/memory'
     | '/models'
+    | '/models3d'
+    | '/music'
     | '/notes'
     | '/research'
     | '/servers'
     | '/settings'
     | '/study'
     | '/tools'
+    | '/video'
     | '/workspace'
     | '/chat/$chatId'
   fileRoutesByTo: FileRoutesByTo
@@ -246,12 +276,15 @@ export interface FileRouteTypes {
     | '/library'
     | '/memory'
     | '/models'
+    | '/models3d'
+    | '/music'
     | '/notes'
     | '/research'
     | '/servers'
     | '/settings'
     | '/study'
     | '/tools'
+    | '/video'
     | '/workspace'
     | '/chat/$chatId'
   id:
@@ -269,12 +302,15 @@ export interface FileRouteTypes {
     | '/library'
     | '/memory'
     | '/models'
+    | '/models3d'
+    | '/music'
     | '/notes'
     | '/research'
     | '/servers'
     | '/settings'
     | '/study'
     | '/tools'
+    | '/video'
     | '/workspace'
     | '/chat/$chatId'
   fileRoutesById: FileRoutesById
@@ -293,12 +329,15 @@ export interface RootRouteChildren {
   LibraryRoute: typeof LibraryRoute
   MemoryRoute: typeof MemoryRoute
   ModelsRoute: typeof ModelsRoute
+  Models3dRoute: typeof Models3dRoute
+  MusicRoute: typeof MusicRoute
   NotesRoute: typeof NotesRoute
   ResearchRoute: typeof ResearchRoute
   ServersRoute: typeof ServersRoute
   SettingsRoute: typeof SettingsRoute
   StudyRoute: typeof StudyRoute
   ToolsRoute: typeof ToolsRoute
+  VideoRoute: typeof VideoRoute
   WorkspaceRoute: typeof WorkspaceRoute
   ChatChatIdRoute: typeof ChatChatIdRoute
 }
@@ -396,6 +435,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ModelsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/models3d': {
+      id: '/models3d'
+      path: '/models3d'
+      fullPath: '/models3d'
+      preLoaderRoute: typeof Models3dRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/music': {
+      id: '/music'
+      path: '/music'
+      fullPath: '/music'
+      preLoaderRoute: typeof MusicRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/notes': {
       id: '/notes'
       path: '/notes'
@@ -438,6 +491,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ToolsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/video': {
+      id: '/video'
+      path: '/video'
+      fullPath: '/video'
+      preLoaderRoute: typeof VideoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/workspace': {
       id: '/workspace'
       path: '/workspace'
@@ -469,12 +529,15 @@ const rootRouteChildren: RootRouteChildren = {
   LibraryRoute: LibraryRoute,
   MemoryRoute: MemoryRoute,
   ModelsRoute: ModelsRoute,
+  Models3dRoute: Models3dRoute,
+  MusicRoute: MusicRoute,
   NotesRoute: NotesRoute,
   ResearchRoute: ResearchRoute,
   ServersRoute: ServersRoute,
   SettingsRoute: SettingsRoute,
   StudyRoute: StudyRoute,
   ToolsRoute: ToolsRoute,
+  VideoRoute: VideoRoute,
   WorkspaceRoute: WorkspaceRoute,
   ChatChatIdRoute: ChatChatIdRoute,
 }
