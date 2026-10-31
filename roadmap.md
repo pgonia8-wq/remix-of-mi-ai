@@ -1,9 +1,9 @@
 # MI AI — Roadmap
 
 ## Solicitud actual — cierre y dos entregas APK
-- [ ] Auditar el alcance aprobado de Fases 6–7 y documentar cada requisito pendiente.
+- [x] Auditar el alcance aprobado de Fases 6–7 y documentar cada requisito pendiente.
 - [ ] Completar los módulos implementables de Fases 6–7 y probarlos; no declarar 100% mientras existan bloqueos.
-- [ ] Compilar y entregar APK con Fases 6–7 actualizadas e informe honesto por entorno.
+- [x] Compilar APK build.5 con Fases 6–7 actualizadas; entrega e informe en preparación, sin declaración 100%.
 - [ ] Completar Fases 8 (música) y 9 (video/3D) según el alcance aprobado, sin sustituir APIs reales por simulaciones.
 - [ ] Compilar y entregar APK final cuando el alcance y las verificaciones estén cerrados.
 
@@ -65,6 +65,18 @@
 - Fase 7 (antes 9): espacio profesional
 - Fase 8 (antes 7): música
 - Fase 9 (antes 6): video y 3D
+
+## Avance actual Fases 8–9 (parcial, no cierre)
+- [x] Música y efectos ElevenLabs por APIs independientes de TTS, biblioteca/versiones y licencia registrada sin promesa comercial.
+- [x] Runway texto/imagen/video a video y Meshy texto/imagen a GLB con IDs remotos persistentes, consulta sin reenvío y descarga sin credenciales.
+- [x] Importar archivo cifrado y visor GLB real: girar, reapertura después de recarga, escritorio y 360 px.
+- [x] Pantallas Música, Video y Modelos 3D; prueba real previa al guardado de nuevos proveedores de medios.
+- [ ] Extensión/stems/mezcla/masterización/conversión de audio.
+- [ ] Editor video con línea de tiempo/cortes/unión/capas/transiciones/subtítulos/traducción y medios largos.
+- [ ] CAD/modelado/edición 3D.
+- [ ] Voz bidireccional en tiempo real, pendiente del alcance maestro previo.
+- [ ] Firma compatible con las APK anteriores: el certificado actual es distinto; requiere la clave original para actualizar sin desinstalar.
+- [ ] Validación nativa y proveedores reales: no hay dispositivo/servidor/cuentas/claves autorizados disponibles.
 
 ## Fase 1 (completada)
 - [x] Proyectos, chats, memoria, documentos, proveedores con prueba real, Azure OpenAI, respaldo cifrado, APK build.3
