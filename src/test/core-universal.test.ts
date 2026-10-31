@@ -20,7 +20,7 @@ const MB = 1024 * 1024;
 let SQL: Awaited<ReturnType<typeof initSqlJs>>;
 let raw: import("sql.js").Database, db: SqlDb, repo: Repo, keys: KeyRing, store: Map<string, string>, assets: AssetStore, jobs: JobManager;
 const memStore = (m: Map<string, string>) => ({ get: (k: string) => m.get(k) ?? null, set: (k: string, v: string) => void m.set(k, v), del: (k: string) => void m.delete(k) });
-const bytes = (n: number) => crypto.getRandomValues(new Uint8Array(n));
+const bytes = (n: number) => { const b = new Uint8Array(n); for (let i = 0; i < n; i += 65536) crypto.getRandomValues(b.subarray(i, Math.min(n, i + 65536))); return b; };
 async function* once(b: Uint8Array) { yield b; }
 const profile = () => ({ name: "economico" as const, blockSize: 64 * 1024, concurrency: 1, reasons: [] });
 

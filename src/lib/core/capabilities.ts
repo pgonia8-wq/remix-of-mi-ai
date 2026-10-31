@@ -54,7 +54,7 @@ export const INITIAL_CAPABILITIES: CapabilitySpec[] = [
 
 export function validateCapability(c: CapabilitySpec): string[] {
   const errs: string[] = [];
-  if (!/^[a-z]+(\.[a-z]+)*$/.test(c.id)) errs.push("id inválido");
+  if (!/^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)*$/.test(c.id)) errs.push("id inválido");
   if (!c.inputs.length || !c.outputs.length) errs.push("entradas y salidas requeridas");
   if (c.recover && !c.async) errs.push("recover solo aplica a operaciones asíncronas");
   return errs;

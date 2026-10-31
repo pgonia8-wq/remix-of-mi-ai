@@ -6,7 +6,7 @@ const BS = 4096;
 const rand = (n: number) => { const b = new Uint8Array(n); for (let i = 0; i < n; i += 65536) crypto.getRandomValues(b.subarray(i, Math.min(n, i + 65536))); return b; };
 
 async function enc(data: Uint8Array, dek = newDek(), conc = 1, prefix?: Uint8Array) {
-  const file = await collect(encryptAsset(fromBytes(data, 1000), ctx, dek, { blockSize: BS, concurrency: conc, ...(prefix ? { prefix } : {}) }));
+  const file = await collect(encryptAsset(fromBytes(data, 1000), ctx, dek, { blockSize: BS, concurrency: conc, ...(prefix ? { prefix, dekId: "fixed" } : {}) }));
   return { file, dek };
 }
 /** Splits a file into header part and records [lenPrefix+ct]. */
