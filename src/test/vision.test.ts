@@ -90,3 +90,57 @@ describe("IA: eliminar fondo y mejorar resolución", () => {
     expect(f).not.toHaveBeenCalled();
   });
 });
+
+describe("Fase 3: audio y voz", () => {
+  const wav = { bytes: new Uint8Array(2000), mime: "audio/wav", name: "a.wav" };
+  it("Azure TTS v1 sends deployment in body to /audio/speech with chosen voice", async () => {
+    const f = vi.fn(async () => new Response(new Uint8Array(500), { status: 200 }));
+    vi.stubGlobal("fetch", f);
+    const r = await getAdapter("azure_openai").run(creds({ kind: "azure_openai", endpoint: "https://x.services.ai.azure.com/openai/v1" }), { capability: "audio.tts", model: "tts-dep", prompt: "Hola", params: { voice: "nova" } });
+    expect(r.kind).toBe("files");
+    const [url, init] = f.mock.calls[0]! as unknown as [string, RequestInit];
+    expect(url).toBe("https://x.services.ai.azure.com/openai/v1/audio/speech");
+    expect(JSON.parse(String(init.body))).toMatchObject({ model: "tts-dep", voice: "nova", input: "Hola" });
+  });
+  it("Azure legacy transcription routes by deployment + api-version", async () => {
+    const f = stub({ text: "hola mundo" });
+    const r = await getAdapter("azure_openai").run(creds({ kind: "azure_openai", endpoint: "https://x.openai.azure.com", apiVersion: "2024-10-21" }), { capability: "audio.transcribe", model: "whisper", files: [wav] });
+    expect(r).toEqual({ kind: "text", text: "hola mundo" });
+    expect(f.mock.calls[0]![0]).toBe("https://x.openai.azure.com/openai/deployments/whisper/audio/transcriptions?api-version=2024-10-21");
+  });
+  it("OpenAI translation uses /audio/translations and never sends language", async () => {
+    const f = stub({ text: "hello" });
+    await getAdapter("openai").run(creds({}), { capability: "audio.translate", model: "whisper-1", files: [wav], params: { language: "es" } });
+    expect(f.mock.calls[0]![0]).toBe("https://api.openai.com/v1/audio/translations");
+    expect((f.mock.calls[0]![1].body as FormData).get("language")).toBeNull();
+  });
+  it("empty transcript is an error for users but accepted for the connection test", async () => {
+    stub({ text: "" });
+    await expect(getAdapter("openai").run(creds({}), { capability: "audio.transcribe", model: "w", files: [wav] })).rejects.toThrow(/No se detectó voz/);
+    stub({ text: "" });
+    await expect(getAdapter("openai").run(creds({}), { capability: "audio.transcribe", model: "w", files: [wav], params: { allowEmpty: true } })).resolves.toEqual({ kind: "text", text: "" });
+  });
+  it("rejects unsupported audio, oversize audio and too-long TTS before any request", async () => {
+    const f = stub({ text: "x" });
+    await expect(getAdapter("openai").run(creds({}), { capability: "audio.transcribe", model: "w", files: [{ ...wav, mime: "video/avi" }] })).rejects.toThrow(/no admitido/);
+    await expect(getAdapter("openai").run(creds({}), { capability: "audio.transcribe", model: "w", files: [{ ...wav, bytes: new Uint8Array(25_000_001) }] })).rejects.toThrow(/demasiado grande/);
+    await expect(getAdapter("openai").run(creds({}), { capability: "audio.tts", model: "t", prompt: "a".repeat(4097) })).rejects.toThrow(/demasiado largo/);
+    expect(f).not.toHaveBeenCalled();
+  });
+  it("ElevenLabs voice cloning requires explicit consent and returns the voice id", async () => {
+    let f = stub({ voice_id: "v1" });
+    await expect(getAdapter("elevenlabs").run(creds({ kind: "elevenlabs" as never }), { capability: "audio.voice_clone", model: "m", files: [wav], params: { name: "Yo" } })).rejects.toThrow(/consentimiento/);
+    expect(f).not.toHaveBeenCalled();
+    f = stub({ voice_id: "v1" });
+    const r = await getAdapter("elevenlabs").run(creds({ kind: "elevenlabs" as never }), { capability: "audio.voice_clone", model: "m", files: [wav], params: { name: "Yo", consent: true } });
+    expect(r).toEqual({ kind: "text", text: "v1" });
+    expect(f.mock.calls[0]![0]).toBe("https://api.elevenlabs.io/v1/voices/add");
+  });
+  it("ElevenLabs speech-to-text uses scribe and xi-api-key", async () => {
+    const f = stub({ text: "hola" });
+    await getAdapter("elevenlabs").run(creds({ kind: "elevenlabs" as never }), { capability: "audio.transcribe", model: "eleven_multilingual_v2", files: [wav] });
+    expect(f.mock.calls[0]![0]).toBe("https://api.elevenlabs.io/v1/speech-to-text");
+    expect((f.mock.calls[0]![1].body as FormData).get("model_id")).toBe("scribe_v1");
+    expect((f.mock.calls[0]![1].headers as Record<string, string>)["xi-api-key"]).toBe("sk-secret-123");
+  });
+});

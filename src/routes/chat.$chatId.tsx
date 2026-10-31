@@ -8,6 +8,7 @@ import { useActiveProjectId, useMutate, useRepoQuery } from "@/lib/use-app";
 import { route } from "@/lib/core/router";
 import { NeedProject, inputCls } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
+import { DictateButton, SpeakButton } from "@/components/ChatVoice";
 
 export const Route = createFileRoute("/chat/$chatId")({
   head: () => ({
@@ -122,7 +123,7 @@ function ChatPage() {
         {messages.map((m) => (
           <div key={m.id} className={m.role === "user" ? "ml-auto max-w-[85%] rounded-2xl bg-primary px-4 py-2 text-sm text-primary-foreground" : "max-w-[95%] text-sm"}>
             <div className="whitespace-pre-wrap">{m.content}</div>
-            {m.role === "assistant" && m.model && <div className="mt-1 text-[10px] text-muted-foreground">{m.model}</div>}
+            {m.role === "assistant" && <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">{m.model && <span>{m.model}</span>}<SpeakButton projectId={pid} text={m.content} /></div>}
           </div>
         ))}
         {streaming !== null && <div className="max-w-[95%] whitespace-pre-wrap text-sm">{streaming || "…"}</div>}
@@ -139,6 +140,7 @@ function ChatPage() {
       </div>
       <div className="flex gap-2 border-t p-3">
         <textarea rows={1} className={inputCls + " resize-none"} placeholder="Escribe un mensaje…" value={input} onChange={(e) => setInput(e.target.value)} />
+        {streaming === null && <DictateButton projectId={pid} onText={(t) => setInput((v) => (v ? `${v} ${t}` : t))} />}
         {streaming !== null ? (
           <button aria-label="Detener" className="rounded-lg border px-3" onClick={() => abort.current?.abort()}>
             <Square className="h-4 w-4" />
