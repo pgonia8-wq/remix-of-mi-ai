@@ -36,7 +36,7 @@ function Models() {
 
   async function importCatalog(providerId: string, adapterId: string) {
     const ad = getAdapter(adapterId);
-    if (!ad.listModels) return toast.error(`${ad.label} no ofrece un catálogo oficial con tu API key; registra los modelos a mano.`);
+    if (!ad.listModels) { toast.error(`${ad.label} no ofrece un catálogo oficial con tu API key; registra los modelos a mano.`); return; }
     try {
       await mutate(async (c) => {
         const { creds } = await credentialsFor(c.repo, providerId);
@@ -147,7 +147,7 @@ function RegisterModel({ providers, caps, onDone }: { providers: { id: string; n
   const [sel, setSel] = useState<string[]>([]);
   const [cost, setCost] = useState("");
   async function save() {
-    if (!providerId || !remote.trim() || !sel.length) return toast.error("Elige proveedor, identificador oficial y al menos una capacidad.");
+    if (!providerId || !remote.trim() || !sel.length) { toast.error("Elige proveedor, identificador oficial y al menos una capacidad."); return; }
     await mutate(async (c) => {
       const id = await c.repo.registry.upsertModel({ providerId, remoteId: remote.trim(), source: "manual", costInfo: cost.trim() || null });
       await c.repo.registry.setModelCapabilities(id, sel);
@@ -174,7 +174,7 @@ function ElevenLabsForm({ onDone }: { onDone: () => void }) {
   const mutate = useCoreMutate();
   const [key, setKey] = useState("");
   async function save() {
-    if (!key.trim()) return toast.error("Introduce tu API key de ElevenLabs.");
+    if (!key.trim()) { toast.error("Introduce tu API key de ElevenLabs."); return; }
     await mutate(async (c) => {
       const pid = await c.repo.saveProvider({ name: "ElevenLabs", kind: "elevenlabs", model: "eleven_multilingual_v2", apiKey: key.trim() });
       const mid = await c.repo.registry.upsertModel({ providerId: pid, remoteId: "eleven_multilingual_v2", source: "manual" });

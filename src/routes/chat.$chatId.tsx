@@ -102,7 +102,7 @@ function ChatPage() {
           value={selection ?? ""}
           onChange={(e) => {
             const v = e.target.value;
-            if (v === "__auto" || v === "__fav") return mutate((r) => r.updateChat(pid, chatId, { provider_id: v, model: null }));
+            if (v === "__auto" || v === "__fav") { void mutate((r) => r.updateChat(pid, chatId, { provider_id: v, model: null })); return; }
             const p = providers.find((x) => x.id === v);
             mutate((r) => r.updateChat(pid, chatId, { provider_id: p?.id ?? null, model: p?.model ?? null }));
           }}

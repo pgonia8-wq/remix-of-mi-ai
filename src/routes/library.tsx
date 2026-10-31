@@ -169,8 +169,8 @@ function Create({ projectId }: { projectId: string }) {
   const compatible = models.filter((m) => m.capabilities.includes(cap) && m.status === "active" && m.provider_enabled);
 
   async function run() {
-    if (!decision.ok) return toast.error(decision.reason);
-    if (!prompt.trim()) return toast.error("Escribe una descripción.");
+    if (!decision.ok) { toast.error(decision.reason); return; }
+    if (!prompt.trim()) { toast.error("Escribe una descripción."); return; }
     setBusy(true);
     try {
       const c = await getCore();

@@ -69,7 +69,7 @@ export async function createBackup(opts: { repo: Repo; keys: KeyRing; fs: BlobBa
     await verifyAsset(src, { assetId: a.id, projectId: a.project_id }, dek); // never back up a corrupt asset silently
     deks[a.id] = b64(dek); dek.fill(0);
     blobs[a.id] = b64(await src.read(0, src.size));
-    (a as Partial<Asset>).wrapped_dek = undefined; // device-specific; re-created on restore
+    delete (a as Partial<Asset>).wrapped_dek; // device-specific; re-created on restore
   }
   const key = await deriveBackupKey(opts.password, kdf);
   const iv = crypto.getRandomValues(new Uint8Array(12));
