@@ -20,7 +20,9 @@
 ## Fase 2 — Imagen y visión (en curso)
 - [x] Visión (analizar imagen) OpenAI y Azure OpenAI + prueba real mínima + análisis guardado cifrado en Biblioteca
 - [ ] Bloqueado: prueba real de visión con tus claves
-- [ ] Siguiente: aumentar resolución / quitar fondo (requiere elegir proveedor)
+- [x] Herramientas locales sin costo (rotar, voltear, recortar, escalar, convertir) como versiones nuevas cifradas
+- [x] Historial de versiones, subir imágenes/audio a la Biblioteca, generar 1–4 imágenes
+- [ ] Más adelante (usuario): integrar sus ~290 modelos de Azure (registro masivo) — luego quitar fondo/upscale con IA
 
 ## Fase 1 (completada)
 - [x] Proyectos, chats, memoria, documentos, proveedores con prueba real, Azure OpenAI, respaldo cifrado, APK build.3
