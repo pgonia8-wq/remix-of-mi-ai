@@ -25,7 +25,7 @@ beforeEach(async () => {
   const keys = new KeyRing(db, webBackend({ get: (k) => storage.get(k) ?? null, set: (k, v) => { storage.set(k, v); }, del: (k) => { storage.delete(k); } }));
   const profile = { name: "economico" as const, blockSize: 64 * 1024, concurrency: 1, reasons: [] };
   const files = sqlBlobBackend(db);
-  core = { repo, keys, files, assets: new AssetStore(db, files, keys, () => profile), jobs: new JobManager(db), profile, device: { platform: "web", ramBytes: null, androidVersion: null, model: "test", keystore: "web", strongbox: false } as Core["device"], startup: { temps: 0, orphans: 0, requeued: 0, interrupted: 0, needsUser: 0 } };
+  core = { repo, keys, files, assets: new AssetStore(db, files, keys, () => profile), jobs: new JobManager(db), profile, device: { availMemMB: 500, totalMemMB: 3000, lowMemory: false, cores: 4, abis: [], freeStorageMB: null, batteryPct: null, charging: null, thermal: null, strongBox: false, source: "browser" }, startup: { temps: 0, orphans: 0, requeued: 0, interrupted: 0, needsUser: 0 } };
 });
 afterEach(() => vi.unstubAllGlobals());
 describe("Música y medios: contratos y trabajos", () => {
@@ -78,8 +78,6 @@ describe("Música y medios: contratos y trabajos", () => {
     await expect(pollRemoteJob(core, other.id, submitted.jobId)).rejects.toThrow();
   });
   it("no completa un trabajo al recibir estado pendiente", async () => {
-    const result = await getAdapter("meshy").poll?.(credentials, "text:task-1").catch(() => null);
-    // No configured response is success; explicit pending is separately validated below.
     vi.stubGlobal("fetch", vi.fn(async () => new Response('{"status":"IN_PROGRESS","progress":35}')));
     expect(await getAdapter("meshy").poll?.(credentials, "text:task-1")).toEqual({ kind: "pending", progress: 0.35 });
   });

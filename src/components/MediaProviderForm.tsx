@@ -5,7 +5,6 @@ import { inputCls } from "./AppShell";
 import { useCoreMutate } from "@/lib/use-app";
 import { getAdapter } from "@/lib/core/adapters";
 import type { ProviderKind } from "@/lib/db/repo";
-import { call } from "@/lib/core/adapters/http";
 
 export function MediaProviderForm({ onDone }: { onDone: () => void }) {
   const mutate = useCoreMutate();
