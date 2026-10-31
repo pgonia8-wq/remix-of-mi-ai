@@ -8,6 +8,7 @@ import { credentialsFor, testOperation } from "@/lib/core/executor";
 import type { ModelWithCaps } from "@/lib/core/registry";
 import { inputCls } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
+import { MediaProviderForm } from "@/components/MediaProviderForm";
 
 export const Route = createFileRoute("/models")({
   head: () => ({
@@ -33,6 +34,7 @@ function Models() {
   const [adding, setAdding] = useState(false);
   const [eleven, setEleven] = useState(false);
   const [tavily, setTavily] = useState(false);
+  const [media, setMedia] = useState(false);
   const models = data?.models ?? [], providers = data?.providers ?? [], caps = data?.caps ?? [];
 
   async function importCatalog(providerId: string, adapterId: string) {
@@ -56,6 +58,8 @@ function Models() {
       </div>
       <p className="text-xs text-muted-foreground">Cada modelo muestra solo las capacidades que tú o su catálogo declaran. «Probar» hace una operación real con tu clave (puede tener costo). Los proveedores de texto se agregan en Ajustes.</p>
       {adding && <RegisterModel providers={providers} caps={caps.map((c) => c.id)} onDone={() => setAdding(false)} />}
+      <Button variant="outline" onClick={() => setMedia(!media)}><Plus />Proveedor de música, video o 3D</Button>
+      {media && <MediaProviderForm onDone={() => setMedia(false)} />}
 
       <section className="space-y-2 rounded-xl border bg-card p-3 text-sm">
         <div className="flex items-center justify-between"><h2 className="font-semibold">Proveedores</h2>
@@ -139,7 +143,7 @@ function ModelCard({ m, allCaps }: { m: ModelWithCaps; allCaps: string[] }) {
 
 function getAdapterForModel(m: ModelWithCaps) {
   const kind = m.provider_kind;
-  return getAdapter(kind === "openai" ? "openai" : kind === "azure_openai" || kind === "azure" ? "azure_openai" : kind === "elevenlabs" ? "elevenlabs" : kind === "tavily" ? "tavily" : `text:${kind}`);
+  return getAdapter(kind === "openai" ? "openai" : kind === "azure_openai" || kind === "azure" ? "azure_openai" : ["elevenlabs", "tavily", "meshy", "runway"].includes(kind) ? kind : `text:${kind}`);
 }
 
 function RegisterModel({ providers, caps, onDone }: { providers: { id: string; name: string }[]; caps: string[]; onDone: () => void }) {

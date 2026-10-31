@@ -120,6 +120,7 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const router = useRouter();
   useEffect(() => {
     // CI-only hook on Android: miai://selftest/write|verify
     let off: (() => void) | undefined;
@@ -128,6 +129,7 @@ function RootComponent() {
       const { App } = await import("@capacitor/app");
       const { runSelfTest } = await import("../lib/selftest");
       const handle = (url?: string) => {
+        if (url?.startsWith("miai://automation/")) { router.navigate({ to: "/automation" }); return; }
         const m = url?.match(/^miai:\/\/selftest\/(write|verify)/);
         if (m) runSelfTest(m[1] as "write" | "verify");
       };
@@ -136,7 +138,7 @@ function RootComponent() {
       off = () => h.remove();
     });
     return () => off?.();
-  }, []);
+  }, [router]);
 
   return (
     <QueryClientProvider client={queryClient}>

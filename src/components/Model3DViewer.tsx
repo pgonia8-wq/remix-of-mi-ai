@@ -8,6 +8,7 @@ export function Model3DViewer({ bytes }: { bytes: Uint8Array }) {
     const el = host.current; if (!el) return;
     let live = true, cleanup = () => {};
     async function init() {
+      if (!el) return;
       const [T, { GLTFLoader }, { OrbitControls }] = await Promise.all([import("three"), import("three/addons/loaders/GLTFLoader.js"), import("three/addons/controls/OrbitControls.js")]);
       if (!live) return;
       const manager = new T.LoadingManager();
