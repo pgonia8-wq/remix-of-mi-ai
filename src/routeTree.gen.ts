@@ -20,6 +20,7 @@ import { Route as ModelsRouteImport } from './routes/models'
 import { Route as NotesRouteImport } from './routes/notes'
 import { Route as ResearchRouteImport } from './routes/research'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as StudyRouteImport } from './routes/study'
 import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as ChatChatIdRouteImport } from './routes/chat.$chatId'
 
@@ -78,6 +79,11 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const StudyRoute = StudyRouteImport.update({
+  id: '/study',
+  path: '/study',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ToolsRoute = ToolsRouteImport.update({
   id: '/tools',
   path: '/tools',
@@ -101,6 +107,7 @@ export interface FileRoutesByFullPath {
   '/notes': typeof NotesRoute
   '/research': typeof ResearchRoute
   '/settings': typeof SettingsRoute
+  '/study': typeof StudyRoute
   '/tools': typeof ToolsRoute
   '/chat/$chatId': typeof ChatChatIdRoute
 }
@@ -116,6 +123,7 @@ export interface FileRoutesByTo {
   '/notes': typeof NotesRoute
   '/research': typeof ResearchRoute
   '/settings': typeof SettingsRoute
+  '/study': typeof StudyRoute
   '/tools': typeof ToolsRoute
   '/chat/$chatId': typeof ChatChatIdRoute
 }
@@ -132,6 +140,7 @@ export interface FileRoutesById {
   '/notes': typeof NotesRoute
   '/research': typeof ResearchRoute
   '/settings': typeof SettingsRoute
+  '/study': typeof StudyRoute
   '/tools': typeof ToolsRoute
   '/chat/$chatId': typeof ChatChatIdRoute
 }
@@ -149,6 +158,7 @@ export interface FileRouteTypes {
     | '/notes'
     | '/research'
     | '/settings'
+    | '/study'
     | '/tools'
     | '/chat/$chatId'
   fileRoutesByTo: FileRoutesByTo
@@ -164,6 +174,7 @@ export interface FileRouteTypes {
     | '/notes'
     | '/research'
     | '/settings'
+    | '/study'
     | '/tools'
     | '/chat/$chatId'
   id:
@@ -179,6 +190,7 @@ export interface FileRouteTypes {
     | '/notes'
     | '/research'
     | '/settings'
+    | '/study'
     | '/tools'
     | '/chat/$chatId'
   fileRoutesById: FileRoutesById
@@ -195,6 +207,7 @@ export interface RootRouteChildren {
   NotesRoute: typeof NotesRoute
   ResearchRoute: typeof ResearchRoute
   SettingsRoute: typeof SettingsRoute
+  StudyRoute: typeof StudyRoute
   ToolsRoute: typeof ToolsRoute
   ChatChatIdRoute: typeof ChatChatIdRoute
 }
@@ -278,6 +291,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/study': {
+      id: '/study'
+      path: '/study'
+      fullPath: '/study'
+      preLoaderRoute: typeof StudyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tools': {
       id: '/tools'
       path: '/tools'
@@ -307,6 +327,7 @@ const rootRouteChildren: RootRouteChildren = {
   NotesRoute: NotesRoute,
   ResearchRoute: ResearchRoute,
   SettingsRoute: SettingsRoute,
+  StudyRoute: StudyRoute,
   ToolsRoute: ToolsRoute,
   ChatChatIdRoute: ChatChatIdRoute,
 }
