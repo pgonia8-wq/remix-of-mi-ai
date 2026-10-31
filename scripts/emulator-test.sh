@@ -25,11 +25,13 @@ adb logcat -c
 adb shell am start -W -a android.intent.action.VIEW -d "miai://selftest/verify" $PKG >/dev/null; sleep 10
 adb logcat -d > "$OUT/logcat-verify.txt"
 grep -q "MIAI_SELFTEST PASS verify" "$OUT/logcat-verify.txt"; check "Persistencia tras cerrar y reabrir + aislamiento + descifrado de API key (Keystore)" $?
+grep -q "MIAI_SELFTEST PASS verify encrypted-backup-restored-wrong-password-rejected" "$OUT/logcat-verify.txt"; check "Exportación cifrada, contraseña incorrecta rechazada y recuperación completa de registros del proyecto" $?
 grep "MIAI_SELFTEST" "$OUT/logcat-verify.txt" >> "$R"
 adb exec-out screencap -p > "$OUT/2-reabierta.png"
 
 # SQLCipher: the DB file must not contain the plaintext probe nor the SQLite header.
 DB=$(adb shell run-as $PKG find databases -name "miai*" | tr -d '\r' | grep -v -- "-journal\|-wal\|-shm" | head -1)
+test -n "$DB"; check "Ruta de base de datos localizada" $?
 adb exec-out run-as $PKG cat "$DB" > "$OUT/db.bin"
 test -s "$OUT/db.bin"; check "Base de datos creada ($DB)" $?
 ! grep -aq "MIAI_PLAINTEXT_PROBE_7f3a" "$OUT/db.bin"; check "SQLCipher: el texto del chat no aparece legible en el archivo" $?

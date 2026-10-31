@@ -1,4 +1,17 @@
-# MI AI Fase 1 — Informe de pruebas (31-oct-2026, compilación 0.1.0-build.2)
+# MI AI Fase 1 — Informe de pruebas (31-oct-2026, compilación 0.1.0-build.3)
+
+## Entrega actual — 31-oct-2026, 20:19 UTC
+- **Compilación realizada:** Debug 0.1.0-build.3 y Release sin firma, Gradle BUILD SUCCESSFUL (472 tareas). Incluyen Azure OpenAI, validación real previa al guardado, correcciones de chat y persistencia de vista previa. Preparación y compilación ejecutadas en copia aislada con JDK 21 y Android SDK 35.
+- **APK comprobado:** firma Debug v2 válida; minSdk 30 (Android 11), targetSdk 35; SQLCipher incluido para arm64-v8a, armeabi-v7a y x86_64; allowBackup=false en Debug y Release; enlace selftest únicamente en Debug. Incluir bibliotecas no demuestra funcionamiento ARM en dispositivo.
+- **SHA-256 Debug:** `6c6cb3b9f14472dd2669c00d7317c457865ce5b6563c834d6f83d2cdf1a71c5c`.
+- **Pruebas automáticas actuales:** 50/50 PASS en Vitest/sql.js. La nueva autoprueba de recuperación utiliza cifrado por contraseña, rechazo de contraseña incorrecta, eliminación del proyecto y comparación de todos sus registros restaurados. Añade conversaciones, memoria con dos versiones y documento de texto; no acredita recuperación de archivos adjuntos binarios.
+- **Programado para Android:** la autoprueba nativa ahora ejecuta esa recuperación y el informe del emulador requiere su señal específica. Sus resultados todavía no se han obtenido en Android. Los errores de autoprueba no imprimen mensajes de excepción ni credenciales.
+- **Probado en entorno web:** pruebas automáticas actuales y las comprobaciones Chromium descritas abajo; no se repitió generación real con Azure en esta ejecución. El usuario confirmó previamente que su modelo y chat funcionan en vista previa.
+- **Probado en emulador Android:** ninguna prueba superada en esta entrega. Se instaló el emulador API 30 y se intentó arrancar sin KVM; no se obtuvo arranque completo antes del límite de 600 segundos. No fue posible instalar ni abrir el APK: permanecen pendientes, al igual que SQLCipher y Keystore en ejecución nativa.
+- **Probado en dispositivo físico:** ninguna prueba realizada. Pendiente Poco C40: instalación/apertura, persistencia, Azure y streaming, documentos sin Internet, exportación/importación y seguridad nativa. ARMv7 pendiente de ejecución real.
+- **Bloqueos externos:** conexión GitHub para ejecutar Actions en un entorno con KVM; clave propia de firma Release; pruebas en el teléfono. No se creó backend obligatorio ni se cambiaron SQLCipher o Keystore. Release sin firma no es instalable ni se considera versión final.
+
+Las secciones siguientes son históricas; sus estados pendientes describen cada entrega anterior, no sustituyen los resultados anteriores de build.3.
 
 ## Guardado en vista previa — 31-oct-2026, 19:57 UTC
 - El usuario confirmó que el modelo vuelve a aparecer y el chat funciona. La desaparición inicial no quedó reproducida en su sesión; estaba consultando una versión histórica según el contexto recibido.

@@ -19,3 +19,4 @@
 - Provider calls run on-device from the WebView (user's own keys), no server functions.
 - Azure OpenAI uses a distinct provider kind; derive its stored display name/model from deployment and normalize URLs in the shared adapter, selecting deployment in the body for /openai/v1 and in the route for legacy endpoints. Why: the same setup supports testing, saved retests and chats with both Azure API contracts.
 - Provider diagnostics and real-response validation live in the shared on-device provider adapter; verification status uses a separate SQLite table, and restoring backups resets verification because credentials are excluded.
+- Android self-tests use a shared sentinel recovery check to exercise password encryption, deletion and restoration through Repo; unit coverage validates the check without claiming native execution. Why: emulator reports must not mistake dump-only checks for recovery testing.
