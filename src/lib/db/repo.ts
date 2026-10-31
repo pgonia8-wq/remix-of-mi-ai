@@ -15,7 +15,7 @@ export type MemoryKind = "hecho" | "decision" | "hipotesis";
 export type MemoryItem = { id: string; project_id: string; kind: MemoryKind; content: string; version: number; archived: number; updated_at: number };
 export type MemoryVersion = { id: string; item_id: string; version: number; kind: MemoryKind; content: string; created_at: number };
 export type Doc = { id: string; project_id: string; name: string; mime: string | null; size: number; text_content: string | null; file_path: string | null; created_at: number };
-export type ProviderKind = "openai" | "anthropic" | "gemini" | "azure" | "azure_openai" | "xai" | "deepseek" | "mistral" | "cohere" | "openai_compatible" | "custom" | "elevenlabs";
+export type ProviderKind = "openai" | "anthropic" | "gemini" | "azure" | "azure_openai" | "xai" | "deepseek" | "mistral" | "cohere" | "openai_compatible" | "custom" | "elevenlabs" | "tavily";
 export type Provider = { id: string; name: string; kind: ProviderKind; endpoint: string | null; deployment: string | null; model: string; api_version: string | null; extra_params: string | null; enabled: number; created_at: number; has_key: boolean; verification_status: "verified" | "error" | "unverified"; checked_at: number | null };
 export type ProviderInput = { name: string; kind: ProviderKind; endpoint?: string; apiKey?: string | undefined; deployment?: string; model: string; apiVersion?: string; extraParams?: string; enabled?: boolean };
 
@@ -23,7 +23,7 @@ export class IsolationError extends Error {}
 
 // Catalog + project data from migration v3 included in backups. Excluded on purpose: capability_tests
 // (verification claims reset on restore), key_versions (device-bound), asset_blobs (bytes travel separately).
-const BACKUP_TABLES_V3 = ["capabilities", "providers_registry", "endpoints", "auth_refs", "models", "model_versions", "model_capabilities", "model_configs", "jobs", "job_attempts", "assets", "asset_tags", "asset_relations", "workflow_steps", "voices"] as const;
+const BACKUP_TABLES_V3 = ["capabilities", "providers_registry", "endpoints", "auth_refs", "models", "model_versions", "model_capabilities", "model_configs", "jobs", "job_attempts", "assets", "asset_tags", "asset_relations", "workflow_steps", "voices", "notes", "tasks", "embeddings", "flashcards"] as const;
 
 const uid = () => crypto.randomUUID();
 const now = () => Date.now();

@@ -22,6 +22,12 @@ export const SCHEMA_V3 = [
   `CREATE TABLE IF NOT EXISTS workflow_steps (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, workflow_id TEXT NOT NULL, step_index INTEGER NOT NULL, capability_id TEXT NOT NULL, job_id TEXT, input_assets TEXT, output_assets TEXT, status TEXT NOT NULL, UNIQUE(workflow_id, step_index))`,
   // Voices created by the user (e.g. ElevenLabs cloning) — only the provider voice ID, never audio or keys.
   `CREATE TABLE IF NOT EXISTS voices (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, provider_id TEXT NOT NULL, voice_id TEXT NOT NULL, name TEXT NOT NULL, consent_at INTEGER NOT NULL, created_at INTEGER NOT NULL)`,
+  // Phase 4–5: notes, tasks, semantic index, flashcards (all project-scoped).
+  `CREATE TABLE IF NOT EXISTS notes (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS tasks (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, title TEXT NOT NULL, done INTEGER NOT NULL DEFAULT 0, due_at INTEGER, priority INTEGER NOT NULL DEFAULT 2, created_at INTEGER NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS embeddings (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, source_type TEXT NOT NULL, source_id TEXT NOT NULL, chunk_index INTEGER NOT NULL, text TEXT NOT NULL, vector TEXT NOT NULL, model_id TEXT NOT NULL, created_at INTEGER NOT NULL, UNIQUE(project_id, source_type, source_id, chunk_index, model_id))`,
+  `CREATE TABLE IF NOT EXISTS flashcards (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, deck TEXT NOT NULL, front TEXT NOT NULL, back TEXT NOT NULL, ease REAL NOT NULL DEFAULT 2.5, interval_days REAL NOT NULL DEFAULT 0, reps INTEGER NOT NULL DEFAULT 0, due_at INTEGER NOT NULL, created_at INTEGER NOT NULL)`,
+  `CREATE INDEX IF NOT EXISTS idx_embeddings_project ON embeddings(project_id, model_id)`,
   // Preview-only blob store for encrypted asset bytes (native uses private files).
   `CREATE TABLE IF NOT EXISTS asset_blobs (path TEXT PRIMARY KEY, data BLOB NOT NULL)`,
   `CREATE INDEX IF NOT EXISTS idx_jobs_project ON jobs(project_id, status)`,
@@ -29,4 +35,4 @@ export const SCHEMA_V3 = [
   `CREATE INDEX IF NOT EXISTS idx_models_provider ON models(provider_id)`,
 ];
 
-export const PROJECT_TABLES_V3 = ["jobs", "job_attempts", "assets", "asset_tags", "asset_relations", "workflow_steps", "model_configs", "voices"] as const;
+export const PROJECT_TABLES_V3 = ["jobs", "job_attempts", "assets", "asset_tags", "asset_relations", "workflow_steps", "model_configs", "voices", "notes", "tasks", "embeddings", "flashcards"] as const;

@@ -10,7 +10,7 @@ import { TEST_PNG_B64 } from "./adapters/vision";
 import { testWav } from "./adapters/audio";
 import { b64ToBytes } from "./adapters/types";
 
-export type ExecResult = { jobId: string; text?: string; assets: Asset[] };
+export type ExecResult = { jobId: string; text?: string; assets: Asset[]; vectors?: number[][]; results?: import("./adapters/types").SearchResult[] };
 
 export async function credentialsFor(repo: Repo, providerId: string): Promise<{ creds: AdapterCredentials; adapter: string }> {
   const [p] = await repo.sql.all<{ id: string; kind: string; endpoint: string | null; deployment: string | null; model: string; api_version: string | null; extra_params: string | null }>(
@@ -63,6 +63,8 @@ export async function execute(deps: { repo: Repo; jobs: JobManager; assets: Asse
   }
   await deps.jobs.finishAttempt(projectId, job.id, "completed");
   await deps.jobs.transition(projectId, job.id, "completed", { phase: "received", progress: 1 });
+  if (result.kind === "vectors") return { jobId: job.id, assets: saved, vectors: result.vectors };
+  if (result.kind === "search") return { jobId: job.id, assets: saved, results: result.results };
   return { jobId: job.id, ...(result.kind === "text" ? { text: result.text } : result.kind === "files" && result.text ? { text: result.text } : {}), assets: saved };
 }
 
@@ -77,6 +79,9 @@ export async function testOperation(repo: Repo, model: ModelWithCaps, capability
       vision: { prompt: "¿De qué color es esta imagen? Responde con una palabra." },
       "image.generate": { prompt: "Un círculo azul sobre fondo blanco, ilustración simple", params: { size: "1024x1024", quality: "low", n: 1 } },
       "audio.tts": { prompt: "Prueba de MI AI." },
+      embedding: { prompt: "Prueba de MI AI" },
+      "research.web": { prompt: "MI AI asistente privado Android" },
+      "document.create": { prompt: "Responde solo: OK" },
     };
     const audioCaps = ["audio.transcribe", "audio.translate"];
     if (audioCaps.includes(capability)) {
@@ -88,7 +93,7 @@ export async function testOperation(repo: Repo, model: ModelWithCaps, capability
     if (!p) return { ok: false, httpStatus: null, message: "Esta operación necesita un archivo propio; pruébala desde la Biblioteca." };
     const files = imageIn.includes(capability) ? [{ bytes: b64ToBytes(TEST_PNG_B64), mime: "image/png", name: "prueba.png" }] : undefined;
     const r = await adapter.run(creds, { capability, model: model.remote_id, prompt: p.prompt, ...(p.params ? { params: p.params } : {}), ...(files ? { files } : {}) });
-    const ok = (r.kind === "text" && r.text.trim().length > 0) || (r.kind === "files" && r.files.length > 0 && r.files[0]!.bytes.length > 100);
+    const ok = (r.kind === "vectors" && r.vectors.length === 1) || (r.kind === "search" && r.results.length > 0) || (r.kind === "text" && r.text.trim().length > 0) || (r.kind === "files" && r.files.length > 0 && r.files[0]!.bytes.length > 100);
     return ok ? { ok: true, httpStatus: 200, message: "Operación real completada." } : { ok: false, httpStatus: 200, message: "Respuesta vacía." };
   } catch (e) {
     if (e instanceof ProviderError) return { ok: false, httpStatus: e.httpStatus ?? null, message: e.technical ? `${e.message} — ${e.technical}` : e.message };
