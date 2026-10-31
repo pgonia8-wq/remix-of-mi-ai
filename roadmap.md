@@ -43,8 +43,17 @@
 - [x] Estudio: explicar, cuestionarios, tarjetas con repaso espaciado, planes de estudio
 
 ## Siguiente
-- [ ] Compilar APK de Fases 1–5 y corregir errores de compilación
+- [x] Fase 6 (antes 8), entrega parcial: agentes por proyecto, secuencias revisadas, condiciones de texto, repeticiones limitadas, historial, aprobación, límites y JavaScript aislado
+- [x] Compilar APK build.4 con Fases 1–5 y la entrega parcial de Fase 6; comprobar firma, minSdk y ABI
+- [ ] Fase 6 pendiente: terminal/Termux, SSH/SFTP, Git/GitHub, integraciones externas con autorización (sin conectores implementados)
+- [ ] Fase 6 pendiente: delegación autónoma, resolución de conflictos, ramas generales, disparadores y programación Android (motor aún secuencial/manual)
+- [ ] Bloqueado: validar APK build.4, SQLCipher/Keystore y JavaScript en Android/Poco C40 (sin teléfono ni emulador acelerado disponible)
 - [ ] Bloqueado: pruebas reales con claves del usuario (Azure, Tavily, ElevenLabs)
+
+## Orden pendiente solicitado
+- Fase 7 (antes 9): espacio profesional
+- Fase 8 (antes 7): música
+- Fase 9 (antes 6): video y 3D
 
 ## Fase 1 (completada)
 - [x] Proyectos, chats, memoria, documentos, proveedores con prueba real, Azure OpenAI, respaldo cifrado, APK build.3
