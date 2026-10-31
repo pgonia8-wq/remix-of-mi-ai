@@ -16,7 +16,7 @@ export async function startRecording(onStop: (blob: Blob, ms: number) => void, o
   const t0 = Date.now();
   rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
   rec.onerror = () => onError("Error de grabación.");
-  rec.onstop = () => { stream.getTracks().forEach((t) => t.stop()); clearTimeout(limit); onStop(new Blob(chunks, { type: (rec.mimeType || mime || "audio/webm").split(";")[0] }), Date.now() - t0); };
+  rec.onstop = () => { stream.getTracks().forEach((t) => t.stop()); clearTimeout(limit); onStop(new Blob(chunks, { type: (rec.mimeType || mime || "audio/webm").split(";")[0] ?? "audio/webm" }), Date.now() - t0); };
   const limit = setTimeout(() => rec.state !== "inactive" && rec.stop(), MAX_RECORD_MS);
   rec.start(1000);
   return { stop: () => { if (rec.state !== "inactive") rec.stop(); } };
