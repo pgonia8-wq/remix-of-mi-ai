@@ -7,7 +7,7 @@ Ninguna capacidad se marca "funcional con proveedor" sin una operación real con
 |---|---|---|---|---|---|---|
 | chat | Programada · Web · Físico (Poco C40, usuario) | 10 tipos de texto + Azure OpenAI | Registro, router | Por token del proveedor | Unitarias + real del usuario (Azure) | 1 |
 | reasoning | Programada (texto) | Modelos de razonamiento vía chat | chat | Por token | Sin prueba real | 1 |
-| vision.analyze | Pendiente | — | adjuntos cifrados | — | — | 2 |
+| vision | Programada · unitarias | OpenAI, Azure OpenAI (chat/completions con imagen) | Biblioteca cifrada | Por token | Unitarias; sin operación real | 2 |
 | image.generate | Programada · Web (UI) | OpenAI Images, Azure OpenAI Images | Biblioteca cifrada, jobs | Por imagen | Unitarias con respuestas simuladas; sin operación real | 1 |
 | image.edit | Programada | OpenAI Images (edits) | image.generate, versiones | Por imagen | Unitarias; sin operación real | 1 |
 | image.upscale / image.remove_bg | Pendiente | — | image.edit | — | — | 2 |

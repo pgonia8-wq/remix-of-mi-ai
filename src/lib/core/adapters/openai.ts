@@ -1,6 +1,7 @@
 // OpenAI adapter: chat (existing streaming path, unchanged), images and audio.
 import { streamChat, ProviderError } from "../../providers";
 import { call, requireKey } from "./http";
+import { visionBody, parseVision } from "./vision";
 import { b64ToBytes, sync, trimSlash, type AdapterCredentials, type ProviderAdapter, type RunRequest, type RunResult } from "./types";
 
 export async function chatViaLegacy(c: AdapterCredentials, r: RunRequest): Promise<RunResult> {
@@ -41,13 +42,17 @@ const base = (c: AdapterCredentials) => trimSlash(c.endpoint?.trim() || "https:/
 export const openaiAdapter: ProviderAdapter = {
   id: "openai",
   label: "OpenAI",
-  operations: { chat: sync(), "image.generate": sync(), "image.edit": sync(), "audio.tts": sync(), "audio.transcribe": sync() },
+  operations: { chat: sync(), vision: sync(), "image.generate": sync(), "image.edit": sync(), "audio.tts": sync(), "audio.transcribe": sync() },
   supports(cap) { return cap in this.operations; },
   async run(c, r) {
     const key = requireKey(c.apiKey);
     const auth = { authorization: `Bearer ${key}` };
     switch (r.capability) {
       case "chat": return chatViaLegacy(c, r);
+      case "vision": {
+        const res = await call(`${base(c)}/chat/completions`, { method: "POST", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify(visionBody(r, true)), signal: r.signal ?? null }, key);
+        return { kind: "text", text: parseVision(await res.json()) };
+      }
       case "image.generate": {
         const res = await call(`${base(c)}/images/generations`, { method: "POST", headers: { ...auth, "content-type": "application/json" }, body: JSON.stringify(imageBody(r)), signal: r.signal ?? null }, key);
         return { kind: "files", files: parseImages(await res.json(), String(r.params?.["output_format"] ?? "png")) };

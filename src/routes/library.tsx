@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Download, ShieldCheck, Sparkles, Tag, Trash2, Wand2, X } from "lucide-react";
+import { Download, Eye, ShieldCheck, Sparkles, Tag, Trash2, Upload, Wand2, X } from "lucide-react";
+import { VISION_MIME } from "@/lib/core/adapters/vision";
 import { toast } from "sonner";
 import { useActiveProjectId, useCoreMutate, useCoreQuery } from "@/lib/use-app";
 import { getCore } from "@/lib/core";
@@ -28,6 +29,7 @@ export const Route = createFileRoute("/library")({
 const CREATE_CAPS = [
   { id: "image.generate", label: "Imagen" },
   { id: "audio.tts", label: "Voz" },
+  { id: "vision", label: "Analizar" },
 ];
 
 function Library() {
@@ -46,7 +48,7 @@ function Library() {
       <div className="flex gap-2">
         <input className={inputCls} placeholder="Buscar por nombre o prompt" value={search} onChange={(e) => setSearch(e.target.value)} />
         <select className={inputCls + " w-28"} value={kind} onChange={(e) => setKind(e.target.value)}>
-          <option value="">Todo</option><option value="image">Imágenes</option><option value="audio">Audio</option><option value="video">Video</option><option value="document">Documentos</option>
+          <option value="">Todo</option><option value="image">Imágenes</option><option value="audio">Audio</option><option value="video">Video</option><option value="document">Documentos</option><option value="text">Análisis</option>
         </select>
       </div>
       {tags.length > 0 && (
@@ -92,6 +94,26 @@ function AssetDetail({ a, onClose }: { a: Asset; onClose: () => void }) {
   const [newTag, setNewTag] = useState("");
   const [edit, setEdit] = useState("");
   const [busy, setBusy] = useState(false);
+  const [question, setQuestion] = useState("");
+  const [analysis, setAnalysis] = useState<string | null>(null);
+  const [textBody, setTextBody] = useState<string | null>(null);
+  useEffect(() => {
+    if (a.kind !== "text") return;
+    getCore().then((c) => c.assets.read(a.project_id, a.id)).then((b) => setTextBody(new TextDecoder().decode(b))).catch(() => setTextBody(null));
+  }, [a.id]);
+
+  async function analyze() {
+    setBusy(true);
+    try {
+      const c = await getCore();
+      const d = route(await c.repo.registry.listModels(), { capability: "vision", mode: "auto" });
+      if (!d.ok) { toast.error(d.reason); return; }
+      const bytes = await c.assets.read(a.project_id, a.id);
+      const r = await execute(c, a.project_id, d.model, { capability: "vision", prompt: question.trim() || "Describe esta imagen con detalle.", files: [{ bytes, mime: a.mime, name: a.name ?? "imagen" }], parentAssetId: a.id, saveText: true });
+      setAnalysis(r.text ?? "");
+      await mutate(async () => undefined);
+    } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
+  }
 
   async function exportFile() {
     try {
@@ -131,6 +153,7 @@ function AssetDetail({ a, onClose }: { a: Asset; onClose: () => void }) {
         {url && a.kind === "image" && <img src={url} alt={a.prompt ?? "imagen"} className="w-full rounded-xl border" />}
         {url && a.kind === "audio" && <audio controls src={url} className="w-full" />}
         {url && a.kind === "video" && <video controls src={url} className="w-full rounded-xl" />}
+        {a.kind === "text" && <p className="whitespace-pre-wrap rounded-xl border bg-card p-3 text-sm">{textBody ?? "…"}</p>}
         <dl className="grid grid-cols-3 gap-1 text-xs">
           <dt className="text-muted-foreground">Tipo</dt><dd className="col-span-2">{a.mime} · {(a.size / 1024).toFixed(1)} KB</dd>
           <dt className="text-muted-foreground">Capacidad</dt><dd className="col-span-2 font-mono">{a.capability_id ?? "—"}</dd>
@@ -142,6 +165,13 @@ function AssetDetail({ a, onClose }: { a: Asset; onClose: () => void }) {
         <div className="flex flex-wrap gap-1">{tags.map((t) => <button key={t} onClick={() => mutate((c) => c.assets.untag(a.project_id, a.id, t))} className="rounded-full border px-2 py-0.5 text-xs">#{t} ×</button>)}</div>
         <div className="flex gap-2"><input className={inputCls} placeholder="Nueva etiqueta" value={newTag} onChange={(e) => setNewTag(e.target.value)} />
           <Button variant="outline" onClick={() => newTag.trim() && mutate((c) => c.assets.tag(a.project_id, a.id, newTag)).then(() => setNewTag(""))}><Tag /></Button></div>
+        {a.kind === "image" && VISION_MIME.includes(a.mime) && (
+          <div className="space-y-2">
+            <div className="flex gap-2"><input className={inputCls} placeholder="Pregunta sobre la imagen (opcional)" value={question} onChange={(e) => setQuestion(e.target.value)} />
+              <Button variant="outline" disabled={busy} onClick={analyze} aria-label="Analizar imagen"><Eye />{busy ? "…" : ""}</Button></div>
+            {analysis !== null && <p className="whitespace-pre-wrap rounded-xl border bg-card p-3 text-sm">{analysis}</p>}
+          </div>
+        )}
         {a.kind === "image" && (
           <div className="flex gap-2"><input className={inputCls} placeholder="Editar con instrucciones (crea versión nueva)" value={edit} onChange={(e) => setEdit(e.target.value)} />
             <Button disabled={busy} onClick={runEdit}><Wand2 />{busy ? "…" : ""}</Button></div>
@@ -163,6 +193,8 @@ function Create({ projectId }: { projectId: string }) {
   const [prompt, setPrompt] = useState("");
   const [size, setSize] = useState("1024x1024");
   const [busy, setBusy] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [answer, setAnswer] = useState<string | null>(null);
   const mutate = useCoreMutate();
   const { data: models = [] } = useCoreQuery(["models"], (c) => c.repo.registry.listModels());
   const decision = useMemo(() => route(models, { capability: cap, mode, manualModelId: manual || null }), [models, cap, mode, manual]);
@@ -170,10 +202,21 @@ function Create({ projectId }: { projectId: string }) {
 
   async function run() {
     if (!decision.ok) { toast.error(decision.reason); return; }
-    if (!prompt.trim()) { toast.error("Escribe una descripción."); return; }
+    if (cap === "vision" && !file) { toast.error("Elige una imagen para analizar."); return; }
+    if (cap !== "vision" && !prompt.trim()) { toast.error("Escribe una descripción."); return; }
     setBusy(true);
     try {
       const c = await getCore();
+      if (cap === "vision" && file) {
+        if (!VISION_MIME.includes(file.type)) throw new Error("Formato no admitido: usa PNG, JPEG, WEBP o GIF.");
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        // The source image is stored encrypted first so the analysis stays linked to it.
+        const src = await c.assets.put(projectId, (async function* () { yield bytes; })(), { kind: "image", mime: file.type, name: file.name, capability: null, prompt: null, params: null });
+        const r = await execute(c, projectId, decision.model, { capability: "vision", prompt: prompt.trim() || "Describe esta imagen con detalle.", files: [{ bytes, mime: file.type, name: file.name }], parentAssetId: src.id, saveText: true });
+        setAnswer(r.text ?? "");
+        setFile(null);
+        return;
+      }
       const r = await execute(c, projectId, decision.model, { capability: cap, prompt, params: cap === "image.generate" ? { size, n: 1 } : {} });
       toast.success(`${r.assets.length} archivo(s) guardado(s) cifrados`);
       setPrompt("");
@@ -183,7 +226,13 @@ function Create({ projectId }: { projectId: string }) {
   return (
     <section className="space-y-2 rounded-xl border bg-card p-3 text-sm">
       <div className="flex gap-1">{CREATE_CAPS.map((c) => <button key={c.id} onClick={() => setCap(c.id)} className={`flex-1 rounded-lg border px-2 py-1.5 text-xs ${cap === c.id ? "border-primary bg-primary text-primary-foreground" : ""}`}>{c.label}</button>)}</div>
-      <textarea className={inputCls} rows={3} placeholder={cap === "audio.tts" ? "Texto para convertir en voz" : "Describe la imagen"} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
+      {cap === "vision" && (
+        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed p-3 text-xs">
+          <Upload className="h-4 w-4" /> {file ? file.name : "Elegir imagen (PNG, JPEG, WEBP, GIF)"}
+          <input type="file" accept={VISION_MIME.join(",")} className="hidden" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setAnswer(null); }} />
+        </label>
+      )}
+      <textarea className={inputCls} rows={3} placeholder={cap === "audio.tts" ? "Texto para convertir en voz" : cap === "vision" ? "¿Qué quieres saber de la imagen? (opcional)" : "Describe la imagen"} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
       <div className="flex gap-2">
         <select className={inputCls} value={mode} onChange={(e) => setMode(e.target.value as RouteMode)}>
           <option value="auto">Automático</option><option value="favorite">Favoritos</option><option value="manual">Manual</option>
@@ -194,7 +243,8 @@ function Create({ projectId }: { projectId: string }) {
       <p className={`text-xs ${decision.ok ? "text-muted-foreground" : "text-destructive"}`}>
         {decision.ok ? <>Modelo: <b>{decision.model.name}</b> — {decision.reasons.join(" · ")}</> : <>{decision.reason} <Link to="/models" className="underline">Registrar un modelo</Link></>}
       </p>
-      <Button className="w-full" disabled={busy || !decision.ok} onClick={run}><Sparkles />{busy ? "Generando…" : "Generar"}</Button>
+      <Button className="w-full" disabled={busy || !decision.ok} onClick={run}><Sparkles />{busy ? "Procesando…" : cap === "vision" ? "Analizar" : "Generar"}</Button>
+      {answer !== null && <p className="whitespace-pre-wrap rounded-lg border bg-background p-2 text-sm">{answer}</p>}
     </section>
   );
 }
