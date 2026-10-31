@@ -81,7 +81,6 @@ export async function testOperation(repo: Repo, model: ModelWithCaps, capability
       "audio.tts": { prompt: "Prueba de MI AI." },
       embedding: { prompt: "Prueba de MI AI" },
       "research.web": { prompt: "MI AI asistente privado Android" },
-      "document.create": { prompt: "Responde solo: OK" },
     };
     const audioCaps = ["audio.transcribe", "audio.translate"];
     if (audioCaps.includes(capability)) {

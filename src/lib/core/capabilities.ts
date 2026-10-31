@@ -30,7 +30,6 @@ export const INITIAL_CAPABILITIES: CapabilitySpec[] = [
   base("reasoning", "Razonamiento", ["text"], ["text"]),
   base("vision", "Visión", ["text", "image"], ["text"], { mimeIn: ["image/png", "image/jpeg", "image/webp"], maxInputBytes: 20_000_000 }),
   base("research.web", "Buscar en internet", ["text"], ["text"], { restrictions: ["Cita siempre las fuentes"] }),
-  base("document.create", "Crear documento", ["text"], ["document"]),
   base("document.analyze", "Análisis de documentos", ["document", "text"], ["text"], { mimeIn: ["application/pdf", "text/plain", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "text/csv"] }),
   base("image.generate", "Generar imagen", ["text"], ["image"], {
     mimeOut: ["image/png", "image/jpeg", "image/webp"], formats: ["png", "jpeg", "webp"],
