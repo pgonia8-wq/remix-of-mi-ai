@@ -3,7 +3,7 @@
 ## Solicitud actual — cierre y dos entregas APK
 - [x] Auditar el alcance aprobado de Fases 6–7 y documentar cada requisito pendiente.
 - [ ] Completar los módulos implementables de Fases 6–7 y probarlos; no declarar 100% mientras existan bloqueos.
-- [x] Compilar APK build.5 con Fases 6–7 actualizadas; entrega e informe en preparación, sin declaración 100%.
+- [x] Compilar y entregar APK build.5 con Fases 6–7 actualizadas e informe, sin declaración 100%.
 - [ ] Completar Fases 8 (música) y 9 (video/3D) según el alcance aprobado, sin sustituir APIs reales por simulaciones.
 - [ ] Compilar y entregar APK final cuando el alcance y las verificaciones estén cerrados.
 
@@ -19,7 +19,7 @@
 - [x] Adaptadores: texto (envoltura), OpenAI Images, Azure Images, OpenAI audio, ElevenLabs
 - [x] Pantallas: Modelos, Biblioteca, Trabajos, Diagnóstico; selector de capacidad en chat
 - [x] Pruebas unitarias/cripto/router/jobs/migración
-- [ ] APK Etapa 1 + informe por niveles
+- [x] APK del núcleo y ampliaciones compilada e informe por niveles; validación nativa pendiente.
 - [ ] Bloqueado: operaciones reales de imagen/audio (claves del usuario)
 - [ ] Bloqueado: pruebas físicas Poco C40 / intermedio / Galaxy S26 (usuario)
 - [ ] Bloqueado: clave de firma Release (usuario)
@@ -57,7 +57,7 @@
 - [x] Compilar APK build.4 con Fases 1–5 y la entrega parcial de Fase 6; comprobar firma, minSdk y ABI
 - [ ] Fase 6 pendiente: ejecución autónoma en segundo plano/disparadores Android, PC y conectores específicos de nubes/Termius (no implementados; requieren módulos externos, no solo credenciales)
 - [ ] Bloqueado: comprobar SSH/SFTP/Termux en Android, GitHub y revisión multiagente con cuentas/servidor reales (entornos y credenciales no disponibles)
-- [ ] Compilar las ampliaciones de Fase 6–7 (solicitado ahora; build.4 NO las incluye)
+- [x] Compilar las ampliaciones de Fase 6–7 en build.5 y build.6; build.4 NO las incluye.
 - [ ] Bloqueado: validar APK build.4, SQLCipher/Keystore y JavaScript en Android/Poco C40 (sin teléfono ni emulador acelerado disponible)
 - [ ] Bloqueado: pruebas reales con claves del usuario (Azure, Tavily, ElevenLabs)
 
@@ -67,6 +67,7 @@
 - Fase 9 (antes 6): video y 3D
 
 ## Avance actual Fases 8–9 (parcial, no cierre)
+- [x] Compilar y entregar build.6 con todos los módulos implementados actuales; NO es la APK final con alcance 100%.
 - [x] Música y efectos ElevenLabs por APIs independientes de TTS, biblioteca/versiones y licencia registrada sin promesa comercial.
 - [x] Runway texto/imagen/video a video y Meshy texto/imagen a GLB con IDs remotos persistentes, consulta sin reenvío y descarga sin credenciales.
 - [x] Importar archivo cifrado y visor GLB real: girar, reapertura después de recarga, escritorio y 360 px.
