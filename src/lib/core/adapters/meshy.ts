@@ -1,7 +1,7 @@
 import { ProviderError } from "../../providers";
 import { call, requireKey } from "./http";
 import { downloadMedia } from "./media-output";
-import { b64ToBytes, type AdapterCredentials, type ProviderAdapter } from "./types";
+import { type ProviderAdapter } from "./types";
 
 const base = "https://api.meshy.ai/openapi";
 const paths: Record<string, string> = { text: "/v2/text-to-3d", image: "/v1/image-to-3d" };
@@ -28,7 +28,7 @@ export const meshyAdapter: ProviderAdapter = {
       if (!prompt || prompt.length > 800) throw new ProviderError("parameters", "Describe el objeto en 1–800 caracteres.");
       body = { mode: "preview", prompt, ai_model: r.model, target_formats: ["glb"] };
     }
-    const data = await (await call(`${base}${paths[kind]}`, { method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json" }, body: JSON.stringify(body), signal: r.signal }, key)).json();
+    const data = await (await call(`${base}${paths[kind]}`, { method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json" }, body: JSON.stringify(body), signal: r.signal ?? null }, key)).json();
     if (typeof data?.result !== "string" || !/^[a-zA-Z0-9-]{1,100}$/.test(data.result)) throw new ProviderError("parameters", "Meshy no confirmó el identificador del trabajo.");
     return { kind: "remote", remoteId: `${kind}:${data.result}` };
   },

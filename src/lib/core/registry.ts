@@ -17,6 +17,7 @@ export function adapterFor(kind: string): string {
   if (kind === "elevenlabs") return "elevenlabs";
   if (kind === "tavily") return "tavily";
   if (kind === "meshy") return "meshy";
+  if (kind === "runway") return "runway";
   if (kind === "azure_openai" || kind === "azure") return "azure_openai";
   if (kind === "openai") return "openai";
   return `text:${kind}`;

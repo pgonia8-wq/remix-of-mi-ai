@@ -8,6 +8,7 @@ import { chooseProfile, detectDevice, type DeviceFacts, type PerfProfile } from 
 import type { ByteSource } from "./asset-crypto";
 import { runs } from "../automation/store";
 import { syncNativeSchedules } from "../automation/native-schedules";
+import { getAdapter } from "./adapters";
 
 type KeystorePlugin = Parameters<typeof nativeBackend>[0] & { deviceInfo(): Promise<Partial<DeviceFacts>> };
 export const MiaiKeystore = registerPlugin<KeystorePlugin>("MiaiKeystore");
@@ -70,7 +71,11 @@ export function getCore(): Promise<Core> {
       const assets = new AssetStore(db, files, keys, () => profile);
       const jobs = new JobManager(db);
       const clean = await assets.cleanup().catch(() => ({ temps: 0, orphans: 0 }));
-      const rec = await jobs.recoverOnStart(() => false); // no async adapters yet: nothing can be polled
+      const providerAdapters = await repo.registry.listProviders();
+      const rec = await jobs.recoverOnStart((j) => {
+        const p = providerAdapters.find((p) => p.id === j.provider_id);
+        return !!p && !!getAdapter(p.adapter).poll;
+      });
       await runs.recover(repo);
       await syncNativeSchedules(repo);
       const core: Core = { repo, jobs, assets, keys, files, device, profile, startup: { ...clean, ...rec } };

@@ -10,7 +10,7 @@ import { TEST_PNG_B64 } from "./adapters/vision";
 import { testWav } from "./adapters/audio";
 import { b64ToBytes } from "./adapters/types";
 
-export type ExecResult = { jobId: string; text?: string; assets: Asset[]; vectors?: number[][]; results?: import("./adapters/types").SearchResult[] };
+export type ExecResult = { jobId: string; pending?: boolean; text?: string; assets: Asset[]; vectors?: number[][]; results?: import("./adapters/types").SearchResult[] };
 
 export async function credentialsFor(repo: Repo, providerId: string): Promise<{ creds: AdapterCredentials; adapter: string }> {
   const [p] = await repo.sql.all<{ id: string; kind: string; endpoint: string | null; deployment: string | null; model: string; api_version: string | null; extra_params: string | null }>(
@@ -32,7 +32,9 @@ export async function execute(deps: { repo: Repo; jobs: JobManager; assets: Asse
   const { creds, adapter: adapterId } = await credentialsFor(deps.repo, model.provider_id);
   const adapter = getAdapter(adapterId);
   if (!adapter.supports(req.capability)) throw new ProviderError("parameters", `El adaptador ${adapter.label} no implementa «${req.capability}». No se ejecutó ninguna solicitud.`);
-  const job = req.existingJobId ? (await deps.jobs.get(projectId, req.existingJobId))! : await deps.jobs.create(projectId, { capability: req.capability, providerId: model.provider_id, modelId: model.id, params: { prompt: req.prompt, ...req.params } });
+  const job = req.existingJobId ? await deps.jobs.get(projectId, req.existingJobId) : await deps.jobs.create(projectId, { capability: req.capability, providerId: model.provider_id, modelId: model.id, params: { prompt: req.prompt, ...req.params, parentAssetId: req.parentAssetId ?? null } });
+  if (!job || job.model_id !== model.id || job.capability_id !== req.capability) throw new ProviderError("parameters", "Trabajo inexistente o incompatible.");
+  if (job.remote_id) throw new ProviderError("parameters", "Este trabajo ya tiene un identificador remoto. Consulta su estado sin volver a enviar.");
   await deps.jobs.markSent(projectId, job.id);
   let result: RunResult;
   try {
@@ -44,12 +46,13 @@ export async function execute(deps: { repo: Repo; jobs: JobManager; assets: Asse
     else await deps.jobs.transition(projectId, job.id, "failed", { error: msg });
     throw e;
   }
-  await deps.jobs.transition(projectId, job.id, "processing", { phase: "accepted" });
+  await deps.jobs.transition(projectId, job.id, "processing", { phase: "accepted", ...(result.kind === "remote" ? { remote_id: result.remoteId } : {}) });
+  if (result.kind === "remote") return { jobId: job.id, pending: true, assets: [] };
   const saved: Asset[] = [];
   if (result.kind === "files") {
     for (const f of result.files) {
       saved.push(await deps.assets.put(projectId, (async function* () { yield f.bytes; })(), {
-        kind: f.mime.split("/")[0]!, mime: f.mime, name: f.name, providerId: model.provider_id, modelId: model.id, capability: req.capability,
+        kind: f.mime === "model/gltf-binary" ? "model3d" : f.mime.split("/")[0] ?? "document", mime: f.mime, name: f.name, providerId: model.provider_id, modelId: model.id, capability: req.capability,
         prompt: req.prompt ?? null, params: req.params ?? null, jobId: job.id, parentId: req.parentAssetId ?? null,
       }));
     }
