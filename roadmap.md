@@ -1,4 +1,5 @@
 # MI AI — Fase 1
+- [ ] Corregir rechazo de URL Azure /openai/v1/chat/completions y verificar solicitud v1
 - [x] Añadir Azure OpenAI con cuatro campos y comprobar solicitudes/errores en vista previa (sin credenciales reales)
 - [x] Corregir fallo del chat y verificar chats nuevos/existentes en navegador
 - [x] Implementar solicitud real obligatoria antes de guardar, diagnóstico seguro y estado persistente

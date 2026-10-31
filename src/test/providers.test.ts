@@ -76,6 +76,23 @@ describe("provider adapter contracts (controlled responses, not live verificatio
     for (const field of ["endpoint", "apiKey", "model", "deployment", "apiVersion", "extraParams", "kind"]) expect(canSaveModel({ ...draft, [field]: "changed" }, draft, success)).toBe(false);
   });
   const azure: ProviderCall = { kind: "azure_openai", endpoint: "https://resource.openai.azure.com/", apiKey: draft.apiKey, model: "", deployment: "my-deployment", apiVersion: "2024-10-21" };
+  it.each(["azure_openai", "azure"] as const)("accepts the user's Azure v1 URL for %s with deployment in the body", async kind => {
+    const endpoint = "https://pgonia8-4510-resource.services.ai.azure.com/openai/v1/chat/completions";
+    const fetcher = vi.fn().mockResolvedValue(sse({ choices: [{ delta: { content: "OK" } }] }));
+    vi.stubGlobal("fetch", fetcher);
+    expect((await testProvider({ ...azure, kind, endpoint, model: "legacy-model", apiVersion: "" })).ok).toBe(true);
+    const [url, init] = fetcher.mock.calls[0] ?? [];
+    expect(url).toBe(endpoint);
+    expect(init.headers).toEqual({ "content-type": "application/json", "api-key": draft.apiKey });
+    expect(JSON.parse(init.body)).toEqual({ model: "my-deployment", stream: true, messages: [{ role: "user", content: "Responde solo: OK" }] });
+  });
+  it.each(["/openai/v1", "/openai/v1/", "/openai/v1/chat/completions/"])("normalizes Azure v1 path %s without appending legacy routes or API versions", async path => {
+    const fetcher = vi.fn().mockResolvedValue(sse({ choices: [{ delta: { content: "OK" } }] }));
+    vi.stubGlobal("fetch", fetcher);
+    await testProvider({ ...azure, endpoint: `https://resource.services.ai.azure.com${path}` });
+    expect(fetcher.mock.calls[0]?.[0]).toBe("https://resource.services.ai.azure.com/openai/v1/chat/completions");
+    expect(JSON.parse(fetcher.mock.calls[0]?.[1].body).model).toBe("my-deployment");
+  });
   it("connects Azure OpenAI using only URL, API key, deployment and version", async () => {
     const fetcher = vi.fn().mockResolvedValue(sse({ choices: [{ delta: { content: "OK" } }] }));
     vi.stubGlobal("fetch", fetcher);
