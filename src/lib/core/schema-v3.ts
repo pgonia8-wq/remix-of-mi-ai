@@ -20,6 +20,8 @@ export const SCHEMA_V3 = [
   `CREATE TABLE IF NOT EXISTS asset_tags (project_id TEXT NOT NULL, asset_id TEXT NOT NULL, tag TEXT NOT NULL, PRIMARY KEY (asset_id, tag))`,
   `CREATE TABLE IF NOT EXISTS asset_relations (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, from_asset TEXT NOT NULL, to_asset TEXT NOT NULL, relation TEXT NOT NULL, job_id TEXT)`,
   `CREATE TABLE IF NOT EXISTS workflow_steps (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, workflow_id TEXT NOT NULL, step_index INTEGER NOT NULL, capability_id TEXT NOT NULL, job_id TEXT, input_assets TEXT, output_assets TEXT, status TEXT NOT NULL, UNIQUE(workflow_id, step_index))`,
+  // Voices created by the user (e.g. ElevenLabs cloning) — only the provider voice ID, never audio or keys.
+  `CREATE TABLE IF NOT EXISTS voices (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, provider_id TEXT NOT NULL, voice_id TEXT NOT NULL, name TEXT NOT NULL, consent_at INTEGER NOT NULL, created_at INTEGER NOT NULL)`,
   // Preview-only blob store for encrypted asset bytes (native uses private files).
   `CREATE TABLE IF NOT EXISTS asset_blobs (path TEXT PRIMARY KEY, data BLOB NOT NULL)`,
   `CREATE INDEX IF NOT EXISTS idx_jobs_project ON jobs(project_id, status)`,
@@ -27,4 +29,4 @@ export const SCHEMA_V3 = [
   `CREATE INDEX IF NOT EXISTS idx_models_provider ON models(provider_id)`,
 ];
 
-export const PROJECT_TABLES_V3 = ["jobs", "job_attempts", "assets", "asset_tags", "asset_relations", "workflow_steps", "model_configs"] as const;
+export const PROJECT_TABLES_V3 = ["jobs", "job_attempts", "assets", "asset_tags", "asset_relations", "workflow_steps", "model_configs", "voices"] as const;

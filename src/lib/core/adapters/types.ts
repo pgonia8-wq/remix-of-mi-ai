@@ -23,6 +23,8 @@ export interface ProviderAdapter {
   poll?(c: AdapterCredentials, remoteId: string): Promise<RunResult | { kind: "pending"; progress?: number }>;
   cancel?(c: AdapterCredentials, remoteId: string): Promise<void>;
   recover?(c: AdapterCredentials, remoteId: string): Promise<RunResult | null>;
+  /** Voices available for TTS (provider catalog + the user's own). */
+  listVoices?(c: AdapterCredentials): Promise<{ id: string; name: string }[]>;
   /** Official catalog listing, only where the provider exposes one. */
   listModels?(c: AdapterCredentials): Promise<string[]>;
 }
