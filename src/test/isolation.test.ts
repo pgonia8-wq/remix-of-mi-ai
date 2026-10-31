@@ -59,7 +59,7 @@ describe("memoria versionada", () => {
     await repo.editMemory(a.id, id, "hecho", "v2");
     const hist = await repo.memoryHistory(a.id, id);
     expect(hist.map((h) => h.content)).toEqual(["v2", "v1"]);
-    expect((await repo.listMessages(a.id, chat.id))[0].content).toBe("original");
+    expect((await repo.listMessages(a.id, chat.id))[0]?.content).toBe("original");
   });
 });
 
@@ -99,10 +99,10 @@ describe("exportar e importar un proyecto completo", () => {
     const fresh = new Repo(wrapSqlJs(new SQL.Database()), makeVault(await importRawKey(randomBytes(32))));
     await fresh.migrate();
     await fresh.restoreAll(JSON.parse(await openWithPassword("contraseña-ok", sealed)));
-    expect((await fresh.listProjects())[0].name).toBe("Proyecto X");
+    expect((await fresh.listProjects())[0]?.name).toBe("Proyecto X");
     expect((await fresh.listMessages(a.id, c.id)).map((m) => m.content)).toEqual(["hola", "respuesta"]);
-    expect((await fresh.listMemory(a.id))[0].content).toBe("m2");
+    expect((await fresh.listMemory(a.id))[0]?.content).toBe("m2");
     expect((await fresh.memoryHistory(a.id, mid)).length).toBe(2);
-    expect((await fresh.listDocs(a.id))[0].text_content).toBe("notas");
+    expect((await fresh.listDocs(a.id))[0]?.text_content).toBe("notas");
   });
 });
