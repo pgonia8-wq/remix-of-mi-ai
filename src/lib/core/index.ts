@@ -84,6 +84,7 @@ export function getCore(): Promise<Core> {
       await recoverAutonomy(repo);
       const { nativeTransportIfAvailable } = await import("../nodes/client");
       await nativeTransportIfAvailable().catch(() => undefined);
+      await (await import("../nodes/tunnels")).tunnels.recover(repo).catch(() => undefined);
       await syncNativeSchedules(repo);
       const core: Core = { repo, jobs, assets, keys, files, device, profile, startup: { ...clean, ...rec, restoresRolledBack } };
       Object.defineProperty(core, "profile", { get: () => profile, set: (p: PerfProfile) => { profile = p; } });
