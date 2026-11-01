@@ -1,5 +1,11 @@
 # MI AI — Roadmap
 
+## Solicitud actual — cierre completo y experiencia premium
+- [ ] Menú lateral hamburguesa con chats/proyectos/biblioteca/herramientas/configuración, navegación limpia sin barra inferior.
+- [ ] Chat amplio, acciones por mensaje, composición cómoda y adjuntos cifrados con envío multimodal compatible.
+- [ ] Completar todas las funciones aún pendientes del alcance maestro; NO sustituir el cierre por una compilación parcial.
+- [ ] Compilar APK renovada y verificar firma/ABI/SDK; no declarar final hasta cerrar alcance y validación.
+
 ## Solicitud actual — cierre y dos entregas APK
 - [x] Auditar el alcance aprobado de Fases 6–7 y documentar cada requisito pendiente.
 - [ ] Completar los módulos implementables de Fases 6–7 y probarlos; no declarar 100% mientras existan bloqueos.
