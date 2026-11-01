@@ -80,7 +80,11 @@ function RigViewport({ doc, time, selected, bone, onPick }: { doc: MeshDoc; time
       const camera = new T.PerspectiveCamera(45, 1, 0.1, 100000), controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true;
       const ray = new T.Raycaster(), ndc = new T.Vector2(); let down: { x: number; y: number } | null = null;
       const onDown = (e: PointerEvent) => { down = { x: e.clientX, y: e.clientY }; };
-      const onUp = (e: PointerEvent) => { if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) { down = null; return; } down = null; const r = renderer.domElement.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera); ray.params.Points = { threshold: Math.max(0.5, camera.position.distanceTo(controls.target) / 80) }; const hit = ray.intersectObject(points)[0]; if (hit?.index !== undefined) pick.current(hit.index); };
+      const onUp = (e: PointerEvent) => { if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) { down = null; return; } down = null; const r = renderer.domElement.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera);
+        // Touch-friendly picking: the closest corner of the tapped face, else the nearest vertex within 28 px.
+        const face = ray.intersectObject(mesh)[0], pos = geometry.getAttribute("position");
+        if (face?.face && pos) { const ids = [face.face.a, face.face.b, face.face.c]; let best = ids[0]!, bd = Infinity; for (const i of ids) { const d = new T.Vector3().fromBufferAttribute(pos, i).distanceTo(face.point); if (d < bd) { bd = d; best = i; } } pick.current(best); return; }
+        if (pos) { let best = -1, bd = 28; const v = new T.Vector3(); for (let i = 0; i < Math.min(pos.count, 20000); i++) { v.fromBufferAttribute(pos, i).project(camera); const sx = (v.x + 1) / 2 * r.width, sy = (1 - v.y) / 2 * r.height, d = Math.hypot(sx - (e.clientX - r.left), sy - (e.clientY - r.top)); if (v.z < 1 && d < bd) { bd = d; best = i; } } if (best >= 0) pick.current(best); } };
       renderer.domElement.addEventListener("pointerdown", onDown); renderer.domElement.addEventListener("pointerup", onUp);
       const base = color("--muted-foreground"), sel = color("--warning");
       api.current = {
