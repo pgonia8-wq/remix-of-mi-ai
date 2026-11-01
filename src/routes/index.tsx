@@ -133,7 +133,7 @@ function Projects() {
               <div className="font-medium">{p.name}</div>
               {p.description && <div className="text-xs text-muted-foreground">{p.description}</div>}
             </button>
-            {active === p.id && <Check className="h-4 w-4 text-primary" />}
+            {active === p.id && <Check className="h-4 w-4 text-success" />}
             <button aria-label="Presupuesto del proyecto" className="text-muted-foreground" onClick={async () => { const b = await mutate((r) => r.getProjectBudget(p.id)); setBudget(b ? String(b) : ""); setPanel({ mode: "budget", projectId: p.id }); }}>
               <Wallet className="h-4 w-4" />
             </button>
