@@ -51,7 +51,7 @@ function nativeFiles(): BlobBackend {
   };
 }
 
-export type Core = { repo: Awaited<ReturnType<typeof getRepo>>; jobs: JobManager; assets: AssetStore; keys: KeyRing; files: BlobBackend; device: DeviceFacts; profile: PerfProfile; startup: { temps: number; orphans: number; requeued: number; interrupted: number; needsUser: number } };
+export type Core = { repo: Awaited<ReturnType<typeof getRepo>>; jobs: JobManager; assets: AssetStore; keys: KeyRing; files: BlobBackend; device: DeviceFacts; profile: PerfProfile; startup: { temps: number; orphans: number; requeued: number; interrupted: number; needsUser: number; restoresRolledBack?: number } };
 
 let coreP: Promise<Core> | null = null;
 export function getCore(): Promise<Core> {
@@ -70,6 +70,9 @@ export function getCore(): Promise<Core> {
       const files = native ? nativeFiles() : sqlBlobBackend(db);
       const assets = new AssetStore(db, files, keys, () => profile);
       const jobs = new JobManager(db);
+      // Interrupted restore → roll back temps (rows were never written); interrupted key rotation → finish it.
+      const restoresRolledBack = await import("./backup-stream").then((m) => m.recoverInterruptedRestores(repo, files)).catch(() => 0);
+      await keys.resumeRotation().catch(() => undefined);
       const clean = await assets.cleanup().catch(() => ({ temps: 0, orphans: 0 }));
       const providerAdapters = await repo.registry.listProviders();
       const rec = await jobs.recoverOnStart((j) => {
@@ -78,7 +81,7 @@ export function getCore(): Promise<Core> {
       });
       await runs.recover(repo);
       await syncNativeSchedules(repo);
-      const core: Core = { repo, jobs, assets, keys, files, device, profile, startup: { ...clean, ...rec } };
+      const core: Core = { repo, jobs, assets, keys, files, device, profile, startup: { ...clean, ...rec, restoresRolledBack } };
       Object.defineProperty(core, "profile", { get: () => profile, set: (p: PerfProfile) => { profile = p; } });
       return core;
     })();
