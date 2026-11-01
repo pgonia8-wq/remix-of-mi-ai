@@ -127,13 +127,14 @@ function Backup() {
         const core = await getCore();
         await restoreBackupStream({ lines: () => linesOfBlob(f), password: pw, repo: core.repo, keys: core.keys, fs: core.files });
         await mutate(async () => undefined);
-      } else if (await f.text().then((text) => JSON.parse(text)?.format === "miai-export" ? text : null).then((t) => (textCache = t))) {
-        const text = textCache!;
-        void text;
-      } else if (false?.format === "miai-export") {
-        const dump = JSON.parse(await openWithPassword(pw, text)); // v1 compatibility
-        await mutate((r) => r.restoreAll(dump));
       } else {
+        const text = await f.text(); // legacy v1/v2 single-document formats
+        if (JSON.parse(text)?.format === "miai-export") {
+          const dump = JSON.parse(await openWithPassword(pw, text)); // v1 compatibility
+          await mutate((r) => r.restoreAll(dump));
+          toast.success("Copia restaurada. Vuelve a introducir y probar las API keys de las conexiones.");
+          return;
+        }
         const payload = await openBackup(text, pw); // authenticity checked before anything is touched
         setBusy("Restaurando y verificando archivos…");
         const core = await getCore();
