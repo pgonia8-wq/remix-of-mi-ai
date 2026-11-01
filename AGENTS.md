@@ -34,4 +34,5 @@
 - Shared navigation uses a desktop sidebar and accessible mobile drawer with a full-height chat area; safe Markdown excludes raw HTML. Why: broad tools stay discoverable without shrinking conversations or executing model-generated markup.
 - Audio edits use deterministic PCM/WAV processing; video export uses pinned Android Media3 with private transient cache cleared after completion/error and startup. Why: real local media engines must preserve encrypted originals and never expose a shell.
 - Realtime voice is a separate on-device WebRTC session; user keys mint short-lived provider tokens, only authorized project context is sent, and no model tool execution is enabled. Why: bidirectional voice must not be conflated with dictation/TTS or bypass tool approvals.
-- Debug APKs are always signed with `signing/miai-debug.keystore` (wired by `scripts/android-prepare.sh`); never let Gradle generate a new debug key. Why: a changed signature makes Android reject updates and forces uninstalling, losing on-device data.
+- Debug APKs must use `signing/miai-debug.keystore`, never a regenerated key. Why: signature changes prevent data-preserving updates.
+- Manual model/provider forms verify exact drafts before saving; draft credentials stay in memory. Why: supplementary setup must not bypass real-response verification.
