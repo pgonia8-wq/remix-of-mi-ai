@@ -1,6 +1,11 @@
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
+@import "@fontsource/dm-sans/400.css";
+@import "@fontsource/dm-sans/500.css";
+@import "@fontsource/dm-sans/700.css";
+@import "@fontsource/space-grotesk/500.css";
+@import "@fontsource/space-grotesk/700.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -60,44 +65,79 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-overlay: var(--overlay);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-border-subtle: var(--border-subtle);
+  --shadow-soft: var(--shadow-soft-v);
+  --shadow-raised: var(--shadow-raised-v);
+  --font-sans: "DM Sans", system-ui, sans-serif;
+  --font-display: "Space Grotesk", system-ui, sans-serif;
 }
 
 :root {
-  --radius: 0.5rem;
-  --background: oklch(0.19 0.003 260);
-  --foreground: oklch(0.94 0.003 260);
-  --card: oklch(0.23 0.003 260);
-  --card-foreground: oklch(0.94 0.003 260);
-  --popover: oklch(0.24 0.003 260);
-  --popover-foreground: oklch(0.94 0.003 260);
-  --primary: oklch(0.78 0.12 164);
-  --primary-foreground: oklch(0.19 0.02 164);
-  --secondary: oklch(0.28 0.003 260);
-  --secondary-foreground: oklch(0.94 0.003 260);
-  --muted: oklch(0.26 0.003 260);
-  --muted-foreground: oklch(0.66 0.005 260);
-  --accent: oklch(0.3 0.004 260);
-  --accent-foreground: oklch(0.96 0.003 260);
-  --destructive: oklch(0.65 0.2 25);
-  --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(1 0 0 / 9%);
-  --input: oklch(1 0 0 / 13%);
-  --ring: oklch(0.78 0.12 164);
-  --chart-1: oklch(0.78 0.12 164);
-  --chart-2: oklch(0.7 0.12 160);
-  --chart-3: oklch(0.65 0.15 30);
-  --chart-4: oklch(0.7 0.1 250);
-  --chart-5: oklch(0.75 0.12 120);
-  --sidebar: oklch(0.155 0.003 260);
-  --sidebar-foreground: oklch(0.94 0.003 260);
-  --sidebar-primary: oklch(0.78 0.12 164);
-  --sidebar-primary-foreground: oklch(0.19 0.02 164);
-  --sidebar-accent: oklch(0.24 0.003 260);
-  --sidebar-accent-foreground: oklch(0.94 0.003 260);
-  --sidebar-border: oklch(1 0 0 / 9%);
-  --sidebar-ring: oklch(0.78 0.12 164);
-  --overlay: oklch(0.08 0 0);
-  --shadow-composer: 0 8px 30px oklch(0.05 0 0 / 14%);
+  /* MI AI — Premium Futurista + Minimalismo Profesional */
+  --radius: 0.625rem;
+  /* Base grafito / antracita / carbón */
+  --background: oklch(0.165 0.006 285);
+  --foreground: oklch(0.95 0.004 285);
+  --surface-1: oklch(0.195 0.007 285);
+  --surface-2: oklch(0.225 0.008 285);
+  --surface-3: oklch(0.26 0.009 285);
+  --card: var(--surface-1);
+  --card-foreground: oklch(0.95 0.004 285);
+  --popover: var(--surface-2);
+  --popover-foreground: oklch(0.95 0.004 285);
+  /* Acento principal: violeta eléctrico moderado */
+  --primary: oklch(0.66 0.17 290);
+  --primary-foreground: oklch(0.985 0.005 290);
+  --secondary: var(--surface-2);
+  --secondary-foreground: oklch(0.93 0.004 285);
+  --muted: oklch(0.215 0.007 285);
+  --muted-foreground: oklch(0.7 0.01 285);
+  --accent: oklch(0.27 0.02 290);
+  --accent-foreground: oklch(0.97 0.004 285);
+  --destructive: oklch(0.63 0.17 22);
+  --destructive-foreground: oklch(0.985 0 0);
+  /* Continuidad: verde MI AI */
+  --success: oklch(0.78 0.12 164);
+  --success-foreground: oklch(0.19 0.02 164);
+  /* Acento secundario: azul tecnológico frío */
+  --info: oklch(0.7 0.11 245);
+  --info-foreground: oklch(0.17 0.02 245);
+  --warning: oklch(0.8 0.12 80);
+  --warning-foreground: oklch(0.2 0.03 80);
+  --border: oklch(1 0 0 / 8%);
+  --border-subtle: oklch(1 0 0 / 5%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.66 0.17 290 / 70%);
+  --chart-1: oklch(0.66 0.17 290);
+  --chart-2: oklch(0.7 0.11 245);
+  --chart-3: oklch(0.78 0.12 164);
+  --chart-4: oklch(0.8 0.12 80);
+  --chart-5: oklch(0.63 0.17 22);
+  --sidebar: oklch(0.14 0.006 285);
+  --sidebar-foreground: oklch(0.93 0.004 285);
+  --sidebar-primary: oklch(0.66 0.17 290);
+  --sidebar-primary-foreground: oklch(0.985 0.005 290);
+  --sidebar-accent: oklch(0.215 0.012 290);
+  --sidebar-accent-foreground: oklch(0.97 0.004 285);
+  --sidebar-border: oklch(1 0 0 / 7%);
+  --sidebar-ring: oklch(0.66 0.17 290 / 70%);
+  --overlay: oklch(0.06 0.005 285);
+  --shadow-soft-v: 0 1px 2px oklch(0 0 0 / 30%);
+  --shadow-raised-v: 0 8px 24px -12px oklch(0 0 0 / 55%);
+  --shadow-composer: 0 10px 30px -14px oklch(0 0 0 / 60%);
+  --gradient-brand: linear-gradient(135deg, oklch(0.66 0.17 290), oklch(0.62 0.12 250));
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --opacity-disabled: 0.45;
 }
 
 
@@ -111,9 +151,22 @@
     color: var(--color-foreground);
     font-family: "DM Sans", system-ui, sans-serif;
     letter-spacing: 0;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
   }
+  ::selection { background: oklch(0.66 0.17 290 / 35%); }
+  :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  button, a, input, select, textarea, [role="tab"], [role="menuitem"] {
+    transition: background-color var(--dur-fast) ease, border-color var(--dur-fast) ease, color var(--dur-fast) ease, opacity var(--dur-fast) ease;
+  }
+  input::placeholder, textarea::placeholder { color: oklch(0.6 0.01 285); }
+  .tabular, td, .font-mono { font-variant-numeric: tabular-nums; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: oklch(1 0 0 / 10%); border-radius: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
   h1, h2, h3, .font-display {
     font-family: "Space Grotesk", system-ui, sans-serif;
+    letter-spacing: -0.01em;
   }
 }
 
@@ -134,3 +187,7 @@
 .chat-markdown a { color: var(--primary); text-decoration: underline; }
 .chat-markdown blockquote { border-left: 2px solid var(--primary); padding-left: 1rem; color: var(--muted-foreground); }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+
+.brand-mark { background: var(--gradient-brand); color: var(--primary-foreground); }
+.nav-active { position: relative; }
+.nav-active::before { content: ""; position: absolute; left: 0; top: 22%; bottom: 22%; width: 2px; border-radius: 2px; background: var(--primary); }
