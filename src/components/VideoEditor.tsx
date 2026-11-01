@@ -27,7 +27,7 @@ function Editor({ pid }: { pid: string }) {
     setClips((v) => [...v, { assetId: asset.id, name: file.name, start: 0, end: duration, duration, transition: "cut" as const, transitionSeconds: 0.5 }].slice(0, 8));
   }
   function move(index: number, delta: number) { const next = [...clips], item = next[index], other = next[index + delta]; if (!item || !other) return; next[index] = other; next[index + delta] = item; setClips(next); }
-  const plan={clips:clips.map(c=>({...c,transition:c.transition??"cut",transitionSeconds:c.transitionSeconds??0.5})),overlays,width:ratio==="9:16"?720:1280,height:ratio==="9:16"?1280:720};
+  const plan={clips:clips.map(c=>({...c,transition:c.transition??"cut",transitionSeconds:c.transitionSeconds??0.5})),overlays,width:ratio==="9:16"?720:1280,height:ratio==="9:16"?1280:720,rotation,mute,originalAudio:true,captions};
   let timelineDuration=0;try{timelineDuration=videoArgs(plan,clips.map(c=>c.assetId).concat(overlays.map(o=>o.assetId)),"output.mp4").duration;}catch{timelineDuration=clips.reduce((n,c)=>n+c.end-c.start,0);}
   return <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6"><div className="flex items-center justify-between"><div><p className="mb-1 text-xs text-primary">ESTUDIO LOCAL</p><h1 className="text-2xl font-semibold">Editor de video</h1></div><Button variant="outline" disabled={busy || clips.length >= 8} onClick={() => upload.current?.click()}><Upload />Clips</Button></div>
     <input ref={upload} type="file" multiple accept="video/mp4,video/webm" aria-label="Importar clips de video" className="hidden" onChange={(e) => { const files = Array.from(e.target.files ?? []); action(async () => { for (const f of files.slice(0, 8 - clips.length)) await load(f); }); e.target.value = ""; }} />

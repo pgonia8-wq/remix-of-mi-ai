@@ -18,7 +18,7 @@ import { generateKeys, fingerprint, pairProof, nodeProof, safeEqual, sessionKey,
 
 export const VERSION = "1.0.0";
 const TOOLCHAINS = [
-  ["ffmpeg", ["-version"]], ["demucs", ["--help"]], ["node", ["--version"]], ["npm", ["--version"]], ["python3", ["--version"]], ["python", ["--version"]], ["pip", ["--version"]],
+  ["ffprobe", ["-version"]], ["ffmpeg", ["-version"]], ["demucs", ["--help"]], ["node", ["--version"]], ["npm", ["--version"]], ["python3", ["--version"]], ["python", ["--version"]], ["pip", ["--version"]],
   ["java", ["-version"]], ["kotlinc", ["-version"]], ["gradle", ["--version"]], ["sdkmanager", ["--version"]], ["gcc", ["--version"]], ["clang", ["--version"]],
   ["cmake", ["--version"]], ["ninja", ["--version"]], ["rustc", ["--version"]], ["cargo", ["--version"]], ["go", ["version"]], ["dotnet", ["--version"]],
   ["git", ["--version"]], ["sqlite3", ["--version"]], ["psql", ["--version"]], ["forge", ["--version"]], ["npx", ["--version"]], ["docker", ["--version"]], ["podman", ["--version"]],
