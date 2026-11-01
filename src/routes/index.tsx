@@ -36,6 +36,7 @@ function Projects() {
   const [pw, setPw] = useState("");
   const [budget, setBudget] = useState("");
   const [busy, setBusy] = useState(false);
+  const { data: status } = useRepoQuery(["budget", panel?.projectId ?? ""], (r) => r.budgetStatus(panel!.projectId!), panel?.mode === "budget");
   const visible = projects.filter((p) => archivedIds.includes(p.id) === showArchived);
 
   async function create() {
@@ -78,9 +79,6 @@ function Projects() {
       toast.success(v ? "Presupuesto guardado" : "Presupuesto quitado"); setPanel(null);
     } catch (e) { toast.error((e as Error).message); }
   }
-  function TransferPanel() {
-    return null;
-  }
 
   return (
     <div className="space-y-5 p-4">
@@ -94,7 +92,31 @@ function Projects() {
       </div>
       {error && <p className="text-sm text-destructive">No se pudo abrir la base de datos: {String((error as Error).message)}</p>}
       {isLoading && <p className="text-sm text-muted-foreground">Abriendo base de datos cifrada…</p>}
-      {panel && <TransferPanel />}
+      {panel && (
+        <div className="space-y-2 rounded-xl border bg-card p-4">
+          {panel.mode === "budget" ? (
+            <>
+              <h2 className="font-semibold">Presupuesto mensual — {panelProject?.name}</h2>
+              {status && <p className="text-xs text-muted-foreground">Gastado este mes: US$ {status.spentUsd.toFixed(2)}{status.includesEstimates ? " (incluye estimados)" : ""}. Aviso al 80% y bloqueo al 100%, con opción de confirmar.</p>}
+              <input className={inputCls} inputMode="decimal" placeholder="Límite en US$ (vacío = sin límite)" value={budget} onChange={(e) => setBudget(e.target.value)} />
+              <div className="flex gap-2"><button className={btnCls + " flex-1"} onClick={saveBudget}>Guardar</button><button className="flex-1 text-sm underline" onClick={() => setPanel(null)}>Cancelar</button></div>
+            </>
+          ) : (
+            <>
+              <h2 className="font-semibold">{panel.mode === "export" ? `Exportar "${panelProject?.name}"` : "Importar proyecto"}</h2>
+              <p className="text-xs text-muted-foreground">{panel.mode === "export" ? "Incluye chats, memoria, notas, tareas, documentos y archivos, cifrados con esta contraseña. Las API keys no se incluyen." : "Se crea un proyecto nuevo; nunca se mezcla con otro. Una contraseña incorrecta se rechaza sin cambiar nada."}</p>
+              <input className={inputCls} type="password" placeholder="Contraseña del archivo" value={pw} onChange={(e) => setPw(e.target.value)} />
+              {busy && <p className="text-xs text-primary">Procesando…</p>}
+              <div className="flex gap-2">
+                {panel.mode === "export"
+                  ? <button className={btnCls + " flex-1"} disabled={busy || !pw} onClick={doExport}><Download className="h-4 w-4" /> Exportar</button>
+                  : <label className={btnCls + " flex-1 cursor-pointer" + (busy || !pw ? " pointer-events-none opacity-50" : "")}><Upload className="h-4 w-4" /> Elegir archivo<input type="file" className="hidden" accept=".miaiproj,application/octet-stream" onChange={(e) => doImport(e.target.files?.[0])} /></label>}
+                <button className="flex-1 text-sm underline" onClick={() => setPanel(null)}>Cancelar</button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
       <button className="w-full text-center text-sm text-muted-foreground underline" onClick={() => { setPw(""); setPanel({ mode: "import" }); }}><Upload className="mr-1 inline h-4 w-4" />Importar proyecto desde archivo</button>
       <ul className="space-y-2">
         {visible.map((p) => (
