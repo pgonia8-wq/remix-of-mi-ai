@@ -57,10 +57,13 @@ export function route(models: ModelWithCaps[], req: RouteRequest): RouterDecisio
     if (!m) return { ok: false, reason: "El modelo elegido no admite esta operación. No se ejecutó ninguna solicitud." };
     return { ok: true, model: m, reasons: ["elegido manualmente", ...score(m, req).why], alternatives: candidates.filter((c) => c.id !== m.id) };
   }
-  const pool = req.mode === "favorite" ? candidates.filter((c) => c.favorite) : candidates;
+  const azure = candidates.filter((m) => ["azure", "azure_openai"].includes(m.provider_kind) && testOf(m, req.capability)?.status === "ok");
+  const openSearch = candidates.filter((m) => m.adapter_id === "searxng" || m.provider_kind === "searxng").filter((m) => testOf(m, req.capability)?.status === "ok");
+  const preferred = req.capability === "research.web" ? openSearch : azure;
+  const pool = req.mode === "favorite" ? candidates.filter((c) => c.favorite) : preferred.length ? preferred : candidates;
   if (!pool.length) return { ok: false, reason: "No tienes un favorito compatible con esta operación. No se ejecutó ninguna solicitud." };
   const ranked = pool.map((m) => ({ m, ...score(m, req) })).sort((a, b) => b.s - a.s || a.m.name.localeCompare(b.m.name));
   const best = ranked[0];
   if (!best) return { ok: false, reason: "No hay modelos compatibles. No se ejecutó ninguna solicitud." };
-  return { ok: true, model: best.m, reasons: [req.mode === "favorite" ? "favorito compatible mejor puntuado" : "selección automática", ...best.why], alternatives: candidates.filter((c) => c.id !== best.m.id) };
+  return { ok: true, model: best.m, reasons: [req.mode === "favorite" ? "favorito compatible mejor puntuado" : preferred.length ? req.capability === "research.web" ? "buscador abierto verificado: preferencia automática" : "Azure compatible y verificado: preferencia automática" : "selección automática", ...best.why], alternatives: candidates.filter((c) => c.id !== best.m.id) };
 }

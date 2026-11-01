@@ -34,11 +34,11 @@ function Research() {
   const [res, setRes] = useState<ResearchResult | null>(null);
   if (!pid) return <NeedProject />;
   async function run() {
-    if (!q.trim()) return;
+    if (!pid || !q.trim()) return;
     setRes(null); setStep("Iniciando…");
     try {
       const c = await getCore();
-      setRes(await runResearch(c, pid!, q.trim(), { deep, onStep: setStep }));
+      setRes(await runResearch(c, pid, q.trim(), { deep, onStep: setStep }));
       await mutate(async () => undefined);
     } catch (e) { toast.error((e as Error).message); } finally { setStep(null); }
   }
@@ -54,7 +54,7 @@ function Research() {
         <textarea className={inputCls} rows={3} placeholder="¿Qué quieres investigar?" value={q} onChange={(e) => setQ(e.target.value)} />
         <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={deep} onChange={(e) => setDeep(e.target.checked)} /> Investigación profunda (varias búsquedas; más costo)</label>
         <Button className="w-full" disabled={!!step || !q.trim()} onClick={run}><Search />{step ? "Investigando…" : "Investigar"}</Button>
-        <p className="text-[10px] text-muted-foreground">Necesita un buscador (Tavily, con tu clave) y un modelo de chat. Agrega el buscador en <Link to="/models" className="underline">Modelos</Link>.</p>
+        <p className="text-xs text-muted-foreground">Buscador: <Link to="/models" className="underline">SearXNG</Link> · Síntesis: tu modelo de chat.</p>
       </section>
       {step && <p className="text-xs text-primary">{step}</p>}
       {res && (

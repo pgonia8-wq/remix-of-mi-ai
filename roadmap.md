@@ -1,5 +1,14 @@
 # MI AI — Roadmap
 
+## Solicitud actual — corregir auditoría, Azure multimarca y búsqueda abierta
+- [x] Añadir SearXNG como búsqueda abierta prioritaria (instancia HTTPS/JSON explícita, sin claves); verificación/guardado/recarga comprobados con respuesta controlada. Instancia real pendiente.
+- [x] Azure por defecto y prioridad automática para capacidades verificadas; otros proveedores opcionales conservados y registro filtrado por adaptador ejecutable.
+- [x] Azure Sora 2 v1 texto a video: multipart, IDs persistentes, consulta y descarga same-origin sin redirecciones, prueba durable con recuperación tras recarga; contratos controlados y 215 pruebas, sin generación real.
+- [x] Corregir API pública de descifrado: validar el archivo completo antes de entregar plaintext, fijar relecturas por hash y rechazar cambio entre pasadas; regresiones de integridad.
+- [ ] Azure multimarca restante: contratos específicos para voz realtime, música, 3D y referencias de video; no se habilitan por cambiar el nombre de proveedor.
+- [ ] Corregir y construir el resto del alcance auditado, conservando los pendientes hasta su implementación y validación efectiva.
+- [ ] Validación real Azure multimarca y Android: requiere deployments autorizados y dispositivo; no declarar cobertura universal por registrar modelos.
+
 ## Solicitud actual — recuperación y auditoría del Prompt Maestro
 - [x] Recuperar el Prompt Maestro original y las seis ampliaciones adjuntas sin sustituirlas por resúmenes.
 - [x] Entregar un único TXT con el original y seis ampliaciones íntegros (3.581 líneas de fuentes), más auditoría con 166 brechas agrupadas y 20 riesgos técnicos referenciados.
@@ -40,7 +49,7 @@
 - [x] Pantallas: Modelos, Biblioteca, Trabajos, Diagnóstico; selector de capacidad en chat
 - [x] Pruebas unitarias/cripto/router/jobs/migración
 - [x] APK del núcleo y ampliaciones compilada e informe por niveles; validación nativa pendiente.
-- [ ] Bloqueado: operaciones reales de imagen/audio (claves del usuario)
+- [ ] Bloqueado: operaciones reales Azure imagen/audio/video (deployments y claves autorizados del usuario)
 - [ ] Bloqueado: pruebas físicas Poco C40 / intermedio / Galaxy S26 (usuario)
 - [ ] Bloqueado: clave de firma Release (usuario)
 

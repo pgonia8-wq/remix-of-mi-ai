@@ -143,20 +143,19 @@ async function recordTable(src: ByteSource, start: number, blockSize: number) {
   return recs;
 }
 
-/**
- * Decrypts block by block. Each block is authenticated before it is yielded, and the generator only
- * completes after the final record verifies count, size and tag chain. Callers MUST treat output as
- * provisional until the generator finishes without throwing (see readAll / AssetStore.read).
- */
-export async function* decryptAsset(src: ByteSource, ctx: AssetContext, dekRaw: Uint8Array): AsyncGenerator<Uint8Array, { blocks: number; size: number }> {
+/** Internal provisional decoder. Never expose its output to a caller before full verification. */
+async function* decryptProvisional(src: ByteSource, ctx: AssetContext, dekRaw: Uint8Array): AsyncGenerator<Uint8Array, { blocks: number; size: number }> {
   const key = await importDek(dekRaw);
   const { header, hh, prefix, start } = await parseHeader(src, ctx);
   const recs = await recordTable(src, start, header.blockSize);
-  const data = recs.slice(0, -1), last = recs[recs.length - 1]!;
+  const data = recs.slice(0, -1), last = recs[recs.length - 1];
+  if (!last) throw new AssetIntegrityError("Registro final ausente");
   const tags: Uint8Array[] = [];
   let size = 0;
   for (let i = 0; i < data.length; i++) {
-    const ct = await src.read(data[i]!.off, data[i]!.len);
+    const record = data[i];
+    if (!record) throw new AssetIntegrityError("Registro ausente");
+    const ct = await src.read(record.off, record.len);
     let pt: Uint8Array;
     try {
       pt = new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: nonce(prefix, BigInt(i)) as BufferSource, additionalData: aad(hh, header, BigInt(i), false) as BufferSource, tagLength: 128 }, key, ct as BufferSource));
@@ -177,14 +176,37 @@ export async function* decryptAsset(src: ByteSource, ctx: AssetContext, dekRaw: 
 
 /** Full verification without keeping plaintext. */
 export async function verifyAsset(src: ByteSource, ctx: AssetContext, dekRaw: Uint8Array) {
-  const it = decryptAsset(src, ctx, dekRaw);
+  const it = decryptProvisional(src, ctx, dekRaw);
   for (;;) { const r = await it.next(); if (r.done) return r.value; }
+}
+
+/** Authenticate the complete file before yielding any plaintext. Two bounded-memory passes;
+ * digests pin each read to the verified snapshot, rejecting a source changed between passes.
+ */
+export async function* decryptAsset(src: ByteSource, ctx: AssetContext, dekRaw: Uint8Array): AsyncGenerator<Uint8Array, { blocks: number; size: number }> {
+  const size = src.size;
+  const digests = new Map<string, Uint8Array>();
+  const snapshot: ByteSource = { size, async read(offset, length) {
+    const bytes = (await src.read(offset, length)).slice();
+    if (bytes.length !== length || src.size !== size) throw new AssetIntegrityError("Archivo cambiado o truncado durante la verificación");
+    digests.set(`${offset}:${length}`, await sha256(bytes));
+    return bytes;
+  } };
+  await verifyAsset(snapshot, ctx, dekRaw);
+  const pinned: ByteSource = { size, async read(offset, length) {
+    const bytes = (await src.read(offset, length)).slice();
+    const expected = digests.get(`${offset}:${length}`);
+    const actual = await sha256(bytes);
+    if (src.size !== size || bytes.length !== length || !expected || actual.some((value, index) => value !== expected[index])) throw new AssetIntegrityError("El archivo cambió después de verificarlo");
+    return bytes;
+  } };
+  return yield* decryptProvisional(pinned, ctx, dekRaw);
 }
 
 /** Returns plaintext only after the whole file verified. Intended for small/medium assets (display, export). */
 export async function readAll(src: ByteSource, ctx: AssetContext, dekRaw: Uint8Array): Promise<Uint8Array> {
   const parts: Uint8Array[] = [];
-  for await (const p of decryptAsset(src, ctx, dekRaw)) parts.push(p);
+  for await (const p of decryptProvisional(src, ctx, dekRaw)) parts.push(p);
   return concat(...parts);
 }
 

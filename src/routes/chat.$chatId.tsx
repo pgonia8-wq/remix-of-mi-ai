@@ -39,7 +39,7 @@ function ChatPage() {
   const { data: registryModels = [] } = useRepoQuery(["registry-models"], (r) => r.registry.listModels());
   const { data: attachments = [] } = useRepoQuery(["chat-attachments", pid, chatId], (r) => pid ? r.listChatAttachments(pid, chatId) : Promise.resolve([]), !!pid);
   const { data: feedback = [] } = useRepoQuery(["chat-feedback", pid, chatId], (r) => pid ? r.messageFeedback(pid, chatId) : Promise.resolve([]), !!pid);
-  const enabled = providers.filter((p) => p.enabled && !["elevenlabs", "tavily", "meshy", "runway"].includes(p.kind));
+  const enabled = providers.filter((p) => p.enabled && !["elevenlabs", "tavily", "searxng", "meshy", "runway"].includes(p.kind));
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
