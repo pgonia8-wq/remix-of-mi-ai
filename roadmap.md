@@ -1,6 +1,7 @@
 # MI AI — Roadmap
 
 ## Bloque 1 — seguridad y núcleo (en curso)
+- [ ] Solicitud de Fer: cerrar pendientes de bloques 1–3 y después completar bloque 4 autónomo; sin compilar antes del bloque 5.
 - [x] Archivar, restaurar y duplicar proyectos.
 - [x] Exportar/importar un solo proyecto cifrado (siempre como proyecto nuevo; contraseña errónea no crea nada).
 - [x] Presupuesto mensual por proyecto y registro de costos (aviso 80%, bloqueo 100%, marca de estimados).

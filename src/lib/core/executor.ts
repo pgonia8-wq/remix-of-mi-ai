@@ -25,8 +25,13 @@ export async function credentialsFor(repo: Repo, providerId: string): Promise<{ 
   };
 }
 
-/** Errors with an HTTP response mean the provider rejected the request (safe to mark failed); no response = ambiguous. */
-function ambiguous(e: unknown) { return e instanceof ProviderError && (e.code === "network" || e.code === "timeout") && e.httpStatus === undefined; }
+/** Only an explicit client-error rejection establishes non-acceptance. Successful-response parsing,
+ * server errors, cancellation and unknown errors after sending must never permit an automatic replay. */
+export function ambiguous(e: unknown) {
+  if (!(e instanceof ProviderError)) return true;
+  const status = e.httpStatus;
+  return status === undefined || status < 400 || status >= 500 || status === 408;
+}
 
 export async function execute(deps: { repo: Repo; jobs: JobManager; assets: AssetStore }, projectId: string, model: ModelWithCaps,
   req: { capability: string; prompt?: string; params?: Record<string, unknown>; files?: InputFile[]; parentAssetId?: string | null; saveText?: boolean; signal?: AbortSignal; existingJobId?: string }): Promise<ExecResult> {

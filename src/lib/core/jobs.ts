@@ -1,5 +1,6 @@
 // Persistent job manager with a controlled state machine and conservative, non-duplicating recovery.
 import type { SqlDb } from "../db/sql";
+import { exclusive } from "./operation-lock";
 
 export type JobStatus = "queued" | "submitting" | "processing" | "completed" | "failed" | "cancelled" | "interrupted" | "recovery_required";
 /** created → sent → accepted → received | unknown */
@@ -67,6 +68,10 @@ export class JobManager {
 
   /** Mark the request as sent BEFORE the network call, so a crash afterwards is known to be ambiguous. */
   async markSent(projectId: string, id: string) {
+    return exclusive(this.db, () => this.markSentLocked(projectId, id));
+  }
+
+  private async markSentLocked(projectId: string, id: string) {
     const j = await this.get(projectId, id);
     if (!j) throw new JobError("Trabajo no pertenece al proyecto");
     if (!TRANSITIONS[j.status].includes("submitting")) throw new JobError(`Transición no permitida: ${j.status} → submitting`);
