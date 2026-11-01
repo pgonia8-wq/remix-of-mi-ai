@@ -1,5 +1,11 @@
 # MI AI — Roadmap
 
+## Solicitud actual — recuperación y auditoría del Prompt Maestro
+- [x] Recuperar el Prompt Maestro original y las seis ampliaciones adjuntas sin sustituirlas por resúmenes.
+- [x] Entregar un único TXT con el original y seis ampliaciones íntegros (3.581 líneas de fuentes), más auditoría con 166 brechas agrupadas y 20 riesgos técnicos referenciados.
+- [x] Iniciar corrección de compatibilidad: adaptador ejecutable, formatos/tamaños/parámetros declarados, contexto conocido y disponibilidad revalidada antes de claves/trabajos/red; 10 regresiones nuevas, sin APK ni cierre total.
+- La auditoría es revisión estática amplia, no certificación de exhaustividad o pruebas nativas; no convierte riesgos no reproducidos en incidentes confirmados.
+
 ## Solicitud actual — documentación, firma y cierre
 - [x] Entregar archivo de contraseña de firma Debug y distinguirlo de la contraseña personal de respaldos.
 - [x] Entregar manual de configuración de proveedores, capacidades, herramientas y agentes (13 páginas revisadas).

@@ -9,6 +9,7 @@ import type { ModelWithCaps } from "./registry";
 import { TEST_PNG_B64 } from "./adapters/vision";
 import { testWav } from "./adapters/audio";
 import { b64ToBytes } from "./adapters/types";
+import { requestIssues } from "./request-compatibility";
 
 export type ExecResult = { jobId: string; pending?: boolean; text?: string; assets: Asset[]; vectors?: number[][]; results?: import("./adapters/types").SearchResult[] };
 
@@ -28,6 +29,10 @@ function ambiguous(e: unknown) { return e instanceof ProviderError && (e.code ==
 
 export async function execute(deps: { repo: Repo; jobs: JobManager; assets: AssetStore }, projectId: string, model: ModelWithCaps,
   req: { capability: string; prompt?: string; params?: Record<string, unknown>; files?: InputFile[]; parentAssetId?: string | null; saveText?: boolean; signal?: AbortSignal; existingJobId?: string }): Promise<ExecResult> {
+  const current = (await deps.repo.registry.listModels()).find((m) => m.id === model.id);
+  if (!current || current.status !== "active" || !current.provider_enabled || !current.capabilities.includes(req.capability) || current.provider_id !== model.provider_id || current.remote_id !== model.remote_id) throw new ProviderError("parameters", "El modelo ya no está disponible para esta operación. Selecciónalo nuevamente; no se envió ninguna solicitud.");
+  const issues = requestIssues(await deps.repo.registry.getCapability(req.capability), { prompt: req.prompt, params: req.params, files: req.files?.map((f) => ({ mime: f.mime, size: f.bytes.length })) });
+  if (issues.length) throw new ProviderError("parameters", issues.join(" "));
   if (!model.capabilities.includes(req.capability)) throw new ProviderError("parameters", `El modelo «${model.name}» no admite «${req.capability}». No se ejecutó ninguna solicitud.`);
   const { creds, adapter: adapterId } = await credentialsFor(deps.repo, model.provider_id);
   const adapter = getAdapter(adapterId);

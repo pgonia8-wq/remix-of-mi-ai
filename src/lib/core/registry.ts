@@ -6,7 +6,7 @@ export type RegistryModel = {
   id: string; provider_id: string; remote_id: string; name: string; status: "active" | "retired"; source: "manual" | "import" | "legacy";
   favorite: number; cost_info: string | null; privacy: "external" | "local"; context_tokens: number | null; updated_at: number;
 };
-export type ModelWithCaps = RegistryModel & { capabilities: string[]; provider_kind: string; provider_name: string; provider_enabled: number; tests: CapabilityTest[] };
+export type ModelWithCaps = RegistryModel & { capabilities: string[]; provider_kind: string; provider_name: string; provider_enabled: number; adapter_id?: string; tests: CapabilityTest[] };
 export type CapabilityTest = { model_id: string; capability_id: string; status: "ok" | "error"; http_status: number | null; message: string | null; checked_at: number };
 
 const uid = () => crypto.randomUUID();
@@ -133,8 +133,8 @@ export class Registry {
   }
 
   async listModels(): Promise<ModelWithCaps[]> {
-    const models = await this.db.all<RegistryModel & { provider_kind: string; provider_name: string; provider_enabled: number }>(
-      `SELECT m.*, p.kind AS provider_kind, p.name AS provider_name, p.enabled AS provider_enabled FROM models m JOIN providers_registry p ON p.id=m.provider_id ORDER BY p.created_at, m.name`,
+    const models = await this.db.all<RegistryModel & { provider_kind: string; provider_name: string; provider_enabled: number; adapter_id: string }>(
+      `SELECT m.*, p.kind AS provider_kind, p.name AS provider_name, p.enabled AS provider_enabled, p.adapter AS adapter_id FROM models m JOIN providers_registry p ON p.id=m.provider_id ORDER BY p.created_at, m.name`,
     );
     const caps = await this.db.all<{ model_id: string; capability_id: string }>(`SELECT model_id, capability_id FROM model_capabilities`);
     const tests = await this.db.all<CapabilityTest>(`SELECT * FROM capability_tests`);
