@@ -40,10 +40,11 @@ export function VideoPreview({ pid, clips, overlays, captions, ratio, rotation, 
       last = now;
       if (c && ctx) {
         const first = videos.current.get(s.clips[0]?.assetId ?? ""), portrait = s.ratio === "9:16" || (s.ratio === "original" && first && first.videoHeight > first.videoWidth);
-        let W = portrait ? 360 : 640, H = portrait ? 640 : 360; if (s.rotation === 90 || s.rotation === 270) [W, H] = [H, W];
+        const W = portrait ? 360 : 640, H = portrait ? 640 : 360;
         if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
         ctx.save(); ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-        const fit = (v: HTMLVideoElement, x: number, y: number, w: number, h: number) => { if (!v.videoWidth) return; const k = Math.min(w / v.videoWidth, h / v.videoHeight), dw = v.videoWidth * k, dh = v.videoHeight * k; ctx.drawImage(v, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh); };
+        // Like the FFmpeg plan: each clip is rotated, then letterboxed into the fixed output frame.
+        const fit = (v: HTMLVideoElement, x: number, y: number, w: number, h: number) => { if (!v.videoWidth) return; const side = s.rotation === 90 || s.rotation === 270, sw = side ? v.videoHeight : v.videoWidth, sh = side ? v.videoWidth : v.videoHeight, k = Math.min(w / sw, h / sh); ctx.save(); ctx.translate(x + w / 2, y + h / 2); ctx.rotate(s.rotation * Math.PI / 180); ctx.drawImage(v, -v.videoWidth * k / 2, -v.videoHeight * k / 2, v.videoWidth * k, v.videoHeight * k); ctx.restore(); };
         const f = frameAt(s.clips, s.time), used = new Set<HTMLVideoElement>();
         if (f) {
           const va = videos.current.get(s.clips[f.a.seg.index]!.assetId), vb = f.b ? videos.current.get(s.clips[f.b.seg.index]!.assetId) : undefined;
@@ -73,7 +74,7 @@ export function VideoPreview({ pid, clips, overlays, captions, ratio, rotation, 
   }, [onTime]);
   const { duration } = segments(clips);
   return <section className="space-y-2" aria-label="Vista previa compuesta">
-    <canvas ref={canvas} className="mx-auto block max-h-[60vh] w-full rounded-xl border bg-card object-contain" style={{ rotate: `${rotation}deg` === "0deg" ? undefined : undefined }} aria-label="Vista previa del video" />
+    <canvas ref={canvas} className="mx-auto block max-h-[60vh] w-full rounded-xl border bg-card object-contain" aria-label="Vista previa del video" />
     <div className="flex items-center gap-2"><Button size="icon" variant="outline" disabled={!clips.length || loading} aria-label={playing ? "Pausar vista previa" : "Reproducir vista previa"} onClick={() => { const s = state.current; if (!playing && s.time >= duration - 0.05) s.time = 0; s.playing = !playing; setPlaying(!playing); if (playing) onTime(s.time); }}>{playing ? <Pause /> : <Play />}</Button><span className="text-xs text-muted-foreground">{loading ? "Preparando clips…" : "Vista previa sin audio, calculada en el teléfono. El render final se hace al exportar."}</span></div>
     {error && <p className="text-xs text-destructive">{error}</p>}
   </section>;
