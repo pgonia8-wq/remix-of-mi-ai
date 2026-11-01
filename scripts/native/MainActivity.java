@@ -10,6 +10,8 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(MiaiRemotePlugin.class);
         registerPlugin(MiaiSchedulePlugin.class);
         registerPlugin(MiaiMediaPlugin.class);
+        registerPlugin(MiaiTunnelPlugin.class);
+        registerPlugin(MiaiVpnPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

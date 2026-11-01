@@ -61,6 +61,9 @@ cp scripts/native/MiaiRemotePlugin.java "$JAVA_DIR/MiaiRemotePlugin.java"
 cp scripts/native/MiaiSchedulePlugin.java "$JAVA_DIR/MiaiSchedulePlugin.java"
 cp scripts/native/MiaiScheduleReceiver.java "$JAVA_DIR/MiaiScheduleReceiver.java"
 cp scripts/native/MiaiMediaPlugin.java "$JAVA_DIR/MiaiMediaPlugin.java"
+cp scripts/native/MiaiTunnelPlugin.java "$JAVA_DIR/MiaiTunnelPlugin.java"
+cp scripts/native/MiaiVpnPlugin.java "$JAVA_DIR/MiaiVpnPlugin.java"
+cp scripts/native/MiaiVpnService.java "$JAVA_DIR/MiaiVpnService.java"
 cp scripts/native/MainActivity.java "$JAVA_DIR/MainActivity.java"
 grep -q 'com.github.mwiede:jsch' android/app/build.gradle || printf '\ndependencies { implementation "com.github.mwiede:jsch:2.28.2" }\n' >> android/app/build.gradle
 grep -q 'media3-transformer' android/app/build.gradle || printf '\ndependencies { implementation "androidx.media3:media3-transformer:1.5.1"; implementation "androidx.media3:media3-effect:1.5.1" }\n' >> android/app/build.gradle
@@ -72,3 +75,8 @@ grep -q POST_NOTIFICATIONS android/app/src/main/AndroidManifest.xml || sed -i 's
 grep -q MiaiScheduleReceiver android/app/src/main/AndroidManifest.xml || sed -i 's#</application>#<receiver android:name=".MiaiScheduleReceiver" android:exported="false"><intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /><action android:name="android.intent.action.MY_PACKAGE_REPLACED" /></intent-filter></receiver>\n    </application>#' android/app/src/main/AndroidManifest.xml
 
 echo "Android project ready: version ${VERSION_NAME} (${VERSION_CODE})"
+
+# Split VPN toward the paired PC Node (user-started only, Android consent + foreground notice; never sticky).
+M=android/app/src/main/AndroidManifest.xml
+grep -q FOREGROUND_SERVICE_SPECIAL_USE $M || sed -i 's#<application#<uses-permission android:name="android.permission.FOREGROUND_SERVICE" /><uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />\n    <application#' $M
+grep -q MiaiVpnService $M || sed -i 's#</application>#<service android:name=".MiaiVpnService" android:permission="android.permission.BIND_VPN_SERVICE" android:exported="false" android:foregroundServiceType="specialUse"><intent-filter><action android:name="android.net.VpnService" /></intent-filter><property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="vpn" /></service>\n    </application>#' $M
