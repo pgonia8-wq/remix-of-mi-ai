@@ -4,7 +4,8 @@ import { Download, FlaskConical, Plus, Star, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useCoreMutate, useCoreQuery } from "@/lib/use-app";
 import { getAdapter } from "@/lib/core/adapters";
-import { credentialsFor, testOperation } from "@/lib/core/executor";
+import { credentialsFor, testOperation, testDraftOperation } from "@/lib/core/executor";
+import { canSaveConnection, verifyConnection, type DraftConnection, type DraftVerification } from "@/lib/core/connection-test";
 import type { ModelWithCaps } from "@/lib/core/registry";
 import { inputCls } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -43,7 +44,8 @@ function Models() {
     try {
       await mutate(async (c) => {
         const { creds } = await credentialsFor(c.repo, providerId);
-        const ids = await ad.listModels!(creds);
+        if (!ad.listModels) return;
+        const ids = await ad.listModels(creds);
         const r = await c.repo.registry.applyImport(providerId, ids);
         toast.success(`${r.added} modelos del catálogo oficial; ${r.retired} marcados como retirados. Asigna sus capacidades.`);
       });
@@ -152,17 +154,37 @@ function RegisterModel({ providers, caps, onDone }: { providers: { id: string; n
   const [remote, setRemote] = useState("");
   const [sel, setSel] = useState<string[]>([]);
   const [cost, setCost] = useState("");
+  const [tested, setTested] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const fingerprint = JSON.stringify([providerId, remote.trim(), sel]);
+  async function test() {
+    if (!confirm("Se probarán las capacidades seleccionadas con solicitudes reales que pueden tener costo. ¿Continuar?")) return;
+    setBusy(true); setTested(null);
+    try {
+      await mutate(async c => {
+        const { creds, adapter } = await credentialsFor(c.repo, providerId);
+        for (const cap of sel) {
+          const result = await testDraftOperation(adapter, creds, remote.trim(), cap);
+          if (!result.ok) throw new Error(`${cap}: ${result.message}`);
+        }
+      });
+      setTested(fingerprint); setMessage("Capacidades verificadas con resultados reales.");
+    } catch (e) { setMessage(e instanceof Error ? e.message : "No se confirmó el resultado."); }
+    finally { setBusy(false); }
+  }
   async function save() {
-    if (!providerId || !remote.trim() || !sel.length) { toast.error("Elige proveedor, identificador oficial y al menos una capacidad."); return; }
+    if (!providerId || !remote.trim() || !sel.length || busy || tested !== fingerprint) { toast.error("Prueba las capacidades antes de guardar."); return; }
     await mutate(async (c) => {
       const id = await c.repo.registry.upsertModel({ providerId, remoteId: remote.trim(), source: "manual", costInfo: cost.trim() || null });
       await c.repo.registry.setModelCapabilities(id, sel);
+      for (const cap of sel) await c.repo.registry.recordTest(id, cap, true, 200, "Resultado real recibido antes de guardar.");
     });
-    toast.success("Modelo registrado. Pruébalo antes de confiar en él.");
+    toast.success("Modelo registrado y verificado.");
     onDone();
   }
   return (
-    <div className="space-y-2 rounded-xl border bg-card p-3 text-sm">
+    <div className="space-y-2 rounded-xl border bg-card p-3 text-sm" aria-busy={busy}>
       <select className={inputCls} value={providerId} onChange={(e) => setProviderId(e.target.value)}>
         {providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
       </select>
@@ -171,7 +193,9 @@ function RegisterModel({ providers, caps, onDone }: { providers: { id: string; n
       <div className="grid grid-cols-2 gap-1">
         {caps.map((c) => <label key={c} className="flex items-center gap-1 text-xs"><input type="checkbox" checked={sel.includes(c)} onChange={(e) => setSel(e.target.checked ? [...sel, c] : sel.filter((x) => x !== c))} /><span className="font-mono">{c}</span></label>)}
       </div>
-      <div className="flex gap-2"><Button className="flex-1" onClick={save}>Guardar</Button><Button variant="outline" onClick={onDone}>Cancelar</Button></div>
+      {message && <p role="status" className="break-words text-sm">{message}</p>}
+      <Button variant="outline" disabled={busy || !providerId || !remote.trim() || !sel.length} onClick={test}>Probar conexión</Button>
+      <div className="flex gap-2"><Button disabled={busy || tested !== fingerprint} className="flex-1" onClick={save}>Guardar modelo</Button><Button disabled={busy} variant="outline" onClick={onDone}>Cancelar</Button></div>
     </div>
   );
 }
@@ -179,12 +203,18 @@ function RegisterModel({ providers, caps, onDone }: { providers: { id: string; n
 function ElevenLabsForm({ onDone }: { onDone: () => void }) {
   const mutate = useCoreMutate();
   const [key, setKey] = useState("");
+  const [verified, setVerified] = useState<DraftVerification | null>(null);
+  const [busy, setBusy] = useState(false);
+  const draft: DraftConnection = { adapterId: "elevenlabs", capability: "audio.tts", credentials: { kind: "elevenlabs", model: "eleven_multilingual_v2", apiKey: key.trim(), endpoint: null, deployment: null, apiVersion: null, extraParams: null } };
+  async function test() { if (!confirm("Prueba real de voz con posible costo. ¿Continuar?")) return; setBusy(true); setVerified(null); try { setVerified(await verifyConnection(draft)); } finally { setBusy(false); } }
   async function save() {
-    if (!key.trim()) { toast.error("Introduce tu API key de ElevenLabs."); return; }
+    if (busy || !canSaveConnection(draft, verified)) return;
     await mutate(async (c) => {
       const pid = await c.repo.saveProvider({ name: "ElevenLabs", kind: "elevenlabs", model: "eleven_multilingual_v2", apiKey: key.trim() });
       const mid = await c.repo.registry.upsertModel({ providerId: pid, remoteId: "eleven_multilingual_v2", source: "manual" });
       await c.repo.registry.setModelCapabilities(mid, ["audio.tts"]);
+      await c.repo.setProviderVerification(pid, "verified");
+      await c.repo.registry.recordTest(mid, "audio.tts", true, 200, "Audio real recibido antes de guardar.");
     });
     setKey("");
     toast.success("ElevenLabs guardado con la clave cifrada. Usa «Probar» en audio.tts.");
@@ -193,7 +223,9 @@ function ElevenLabsForm({ onDone }: { onDone: () => void }) {
   return (
     <div className="space-y-2">
       <input className={inputCls} type="password" autoComplete="off" placeholder="API key de ElevenLabs" value={key} onChange={(e) => setKey(e.target.value)} />
-      <Button className="w-full" onClick={save}>Guardar ElevenLabs</Button>
+      {verified && <p role="status">{verified.message}</p>}
+      <Button variant="outline" disabled={busy || !key.trim()} onClick={test}>Probar conexión</Button>
+      <Button disabled={busy || !canSaveConnection(draft, verified)} className="w-full" onClick={save}>Guardar ElevenLabs</Button>
     </div>
   );
 }
@@ -201,12 +233,18 @@ function ElevenLabsForm({ onDone }: { onDone: () => void }) {
 function TavilyForm({ onDone }: { onDone: () => void }) {
   const mutate = useCoreMutate();
   const [key, setKey] = useState("");
+  const [verified, setVerified] = useState<DraftVerification | null>(null);
+  const [busy, setBusy] = useState(false);
+  const draft: DraftConnection = { adapterId: "tavily", capability: "research.web", credentials: { kind: "tavily", model: "search", apiKey: key.trim(), endpoint: null, deployment: null, apiVersion: null, extraParams: null } };
+  async function test() { if (!confirm("Prueba real de búsqueda con posible costo. ¿Continuar?")) return; setBusy(true); setVerified(null); try { setVerified(await verifyConnection(draft)); } finally { setBusy(false); } }
   async function save() {
-    if (!key.trim()) { toast.error("Introduce tu API key de Tavily."); return; }
+    if (busy || !canSaveConnection(draft, verified)) return;
     await mutate(async (c) => {
       const pid = await c.repo.saveProvider({ name: "Tavily", kind: "tavily", model: "search", apiKey: key.trim() });
       const mid = await c.repo.registry.upsertModel({ providerId: pid, remoteId: "search", source: "manual" });
       await c.repo.registry.setModelCapabilities(mid, ["research.web"]);
+      await c.repo.setProviderVerification(pid, "verified");
+      await c.repo.registry.recordTest(mid, "research.web", true, 200, "Búsqueda real recibida antes de guardar.");
     });
     setKey("");
     toast.success("Buscador Tavily guardado con la clave cifrada. Usa «Probar» en research.web.");
@@ -215,7 +253,9 @@ function TavilyForm({ onDone }: { onDone: () => void }) {
   return (
     <div className="space-y-2">
       <input className={inputCls} type="password" autoComplete="off" placeholder="API key de Tavily (tvly-…)" value={key} onChange={(e) => setKey(e.target.value)} />
-      <Button className="w-full" onClick={save}>Guardar Tavily</Button>
+      {verified && <p role="status">{verified.message}</p>}
+      <Button variant="outline" disabled={busy || !key.trim()} onClick={test}>Probar conexión</Button>
+      <Button disabled={busy || !canSaveConnection(draft, verified)} className="w-full" onClick={save}>Guardar Tavily</Button>
     </div>
   );
 }

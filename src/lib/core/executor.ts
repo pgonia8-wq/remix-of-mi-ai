@@ -73,9 +73,13 @@ export async function execute(deps: { repo: Repo; jobs: JobManager; assets: Asse
 
 /** Minimal REAL operation per capability for "Probar operación". Results are not stored as assets. */
 export async function testOperation(repo: Repo, model: ModelWithCaps, capability: string): Promise<{ ok: boolean; httpStatus: number | null; message: string }> {
+  const { creds, adapter } = await credentialsFor(repo, model.provider_id);
+  return testDraftOperation(adapter, creds, model.remote_id, capability);
+}
+
+export async function testDraftOperation(adapterId: string, creds: AdapterCredentials, remoteId: string, capability: string): Promise<{ ok: boolean; httpStatus: number | null; message: string }> {
   try {
-    const { creds, adapter: id } = await credentialsFor(repo, model.provider_id);
-    const adapter = getAdapter(id);
+    const adapter = getAdapter(adapterId);
     if (!adapter.supports(capability)) return { ok: false, httpStatus: null, message: `El adaptador ${adapter.label} no implementa esta operación.` };
     const prompts: Record<string, { prompt: string; params?: Record<string, unknown> }> = {
       chat: { prompt: "Responde solo: OK" },
@@ -87,15 +91,15 @@ export async function testOperation(repo: Repo, model: ModelWithCaps, capability
     };
     const audioCaps = ["audio.transcribe", "audio.translate"];
     if (audioCaps.includes(capability)) {
-      const r = await adapter.run(creds, { capability, model: model.remote_id, files: [{ bytes: testWav(), mime: "audio/wav", name: "prueba.wav" }], params: { allowEmpty: true } });
+      const r = await adapter.run(creds, { capability, model: remoteId, files: [{ bytes: testWav(), mime: "audio/wav", name: "prueba.wav" }], params: { allowEmpty: true } });
       return r.kind === "text" ? { ok: true, httpStatus: 200, message: "Operación real completada (el proveedor procesó el audio de prueba)." } : { ok: false, httpStatus: 200, message: "Respuesta inválida." };
     }
     const imageIn = ["vision", "image.edit", "image.upscale", "image.remove_bg"];
     const p = prompts[capability] ?? (imageIn.includes(capability) ? { prompt: capability === "image.edit" ? "Cambia el color a rojo." : "" } : undefined);
     if (!p) return { ok: false, httpStatus: null, message: "Esta operación necesita un archivo propio; pruébala desde la Biblioteca." };
     const files = imageIn.includes(capability) ? [{ bytes: b64ToBytes(TEST_PNG_B64), mime: "image/png", name: "prueba.png" }] : undefined;
-    const r = await adapter.run(creds, { capability, model: model.remote_id, prompt: p.prompt, ...(p.params ? { params: p.params } : {}), ...(files ? { files } : {}) });
-    const ok = (r.kind === "vectors" && r.vectors.length === 1) || (r.kind === "search" && r.results.length > 0) || (r.kind === "text" && r.text.trim().length > 0) || (r.kind === "files" && r.files.length > 0 && r.files[0]!.bytes.length > 100);
+    const r = await adapter.run(creds, { capability, model: remoteId, prompt: p.prompt, ...(p.params ? { params: p.params } : {}), ...(files ? { files } : {}) });
+    const ok = (r.kind === "vectors" && r.vectors.length === 1) || (r.kind === "search" && r.results.length > 0) || (r.kind === "text" && r.text.trim().length > 0) || (r.kind === "files" && r.files.some(file => file.bytes.length > 100));
     return ok ? { ok: true, httpStatus: 200, message: "Operación real completada." } : { ok: false, httpStatus: 200, message: "Respuesta vacía." };
   } catch (e) {
     if (e instanceof ProviderError) return { ok: false, httpStatus: e.httpStatus ?? null, message: e.technical ? `${e.message} — ${e.technical}` : e.message };

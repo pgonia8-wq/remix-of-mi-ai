@@ -1,5 +1,13 @@
 # MI AI — Roadmap
 
+## Solicitud actual — documentación, firma y cierre
+- [ ] Entregar archivo de contraseña de firma Debug y distinguirlo de la contraseña personal de respaldos.
+- [ ] Entregar manual completo de configuración de proveedores, capacidades, herramientas y agentes.
+- [ ] Entregar catálogo de herramientas con soluciones, requisitos y límites reales.
+- [ ] Cerrar el guardado sin verificación en altas manuales de modelos, ElevenLabs y Tavily; probar las reglas.
+- [ ] Compilar nueva APK con la firma conservada y comparar su certificado con build.7.
+- [ ] Cierre total del alcance maestro: pendientes funcionales explícitos en el inventario; no equivale a generar una APK.
+
 ## Solicitud actual — cierre completo y experiencia premium
 - [x] Menú lateral hamburguesa con chats/proyectos/biblioteca/herramientas/configuración, navegación limpia sin barra inferior.
 - [x] Chat amplio, acciones por mensaje, composición cómoda y adjuntos cifrados con envío multimodal compatible; web verificada con contrato controlado.
