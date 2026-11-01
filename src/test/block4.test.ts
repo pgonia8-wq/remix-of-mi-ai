@@ -438,3 +438,12 @@ describe("Git: protecciones siempre activas", () => {
     await expect(rpc(repo, id, "job.start", { argv: ["git", "-c", "core.pager=sh", "log"], projectId: p })).rejects.toThrow(/no permitida/);
   });
 });
+
+describe("Consumo honesto", () => {
+  it("si ningún modelo puede atender, no se cuenta una llamada que nunca salió", async () => {
+    const { NoRequestSent } = await import("@/lib/automation/orchestrator");
+    const p = (await repo.createProject("P")).id, run = await createRun(core, p, { goal: "x" });
+    const r = await stepRun(core, p, run, async () => { throw new NoRequestSent("Ningún modelo"); });
+    expect(r.status).toBe("needs_human"); expect(r.calls).toBe(0); expect(r.tokens).toBe(0);
+  });
+});
