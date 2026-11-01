@@ -38,3 +38,20 @@ describe("Adjuntos y acciones del chat", () => {
   });
   it("rechaza archivos no analizables sin fingir lectura", () => { expect(attachmentKind("a.png", "image/png")).toBe("image"); expect(attachmentKind("a.docx", "")).toBe("document"); expect(() => attachmentKind("a.exe", "application/octet-stream")).toThrow(); });
 });
+describe("chat context window (not a message quota)", () => {
+  it("sends the newest turns within the budget and always the latest message", async () => {
+    const { fitHistory } = await import("@/lib/chat-attachments");
+    const long = Array.from({ length: 60 }, (_, i) => ({ role: (i % 2 ? "assistant" : "user") as "user" | "assistant", content: `${i}:` + "x".repeat(1000) }));
+    const sent = fitHistory(long, 32_000);
+    expect(sent.at(-1)!.content.startsWith("59:")).toBe(true);
+    expect(sent.reduce((a, m) => a + m.content.length, 0)).toBeLessThanOrEqual(32_000);
+    expect(sent[0]!.role).toBe("user");
+    expect(fitHistory([{ role: "user", content: "y".repeat(50_000) }], 32_000)).toHaveLength(1);
+  });
+  it("drops images from older turns but keeps them on the latest", async () => {
+    const { fitHistory } = await import("@/lib/chat-attachments");
+    const img = { mime: "image/png", data: "a".repeat(10) };
+    const sent = fitHistory([{ role: "user", content: "old", images: [img] }, { role: "assistant", content: "ok" }, { role: "user", content: "new", images: [img] }]);
+    expect(sent[0]!.images).toBeUndefined(); expect(sent[2]!.images).toHaveLength(1);
+  });
+});
