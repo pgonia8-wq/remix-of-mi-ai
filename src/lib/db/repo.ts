@@ -20,6 +20,8 @@ export type ProviderKind = "openai" | "anthropic" | "gemini" | "azure" | "azure_
 export type Provider = { id: string; name: string; kind: ProviderKind; endpoint: string | null; deployment: string | null; model: string; api_version: string | null; extra_params: string | null; enabled: number; created_at: number; has_key: boolean; verification_status: "verified" | "error" | "unverified"; checked_at: number | null };
 export type ProviderInput = { name: string; kind: ProviderKind; endpoint?: string; apiKey?: string | undefined; deployment?: string; model: string; apiVersion?: string; extraParams?: string; enabled?: boolean };
 
+export type ModelPrice = { model: string; input_per_mtok: number | null; output_per_mtok: number | null; per_image: number | null; per_second: number | null; per_call: number | null; updated_at: number };
+
 export function budgetLevel(limitUsd: number | null, spentUsd: number, includesEstimates = false) {
   if (limitUsd === null) return { level: "none" as const, limitUsd, spentUsd, ratio: 0, includesEstimates };
   const ratio = spentUsd / limitUsd;
@@ -65,6 +67,8 @@ export class Repo {
     await this.db.run(`CREATE TABLE IF NOT EXISTS project_states (project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE, archived INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL)`);
     await this.db.run(`CREATE TABLE IF NOT EXISTS project_budgets (project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE, monthly_limit_usd REAL NOT NULL, updated_at INTEGER NOT NULL)`);
     await this.db.run(`CREATE TABLE IF NOT EXISTS cost_ledger (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, provider_id TEXT, model TEXT, operation TEXT NOT NULL, amount_usd REAL NOT NULL, estimated INTEGER NOT NULL, created_at INTEGER NOT NULL)`);
+    await this.db.run(`CREATE TABLE IF NOT EXISTS model_prices (model TEXT PRIMARY KEY, input_per_mtok REAL, output_per_mtok REAL, per_image REAL, per_second REAL, per_call REAL, updated_at INTEGER NOT NULL)`);
+    await this.db.run(`CREATE TABLE IF NOT EXISTS restore_journal (id TEXT PRIMARY KEY, kind TEXT NOT NULL, state TEXT NOT NULL, detail TEXT, updated_at INTEGER NOT NULL)`);
     await this.registry.seedCapabilities();
     await this.registry.syncLegacyProviders();
   }
@@ -129,16 +133,31 @@ export class Repo {
     need(projectId);
     return (await this.db.all<{ monthly_limit_usd: number }>(`SELECT monthly_limit_usd FROM project_budgets WHERE project_id=?`, [projectId]))[0]?.monthly_limit_usd ?? null;
   }
-  /** Records a call's cost. `estimated` = the provider did not report an exact price. */
-  async recordCost(projectId: string, c: { providerId?: string | null; model?: string | null; operation: string; amountUsd: number; estimated: boolean; at?: number }) {
+  async listModelPrices() { return this.db.all<ModelPrice>(`SELECT * FROM model_prices ORDER BY model`); }
+  async getModelPrice(model: string) { return (await this.db.all<ModelPrice>(`SELECT * FROM model_prices WHERE model=?`, [model]))[0] ?? null; }
+  async setModelPrice(p: Omit<ModelPrice, "updated_at">) {
+    for (const v of [p.input_per_mtok, p.output_per_mtok, p.per_image, p.per_second, p.per_call]) if (v !== null && (!Number.isFinite(v) || v < 0)) throw new Error("Tarifa inválida");
+    await this.db.run(`INSERT OR REPLACE INTO model_prices VALUES (?,?,?,?,?,?,?)`, [p.model, p.input_per_mtok, p.output_per_mtok, p.per_image, p.per_second, p.per_call, now()]);
+  }
+  async deleteModelPrice(model: string) { await this.db.run(`DELETE FROM model_prices WHERE model=?`, [model]); }
+  async listCosts(projectId: string, limit = 50) {
+    need(projectId);
+    return this.db.all<{ id: string; model: string | null; operation: string; amount_usd: number; estimated: number; created_at: number }>(`SELECT id, model, operation, amount_usd, estimated, created_at FROM cost_ledger WHERE project_id=? ORDER BY created_at DESC LIMIT ?`, [projectId, limit]);
+  }
+  // ---------- Resumable restore / key-rotation journal (device-level) ----------
+  async journalStart(kind: string, detail: unknown) { const id = uid(); await this.db.run(`INSERT INTO restore_journal VALUES (?,?,?,?,?)`, [id, kind, "started", JSON.stringify(detail ?? null), now()]); return id; }
+  async journalSet(id: string, state: "applied" | "committed" | "rolled_back", detail?: unknown) { await this.db.run(`UPDATE restore_journal SET state=?, detail=COALESCE(?,detail), updated_at=? WHERE id=?`, [state, detail === undefined ? null : JSON.stringify(detail), now(), id]); }
+  async journalPending() { return this.db.all<{ id: string; kind: string; state: string; detail: string | null }>(`SELECT id, kind, state, detail FROM restore_journal WHERE state IN ('started','applied') ORDER BY updated_at`); }
+  /** Records a call's cost. pricing: exact (provider-reported), estimated (local price table), unpriced (no known price). */
+  async recordCost(projectId: string, c: { providerId?: string | null; model?: string | null; operation: string; amountUsd: number; estimated: boolean | "unpriced"; at?: number }) {
     need(projectId);
     if (!Number.isFinite(c.amountUsd) || c.amountUsd < 0) throw new Error("Costo inválido");
-    await this.db.run(`INSERT INTO cost_ledger VALUES (?,?,?,?,?,?,?,?)`, [uid(), projectId, c.providerId ?? null, c.model ?? null, c.operation, c.amountUsd, c.estimated ? 1 : 0, c.at ?? now()]);
+    await this.db.run(`INSERT INTO cost_ledger VALUES (?,?,?,?,?,?,?,?)`, [uid(), projectId, c.providerId ?? null, c.model ?? null, c.operation, c.amountUsd, c.estimated === "unpriced" ? 2 : c.estimated ? 1 : 0, c.at ?? now()]);
   }
   async monthSpend(projectId: string, at = now()) {
     need(projectId);
     const d = new Date(at); const start = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
-    const [r] = await this.db.all<{ total: number | null; est: number | null }>(`SELECT SUM(amount_usd) total, MAX(estimated) est FROM cost_ledger WHERE project_id=? AND created_at>=?`, [projectId, start]);
+    const [r] = await this.db.all<{ total: number | null; est: number | null }>(`SELECT SUM(amount_usd) total, MAX(CASE WHEN estimated>0 THEN 1 ELSE 0 END) est FROM cost_ledger WHERE project_id=? AND created_at>=?`, [projectId, start]);
     return { totalUsd: r?.total ?? 0, includesEstimates: (r?.est ?? 0) === 1 };
   }
   /** ok <80%, warn 80–99%, blocked >=100% (the user may still confirm manually). */
