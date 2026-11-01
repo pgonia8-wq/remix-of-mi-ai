@@ -1,5 +1,11 @@
 # MI AI — Roadmap
 
+## Solicitud actual — corregir auditoría, Azure multimarca y búsqueda abierta
+- [ ] Sustituir la dependencia de búsqueda propietaria por una opción open source configurable y verificada.
+- [ ] Priorizar Azure sin exigir Runway, Meshy ni ElevenLabs; conservar adaptadores opcionales y evitar capacidades sin contrato ejecutable.
+- [ ] Corregir y construir el resto del alcance auditado, conservando los pendientes hasta su implementación y validación efectiva.
+- [ ] Validación real Azure multimarca y Android: requiere deployments autorizados y dispositivo; no declarar cobertura universal por registrar modelos.
+
 ## Solicitud actual — recuperación y auditoría del Prompt Maestro
 - [x] Recuperar el Prompt Maestro original y las seis ampliaciones adjuntas sin sustituirlas por resúmenes.
 - [x] Entregar un único TXT con el original y seis ampliaciones íntegros (3.581 líneas de fuentes), más auditoría con 166 brechas agrupadas y 20 riesgos técnicos referenciados.
