@@ -14,7 +14,7 @@ export const PROVIDER_KINDS: { kind: ProviderKind; label: string; endpoint: stri
   { kind: "custom", label: "Endpoint personalizado", endpoint: "https://", model: "modelo" },
 ];
 
-export type ChatMsg = { role: "system" | "user" | "assistant"; content: string };
+export type ChatMsg = { role: "system" | "user" | "assistant"; content: string; images?: { mime: string; data: string }[] };
 export type ProviderCall = {
   kind: ProviderKind;
   endpoint: string | null;
@@ -42,6 +42,9 @@ function extra(p: ProviderCall): Record<string, unknown> {
 const trim = (s: string) => s.replace(/\/+$/, "");
 
 function buildRequest(p: ProviderCall, messages: ChatMsg[]): { url: string; init: RequestInit; parse: (data: any) => string | null } {
+  const hasImages = messages.some((m) => m.images?.length);
+  if (hasImages && !["openai", "azure", "azure_openai", "anthropic", "gemini", "xai", "mistral", "openai_compatible", "custom"].includes(p.kind)) throw new ProviderError("parameters", "Este adaptador no admite imágenes en el chat. Elige un modelo con visión.");
+  const openaiMessages = messages.map((m) => ({ role: m.role, content: m.images?.length ? [{ type: "text", text: m.content }, ...m.images.map((i) => ({ type: "image_url", image_url: { url: `data:${i.mime};base64,${i.data}` } }))] : m.content }));
   const defaults = PROVIDER_KINDS.find((k) => k.kind === p.kind);
   if (!defaults) throw new ProviderError("endpoint", "Endpoint incorrecto: proveedor desconocido.");
   const azure = p.kind === "azure" || p.kind === "azure_openai";
@@ -68,7 +71,7 @@ function buildRequest(p: ProviderCall, messages: ChatMsg[]): { url: string; init
       init: {
         method: "POST",
         headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": p.apiVersion || "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
-        body: JSON.stringify({ model: p.model, max_tokens: 4096, stream: true, system: system || undefined, messages: messages.filter((m) => m.role !== "system"), ...x }),
+        body: JSON.stringify({ model: p.model, max_tokens: 4096, stream: true, system: system || undefined, messages: messages.filter((m) => m.role !== "system").map((m) => ({ role: m.role, content: m.images?.length ? [{ type: "text", text: m.content }, ...m.images.map((i) => ({ type: "image", source: { type: "base64", media_type: i.mime, data: i.data } }))] : m.content })), ...x }),
       },
       parse: (d) => (d.type === "content_block_delta" ? d.delta?.text ?? null : null),
     };
@@ -82,7 +85,7 @@ function buildRequest(p: ProviderCall, messages: ChatMsg[]): { url: string; init
         headers: { "content-type": "application/json", "x-goog-api-key": key },
         body: JSON.stringify({
           systemInstruction: system ? { parts: [{ text: system }] } : undefined,
-          contents: messages.filter((m) => m.role !== "system").map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
+          contents: messages.filter((m) => m.role !== "system").map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }, ...(m.images ?? []).map((i) => ({ inlineData: { mimeType: i.mime, data: i.data } }))] })),
           ...x,
         }),
       },
@@ -118,7 +121,7 @@ function buildRequest(p: ProviderCall, messages: ChatMsg[]): { url: string; init
   } else if (key) headers["authorization"] = `Bearer ${key}`;
   return {
     url,
-    init: { method: "POST", headers, body: JSON.stringify({ ...(azureV1 ? { model: p.deployment?.trim() } : azure ? {} : { model: p.model }), stream: true, messages, ...x }) },
+    init: { method: "POST", headers, body: JSON.stringify({ ...(azureV1 ? { model: p.deployment?.trim() } : azure ? {} : { model: p.model }), stream: true, messages: openaiMessages, ...x }) },
     parse: (d) => d.choices?.[0]?.delta?.content ?? null,
   };
 }
