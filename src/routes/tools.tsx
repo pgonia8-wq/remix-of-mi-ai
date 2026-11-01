@@ -27,6 +27,7 @@ const ITEMS = [
   { to: "/data", icon: BarChart3, label: "Datos y presupuestos", desc: "" },
   { to: "/agents", icon: Bot, label: "Agentes", desc: "" },
   { to: "/automation", icon: Workflow, label: "Automatización", desc: "" },
+  { to: "/autonomy", icon: Bot, label: "Sistema autónomo", desc: "Equipos de agentes, AI Builder, PC Node y aprobaciones" },
   { to: "/code", icon: Code, label: "Código", desc: "" },
   { to: "/documents", icon: FileText, label: "Documentos", desc: "Analiza PDF, Word y Excel; crea y exporta documentos" },
   { to: "/notes", icon: ListChecks, label: "Notas y tareas", desc: "Notas, pendientes y tareas sacadas de un texto" },
