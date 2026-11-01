@@ -129,7 +129,8 @@ export async function startNode(opts) {
       level = "docker"; cmd = "docker";
       args = ["run", "--rm", "-i", `--memory=${memoryMb}m`, "--cpus=2", "--pids-limit=256", ...(network ? [] : ["--network=none"]), "-v", `${base}:/work`, "-w", `/work/${path.relative(base, target).split(path.sep).join("/")}`, p.image || "node:20-bookworm", ...argv];
     } else if (process.platform === "linux" && spawnSync("prlimit", ["--version"]).status === 0) {
-      level = "process+rlimit"; cmd = "prlimit"; args = [`--as=${memoryMb * 1024 * 1024}`, `--nproc=256`, "--", ...argv];
+      // Address-space caps break V8/JVM runtimes, so process mode caps CPU time and file size only; memory is NOT OS-capped here.
+      level = "process+rlimit(cpu,fsize)"; cmd = "prlimit"; args = [`--cpu=${Math.ceil(timeoutMs / 1000)}`, `--fsize=${2 * 1024 ** 3}`, "--", ...argv];
     }
     const job = { id, deviceId, projectId, argv, cwd, status: "running", exitCode: null, startedAt: Date.now(), endedAt: null, output: "", truncated: false, isolation: level, network: isolation === "docker" ? network : "no-restringida-por-SO", opKey: opKey ?? null };
     state.jobs[id] = job; await save(); audit({ kind: "job.start", deviceId, projectId, argv, level });
