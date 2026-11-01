@@ -46,9 +46,9 @@ Ninguna capacidad se marca "funcional con proveedor" sin una operación real con
 | Pantallas Modelos, Biblioteca, Trabajos, Diagnóstico, chat Automático/Favorito | Programada · Web |
 
 ## Alcance aún sin implementar (no sustituido por las pantallas nuevas)
-- Voz conversacional bidireccional en tiempo real, interrupción y herramientas durante la conversación.
+- Voz WebRTC OpenAI, interrupción y transcripción programadas (sin sesión real comprobada); herramientas durante voz y Azure realtime pendientes.
 - Fase 6: ejecución de flujos con el proceso cerrado, agente PC y conectores específicos de nubes/Termius; cliente Git completo.
 - Fase 7: predicciones con intervalos de incertidumbre y herramientas profesionales conectadas; los escenarios actuales son deterministas.
-- Fase 8: extensión de composiciones, stems cuando el proveedor lo soporte, edición/mezcla/masterización y conversión de audio.
-- Fase 9: editor de video con línea de tiempo, cortes/uniones/capas/transiciones, subtítulos y traducción, videos largos; CAD/modelado y edición 3D.
+- Fase 8: recorte/fundidos/normalización/mezcla PCM y WAV implementados y probados en web; extensión, stems, masterización avanzada y otras conversiones pendientes.
+- Fase 9: recorte/unión/rotación/720p/subtítulos Media3 compilados pero no ejecutados Android; SRT/traducción programados. Capas/transiciones generales, videos largos y CAD/modelado/edición 3D pendientes.
 - Estas fases NO se declaran al 100%. Las credenciales y pruebas Android son bloqueos de validación adicionales, no explicación de los módulos sin implementar.

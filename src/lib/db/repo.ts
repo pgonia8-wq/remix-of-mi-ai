@@ -2,6 +2,7 @@ import type { SqlDb } from "./sql";
 import { SCHEMA } from "./schema";
 import { SCHEMA_V3, PROJECT_TABLES_V3 } from "../core/schema-v3";
 import { Registry } from "../core/registry";
+import type { ChatAttachment } from "../chat-attachments";
 
 export interface KeyVault {
   encrypt(plain: string): Promise<string>;
@@ -23,7 +24,7 @@ export class IsolationError extends Error {}
 
 // Catalog + project data from migration v3 included in backups. Excluded on purpose: capability_tests
 // (verification claims reset on restore), key_versions (device-bound), asset_blobs (bytes travel separately).
-const BACKUP_TABLES_V3 = ["capabilities", "providers_registry", "endpoints", "auth_refs", "models", "model_versions", "model_capabilities", "model_configs", "jobs", "job_attempts", "assets", "asset_tags", "asset_relations", "workflow_steps", "voices", "notes", "tasks", "embeddings", "flashcards", "agents", "workflows", "workflow_runs", "execution_events", "connections", "schedules", "workspace_items", "tool_favorites"] as const;
+const BACKUP_TABLES_V3 = ["capabilities", "providers_registry", "endpoints", "auth_refs", "models", "model_versions", "model_capabilities", "model_configs", "jobs", "job_attempts", "assets", "asset_tags", "asset_relations", "workflow_steps", "voices", "notes", "tasks", "embeddings", "flashcards", "agents", "workflows", "workflow_runs", "execution_events", "connections", "schedules", "workspace_items", "tool_favorites", "chat_attachments", "message_feedback"] as const;
 
 const uid = () => crypto.randomUUID();
 const now = () => Date.now();
@@ -110,6 +111,8 @@ export class Repo {
   }
   async deleteChat(projectId: string, chatId: string) {
     need(projectId);
+    await this.db.run(`DELETE FROM message_feedback WHERE project_id=? AND message_id IN (SELECT id FROM messages WHERE project_id=? AND chat_id=?)`, [projectId, projectId, chatId]);
+    await this.db.run(`DELETE FROM chat_attachments WHERE project_id=? AND chat_id=?`, [projectId, chatId]);
     await this.db.run(`DELETE FROM messages WHERE project_id=? AND chat_id=?`, [projectId, chatId]);
     await this.db.run(`DELETE FROM chats WHERE project_id=? AND id=?`, [projectId, chatId]);
   }
@@ -129,6 +132,27 @@ export class Repo {
   async updateMessage(projectId: string, messageId: string, content: string) {
     need(projectId);
     await this.db.run(`UPDATE messages SET content=? WHERE id=? AND project_id=?`, [content, messageId, projectId]);
+  }
+  listChatAttachments(projectId: string, chatId: string) {
+    need(projectId);
+    return this.db.all<ChatAttachment>("SELECT * FROM chat_attachments WHERE project_id=? AND chat_id=?", [projectId, chatId]);
+  }
+  async attachToMessage(projectId: string, chatId: string, messageId: string, assetId: string, text: string | null) {
+    if (!await this.getChat(projectId, chatId)) throw new IsolationError("Chat ajeno al proyecto");
+    const [message] = await this.db.all("SELECT id FROM messages WHERE project_id=? AND chat_id=? AND id=?", [projectId, chatId, messageId]);
+    const [asset] = await this.db.all<{ name: string | null; mime: string }>("SELECT name,mime FROM assets WHERE project_id=? AND id=?", [projectId, assetId]);
+    if (!message || !asset) throw new IsolationError("Mensaje o archivo ajeno al proyecto");
+    await this.db.run("INSERT INTO chat_attachments VALUES (?,?,?,?,?,?,?,?)", [uid(), projectId, chatId, messageId, assetId, asset.name ?? "archivo", asset.mime, text]);
+  }
+  messageFeedback(projectId: string, chatId: string) {
+    need(projectId);
+    return this.db.all<{ message_id: string; value: string }>("SELECT f.message_id,f.value FROM message_feedback f JOIN messages m ON m.id=f.message_id AND m.project_id=f.project_id WHERE f.project_id=? AND m.chat_id=?", [projectId, chatId]);
+  }
+  async setMessageFeedback(projectId: string, messageId: string, value: "like" | "dislike" | null) {
+    need(projectId);
+    if (!(await this.db.all("SELECT id FROM messages WHERE project_id=? AND id=?", [projectId, messageId])).length) throw new IsolationError("Mensaje ajeno al proyecto");
+    if (value === null) await this.db.run("DELETE FROM message_feedback WHERE project_id=? AND message_id=?", [projectId, messageId]);
+    else await this.db.run("INSERT OR REPLACE INTO message_feedback VALUES (?,?,?)", [projectId, messageId, value]);
   }
 
   // ---------- Memory (versioned, never touches messages) ----------

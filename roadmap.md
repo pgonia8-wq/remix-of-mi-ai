@@ -1,5 +1,11 @@
 # MI AI — Roadmap
 
+## Solicitud actual — cierre completo y experiencia premium
+- [x] Menú lateral hamburguesa con chats/proyectos/biblioteca/herramientas/configuración, navegación limpia sin barra inferior.
+- [x] Chat amplio, acciones por mensaje, composición cómoda y adjuntos cifrados con envío multimodal compatible; web verificada con contrato controlado.
+- [ ] Completar todas las funciones aún pendientes del alcance maestro; NO sustituir el cierre por una compilación parcial.
+- [x] Compilar APK renovada build.7 y verificar firma/ABI/SDK; NO es cierre final del alcance.
+
 ## Solicitud actual — cierre y dos entregas APK
 - [x] Auditar el alcance aprobado de Fases 6–7 y documentar cada requisito pendiente.
 - [ ] Completar los módulos implementables de Fases 6–7 y probarlos; no declarar 100% mientras existan bloqueos.
@@ -72,10 +78,13 @@
 - [x] Runway texto/imagen/video a video y Meshy texto/imagen a GLB con IDs remotos persistentes, consulta sin reenvío y descarga sin credenciales.
 - [x] Importar archivo cifrado y visor GLB real: girar, reapertura después de recarga, escritorio y 360 px.
 - [x] Pantallas Música, Video y Modelos 3D; prueba real previa al guardado de nuevos proveedores de medios.
-- [ ] Extensión/stems/mezcla/masterización/conversión de audio.
-- [ ] Editor video con línea de tiempo/cortes/unión/capas/transiciones/subtítulos/traducción y medios largos.
+- [x] Editor PCM local: recorte, fundidos, normalización, mezcla hasta cuatro pistas y WAV; web comprobada.
+- [ ] Extensión/stems/masterización avanzada/conversión adicional de audio: implementación pendiente.
+- [x] Editor Android Media3 compilado: recorte/unión/rotación, formato 720p, subtítulos; SRT y traducción por chat programados. Ejecución Android pendiente.
+- [ ] Capas/transiciones generales y medios largos: implementación pendiente.
 - [ ] CAD/modelado/edición 3D.
-- [ ] Voz bidireccional en tiempo real, pendiente del alcance maestro previo.
+- [x] Voz WebRTC OpenAI programada: token efímero, interrupción, silencio, transcripciones y guardado; contratos unitarios, sin sesión real comprobada.
+- [ ] Herramientas durante voz y voz Azure en tiempo real: implementación pendiente.
 - [ ] Firma compatible con las APK anteriores: el certificado actual es distinto; requiere la clave original para actualizar sin desinstalar.
 - [ ] Validación nativa y proveedores reales: no hay dispositivo/servidor/cuentas/claves autorizados disponibles.
 

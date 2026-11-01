@@ -1,5 +1,5 @@
 import { createElement } from "react";
-import { render } from "@testing-library/react";
+import { fireEvent, render, act } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({ messages: [] as { id: string; role: string; content: string }[] }));
@@ -38,4 +38,17 @@ it("does not return a scroll promise as React cleanup when messages change or th
     if (descriptor) Object.defineProperty(HTMLElement.prototype, "scrollIntoView", descriptor);
     else Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
   }
+});
+
+it("captures selected files before clearing the file input, including a batched update", async () => {
+  vi.spyOn(Route, "useParams").mockReturnValue({ chatId: "chat-id" });
+  const Component = Route.options.component;
+  if (!Component) throw new Error("Chat component missing");
+  const view = render(createElement(Component));
+  const input = view.getByLabelText("Adjuntar archivos al chat") as HTMLInputElement;
+  const file = new File(["total 42"], "document.txt", { type: "text/plain" });
+  await act(async () => { fireEvent.change(input, { target: { files: [file] } }); });
+  expect(view.getByText("document.txt")).toBeTruthy();
+  expect(input.value).toBe("");
+  view.unmount();
 });

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2, Volume2, VolumeX } from "lucide-react";
 import { toast } from "sonner";
 import { getCore } from "@/lib/core";
@@ -7,6 +7,7 @@ import { execute } from "@/lib/core/executor";
 import { TTS_MAX_CHARS } from "@/lib/core/adapters/audio";
 import { extForAudio } from "@/lib/recorder";
 import { RecordButton } from "@/components/RecordButton";
+import { Button } from "./ui/button";
 
 /** Dictation: the recording is sent to the transcription model and only the text is kept (audio is not stored). */
 export function DictateButton({ projectId, onText }: { projectId: string; onText: (t: string) => void }) {
@@ -29,8 +30,10 @@ export function DictateButton({ projectId, onText }: { projectId: string; onText
 export function SpeakButton({ projectId, text }: { projectId: string; text: string }) {
   const [state, setState] = useState<"idle" | "busy" | "playing">("idle");
   const audio = useRef<HTMLAudioElement | null>(null);
+  const objectUrl = useRef("");
+  useEffect(() => () => { audio.current?.pause(); if (objectUrl.current) URL.revokeObjectURL(objectUrl.current); }, []);
   async function speak() {
-    if (state === "playing") { audio.current?.pause(); setState("idle"); return; }
+    if (state === "playing") { audio.current?.pause(); if (objectUrl.current) URL.revokeObjectURL(objectUrl.current); objectUrl.current = ""; setState("idle"); return; }
     setState("busy");
     try {
       const c = await getCore();
@@ -41,6 +44,7 @@ export function SpeakButton({ projectId, text }: { projectId: string; text: stri
       if (!a) throw new Error("Sin audio.");
       const bytes = await c.assets.read(projectId, a.id);
       const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: a.mime }));
+      objectUrl.current = url;
       const el = new Audio(url);
       audio.current = el;
       el.onended = () => { setState("idle"); URL.revokeObjectURL(url); };
@@ -49,8 +53,8 @@ export function SpeakButton({ projectId, text }: { projectId: string; text: stri
     } catch (e) { toast.error((e as Error).message); setState("idle"); }
   }
   return (
-    <button onClick={speak} aria-label={state === "playing" ? "Detener lectura" : "Leer en voz alta"} className="text-muted-foreground">
+    <Button variant="ghost" size="icon" disabled={state === "busy"} onClick={speak} aria-label={state === "playing" ? "Detener lectura" : "Leer en voz alta"} title={state === "playing" ? "Detener lectura" : "Leer en voz alta"} className="h-8 w-8 text-muted-foreground">
       {state === "busy" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : state === "playing" ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
-    </button>
+    </Button>
   );
 }

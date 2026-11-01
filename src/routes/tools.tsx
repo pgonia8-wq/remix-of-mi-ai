@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Brain, FileText, GraduationCap, ListChecks, Search, Activity, ShieldCheck, Bot, Workflow, Code, Briefcase, Server, BarChart3, Music, Video, Box } from "lucide-react";
+import { Brain, FileText, GraduationCap, ListChecks, Search, Activity, ShieldCheck, Bot, Workflow, Code, Briefcase, Server, BarChart3, Music, Video, Box, SlidersHorizontal } from "lucide-react";
 
 export const Route = createFileRoute("/tools")({
   head: () => ({
@@ -16,6 +16,9 @@ export const Route = createFileRoute("/tools")({
 });
 
 const ITEMS = [
+  { to: "/audio-editor", icon: SlidersHorizontal, label: "Editor de audio", desc: "" },
+  { to: "/video-editor", icon: Video, label: "Editor de video", desc: "" },
+  { to: "/voice", icon: Music, label: "Conversación por voz", desc: "" },
   { to: "/music", icon: Music, label: "Música y sonido", desc: "" },
   { to: "/video", icon: Video, label: "Video", desc: "" },
   { to: "/models3d", icon: Box, label: "Modelos 3D", desc: "" },
@@ -38,12 +41,11 @@ function Tools() {
   return (
     <div className="space-y-3 p-4">
       <h1 className="text-2xl font-bold">Herramientas</h1>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {ITEMS.map(({ to, icon: Icon, label, desc }) => (
-          <Link key={to} to={to} className="space-y-1 rounded-xl border bg-card p-3">
+          <Link key={to} to={to} className="group space-y-3 rounded-lg border border-border/70 bg-card p-5 transition-colors hover:border-primary/40 hover:bg-accent/40">
             <Icon className="h-5 w-5 text-primary" />
             <div className="text-sm font-semibold">{label}</div>
-            <div className="text-xs text-muted-foreground">{desc}</div>
           </Link>
         ))}
       </div>

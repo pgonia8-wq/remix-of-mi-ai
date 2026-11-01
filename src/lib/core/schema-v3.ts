@@ -36,6 +36,8 @@ export const SCHEMA_V3 = [
   `CREATE TABLE IF NOT EXISTS schedules (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, workflow_id TEXT NOT NULL, due_at INTEGER NOT NULL, input TEXT NOT NULL, status TEXT NOT NULL, run_id TEXT, created_at INTEGER NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS workspace_items (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, title TEXT NOT NULL, kind TEXT NOT NULL, asset_id TEXT, status TEXT NOT NULL, updated_at INTEGER NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS tool_favorites (project_id TEXT NOT NULL, tool TEXT NOT NULL, PRIMARY KEY(project_id, tool))`,
+  `CREATE TABLE IF NOT EXISTS chat_attachments (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, chat_id TEXT NOT NULL, message_id TEXT NOT NULL, asset_id TEXT NOT NULL, name TEXT NOT NULL, mime TEXT NOT NULL, text_content TEXT)`,
+  `CREATE TABLE IF NOT EXISTS message_feedback (project_id TEXT NOT NULL, message_id TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY(project_id,message_id))`,
   `CREATE INDEX IF NOT EXISTS idx_embeddings_project ON embeddings(project_id, model_id)`,
   // Preview-only blob store for encrypted asset bytes (native uses private files).
   `CREATE TABLE IF NOT EXISTS asset_blobs (path TEXT PRIMARY KEY, data BLOB NOT NULL)`,
@@ -44,4 +46,4 @@ export const SCHEMA_V3 = [
   `CREATE INDEX IF NOT EXISTS idx_models_provider ON models(provider_id)`,
 ];
 
-export const PROJECT_TABLES_V3 = ["jobs", "job_attempts", "assets", "asset_tags", "asset_relations", "workflow_steps", "model_configs", "voices", "notes", "tasks", "embeddings", "flashcards", "agents", "workflows", "workflow_runs", "execution_events", "connections", "connection_secrets", "schedules", "workspace_items", "tool_favorites"] as const;
+export const PROJECT_TABLES_V3 = ["jobs", "job_attempts", "assets", "asset_tags", "asset_relations", "workflow_steps", "model_configs", "voices", "notes", "tasks", "embeddings", "flashcards", "agents", "workflows", "workflow_runs", "execution_events", "connections", "connection_secrets", "schedules", "workspace_items", "tool_favorites", "chat_attachments", "message_feedback"] as const;

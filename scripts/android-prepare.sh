@@ -55,8 +55,10 @@ cp scripts/native/MiaiKeystorePlugin.java "$JAVA_DIR/MiaiKeystorePlugin.java"
 cp scripts/native/MiaiRemotePlugin.java "$JAVA_DIR/MiaiRemotePlugin.java"
 cp scripts/native/MiaiSchedulePlugin.java "$JAVA_DIR/MiaiSchedulePlugin.java"
 cp scripts/native/MiaiScheduleReceiver.java "$JAVA_DIR/MiaiScheduleReceiver.java"
+cp scripts/native/MiaiMediaPlugin.java "$JAVA_DIR/MiaiMediaPlugin.java"
 cp scripts/native/MainActivity.java "$JAVA_DIR/MainActivity.java"
 grep -q 'com.github.mwiede:jsch' android/app/build.gradle || printf '\ndependencies { implementation "com.github.mwiede:jsch:2.28.2" }\n' >> android/app/build.gradle
+grep -q 'media3-transformer' android/app/build.gradle || printf '\ndependencies { implementation "androidx.media3:media3-transformer:1.5.1"; implementation "androidx.media3:media3-effect:1.5.1" }\n' >> android/app/build.gradle
 # Package visibility for launching a separately installed Termux (no local shell bridge).
 grep -q 'package android:name="com.termux"' android/app/src/main/AndroidManifest.xml || sed -i 's#<application#<queries><package android:name="com.termux" /></queries>\n    <application#' android/app/src/main/AndroidManifest.xml
 
