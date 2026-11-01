@@ -91,9 +91,9 @@ export function truePeakLimit(a: PcmAudio, ceilingDbtp: number, lookaheadMs = 5)
     // Sliding maximum over the look-ahead window (monotonic deque).
     const maxima = new Float32Array(len), q: number[] = []; let head = 0, next = 0;
     for (let i = 0; i < len; i++) { while (next < len && next <= i + ahead) { while (q.length > head && (env[q[q.length - 1]!] ?? 0) <= (env[next] ?? 0)) q.pop(); q.push(next++); } while (head < q.length && q[head]! < i - ahead) head++; maxima[i] = env[q[head] ?? i] ?? 0; }
-    const release = Math.exp(-1 / (0.1 * a.sampleRate)), attack = Math.exp(-1 / Math.max(1, ahead / 2));
+    const release = Math.exp(-1 / (0.1 * a.sampleRate));
     let gain = 1; const gains = new Float32Array(len);
-    for (let i = 0; i < len; i++) { const wanted = Math.min(1, ceiling / Math.max(ceiling, maxima[i] ?? 0)); gain = wanted < gain ? wanted + (gain - wanted) * attack * 0 : wanted + (gain - wanted) * release; gains[i] = gain; }
+    for (let i = 0; i < len; i++) { const wanted = Math.min(1, ceiling / Math.max(ceiling, maxima[i] ?? 0)); gain = wanted < gain ? wanted : wanted + (gain - wanted) * release; gains[i] = gain; }
     out = { sampleRate: a.sampleRate, channels: a.channels.map((ch) => ch.map((v, i) => v * (gains[i] ?? 1))) };
     let tp = 0; for (const v of truePeakEnvelope(out)) tp = Math.max(tp, v);
     const over = db(tp) - ceilingDbtp;
