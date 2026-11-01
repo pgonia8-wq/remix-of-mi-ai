@@ -15,12 +15,12 @@ it("child bone rotation moves only its vertices around its pivot (glTF conventio
   d = setKey(d, "b", { t: 1, rot: [0, 0, 90], move: [0, 0, 0] });
   const p = posedPositions(d, 1);
   expect(p[tip * 3]).toBeCloseTo(-10); expect(p[tip * 3 + 1]).toBeCloseTo(10);
-  const base = d.positions.findIndex((v, i) => i % 3 === 0 && v === 1 && d.positions[i + 1] === 0) / 3;
+  const base = Math.floor(d.positions.findIndex((v, i) => i % 3 === 0 && v === 1 && d.positions[i + 1] === 0) / 3);
   expect(p[base * 3]).toBeCloseTo(1); expect(p[base * 3 + 1]).toBeCloseTo(0);
 });
 it("parent rotation propagates to children", () => {
   const d = setKey(arm(), "a", { t: 0, rot: [0, 0, 180], move: [0, 0, 0] }), p = posedPositions(d, 0);
-  const i = d.positions.findIndex((v, k) => k % 3 === 1 && v === 20) / 3;
+  const i = Math.floor(d.positions.findIndex((v, k) => k % 3 === 1 && v === 20) / 3);
   expect(p[i * 3 + 1]).toBeCloseTo(-20);
 });
 it("interpolates keyframes linearly and clamps outside the range", () => {
