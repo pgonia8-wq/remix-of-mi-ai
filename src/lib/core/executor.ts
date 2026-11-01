@@ -37,7 +37,12 @@ export async function execute(deps: { repo: Repo; jobs: JobManager; assets: Asse
   req: { capability: string; prompt?: string; params?: Record<string, unknown>; files?: InputFile[]; parentAssetId?: string | null; saveText?: boolean; signal?: AbortSignal; existingJobId?: string }): Promise<ExecResult> {
   const current = (await deps.repo.registry.listModels()).find((m) => m.id === model.id);
   if (!current || current.status !== "active" || !current.provider_enabled || !current.capabilities.includes(req.capability) || current.provider_id !== model.provider_id || current.remote_id !== model.remote_id) throw new ProviderError("parameters", "El modelo ya no está disponible para esta operación. Selecciónalo nuevamente; no se envió ninguna solicitud.");
-  const issues = requestIssues(await deps.repo.registry.getCapability(req.capability), { prompt: req.prompt, params: req.params, files: req.files?.map((f) => ({ mime: f.mime, size: f.bytes.length })) });
+  const spec = await deps.repo.registry.getCapability(req.capability);
+  const constraints = { prompt: req.prompt, params: req.params, files: req.files?.map((f) => ({ mime: f.mime, size: f.bytes.length })) };
+  const issues = requestIssues(spec, constraints);
+  const declared = current.constraints?.[req.capability];
+  if (spec && declared) issues.push(...requestIssues({ ...spec, ...declared }, constraints));
+  if (current.context_tokens !== null && req.prompt && Math.ceil(req.prompt.length / 4) > current.context_tokens) issues.push("El texto supera el contexto declarado de este deployment.");
   if (issues.length) throw new ProviderError("parameters", issues.join(" "));
   const currentAdapter = getAdapter(current.adapter_id ?? (current.provider_kind === "azure" ? "azure_openai" : current.provider_kind));
   if (!currentAdapter.supports(req.capability)) throw new ProviderError("parameters", `El adaptador ${currentAdapter.label} no implementa «${req.capability}». No se accedió a credenciales ni se creó un trabajo.`);

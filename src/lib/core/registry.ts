@@ -6,7 +6,7 @@ export type RegistryModel = {
   id: string; provider_id: string; remote_id: string; name: string; status: "active" | "retired"; source: "manual" | "import" | "legacy";
   favorite: number; cost_info: string | null; privacy: "external" | "local"; context_tokens: number | null; updated_at: number;
 };
-export type ModelWithCaps = RegistryModel & { capabilities: string[]; provider_kind: string; provider_name: string; provider_enabled: number; adapter_id?: string; tests: CapabilityTest[] };
+export type ModelWithCaps = RegistryModel & { capabilities: string[]; constraints?: Record<string, Partial<CapabilitySpec>>; provider_kind: string; provider_name: string; provider_enabled: number; adapter_id?: string; tests: CapabilityTest[] };
 export type CapabilityTest = { model_id: string; capability_id: string; status: "ok" | "error"; http_status: number | null; message: string | null; checked_at: number };
 
 const uid = () => crypto.randomUUID();
@@ -112,6 +112,15 @@ export class Registry {
   async addModelVersion(modelId: string, version: string, notes?: string) {
     await this.db.run(`INSERT OR IGNORE INTO model_versions (id, model_id, version, notes, created_at) VALUES (?,?,?,?,?)`, [uid(), modelId, version, notes ?? null, now()]);
   }
+  async setModelConstraints(modelId: string, capabilityId: string, constraints: Partial<CapabilitySpec>) {
+    const spec = await this.getCapability(capabilityId);
+    if (!spec) throw new Error("Capacidad desconocida.");
+    const permitted = new Set(["mimeIn", "maxInputBytes", "params", "limits"]);
+    if (Object.keys(constraints).some((k) => !permitted.has(k))) throw new Error("Solo se permiten límites de entrada y parámetros.");
+    if (validateCapability({ ...spec, ...constraints }).length) throw new Error("Límites inválidos.");
+    await this.db.run("UPDATE model_capabilities SET constraints=? WHERE model_id=? AND capability_id=?", [JSON.stringify(constraints), modelId, capabilityId]);
+    await this.db.run("DELETE FROM capability_tests WHERE model_id=? AND capability_id=?", [modelId, capabilityId]);
+  }
   async setFavorite(modelId: string, fav: boolean) {
     await this.db.run(`UPDATE models SET favorite=? WHERE id=?`, [fav ? 1 : 0, modelId]);
   }
@@ -139,8 +148,8 @@ export class Registry {
     const models = await this.db.all<RegistryModel & { provider_kind: string; provider_name: string; provider_enabled: number; adapter_id: string }>(
       `SELECT m.*, p.kind AS provider_kind, p.name AS provider_name, p.enabled AS provider_enabled, p.adapter AS adapter_id FROM models m JOIN providers_registry p ON p.id=m.provider_id ORDER BY p.created_at, m.name`,
     );
-    const caps = await this.db.all<{ model_id: string; capability_id: string }>(`SELECT model_id, capability_id FROM model_capabilities`);
+    const caps = await this.db.all<{ model_id: string; capability_id: string; constraints: string | null }>(`SELECT model_id, capability_id, constraints FROM model_capabilities`);
     const tests = await this.db.all<CapabilityTest>(`SELECT * FROM capability_tests`);
-    return models.map((m) => ({ ...m, capabilities: caps.filter((c) => c.model_id === m.id).map((c) => c.capability_id), tests: tests.filter((t) => t.model_id === m.id) }));
+    return models.map((m) => ({ ...m, capabilities: caps.filter((c) => c.model_id === m.id).map((c) => c.capability_id), constraints: Object.fromEntries(caps.filter((c) => c.model_id === m.id && c.constraints).map((c) => [c.capability_id, JSON.parse(c.constraints ?? "{}") as Partial<CapabilitySpec>])), tests: tests.filter((t) => t.model_id === m.id) }));
   }
 }

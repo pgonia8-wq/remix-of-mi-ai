@@ -29,6 +29,8 @@ export function compatible(m: ModelWithCaps, req: RouteRequest): boolean {
   if (!getAdapter(m.adapter_id ?? adapterFor(m.provider_kind)).supports(req.capability)) return false;
   const spec = req.capabilitySpec ?? INITIAL_CAPABILITIES.find((c) => c.id === req.capability) ?? null;
   if (requestIssues(spec, req).length) return false;
+  const declared = m.constraints?.[req.capability];
+  if (spec && declared && requestIssues({ ...spec, ...declared }, req).length) return false;
   if (req.contextTokens !== undefined && (!Number.isFinite(req.contextTokens) || req.contextTokens < 0 || (m.context_tokens !== null && req.contextTokens > m.context_tokens))) return false;
   if (req.requireVerified && testOf(m, req.capability)?.status !== "ok") return false;
   return true;
