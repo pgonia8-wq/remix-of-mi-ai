@@ -1,11 +1,13 @@
 # MI AI — Roadmap
 
 ## Entrega actual — suites avanzadas y APK
-- [ ] Audio: separación Demucs en PC autorizado, EQ paramétrico, compresión multibanda y limitador local; versiones cifradas.
-- [ ] Video: transiciones, capas PiP, keyframes, línea de tiempo y exportación real.
-- [ ] CAD/modelado: sólidos paramétricos, extrusión, booleanas, transformaciones y exportación; documentos cifrados reabribles.
-- [ ] Pruebas de las suites, revisión visual y compilación APK con firma fija, Android 11+, ARM64/ARMv7.
-- [ ] Entregar APK e informe con límites de ejecución/pruebas honestos.
+- [x] Integración Demucs PC, EQ paramétrico, compresión multibanda y limitador de pico de muestra local; versiones cifradas.
+- [x] Transiciones FFmpeg, PiP/keyframes de posición, audio/subtítulos y edición cifrada reabrible; render real comprobado.
+- [x] CAD JSCAD: sólidos paramétricos, extrusión, booleanas, transformaciones, STL/OBJ y documentos cifrados reabribles.
+- [x] APK build.9 compilada, firma igual a build.8, Android 11+, ARM64/ARMv7; funciones CAD/audio/video verificadas en Chromium.
+- [ ] Separación Demucs real: requiere motor y pesos compatibles; integración escrita, inferencia no probada aquí.
+- [ ] Alcance avanzado restante: B-rep/STEP/restricciones CAD, edición de vértices/rigging/animación, limitador true-peak y LUFS certificados, timeline arrastrable/preview compuesto no implementados; build.9 no es cierre 100%.
+- [ ] Pruebas físicas Android y PC real: requieren equipos del usuario.
 
 ## Bloque 1 — seguridad y núcleo (en curso)
 - [ ] Solicitud de Fer: cerrar pendientes de bloques 1–3 y después completar bloque 4 autónomo; sin compilar antes del bloque 5.
