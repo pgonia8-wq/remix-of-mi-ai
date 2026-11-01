@@ -399,8 +399,11 @@ describe("Llamadas nativas a herramientas", () => {
   });
 });
 
+import { spawnSync } from "node:child_process";
+// This sandbox wraps git in a script that needs private env vars; with the node's scrubbed env it cannot run.
+const realGit = spawnSync("git", ["--version"], { env: { PATH: process.env.PATH }, encoding: "utf8" }).status === 0;
 describe("Git real en PC Node", () => {
-  it("init, commit, diff y versión anterior mediante la herramienta git con aprobación", async () => {
+  it.skipIf(!realGit)("init, commit, diff y versión anterior mediante la herramienta git con aprobación", async () => {
     const id = await paired(), p = (await repo.createProject("P")).id, f = await folders.authorize(repo, p, id, 1, null);
     await rpc(repo, id, "info", {}).then((info) => repo.sql.run("UPDATE pc_nodes SET info=? WHERE id=?", [JSON.stringify(info), id]));
     const run = await createRun(core, p, { goal: "git", nodeId: id, folderId: f });
