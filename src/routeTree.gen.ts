@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AgentsRouteImport } from './routes/agents'
+import { Route as AudioEditorRouteImport } from './routes/audio-editor'
 import { Route as AutomationRouteImport } from './routes/automation'
 import { Route as ChatsRouteImport } from './routes/chats'
 import { Route as CodeRouteImport } from './routes/code'
@@ -42,6 +43,11 @@ const IndexRoute = IndexRouteImport.update({
 const AgentsRoute = AgentsRouteImport.update({
   id: '/agents',
   path: '/agents',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AudioEditorRoute = AudioEditorRouteImport.update({
+  id: '/audio-editor',
+  path: '/audio-editor',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AutomationRoute = AutomationRouteImport.update({
@@ -158,6 +164,7 @@ const ChatChatIdRoute = ChatChatIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/agents': typeof AgentsRoute
+  '/audio-editor': typeof AudioEditorRoute
   '/automation': typeof AutomationRoute
   '/chats': typeof ChatsRoute
   '/code': typeof CodeRoute
@@ -184,6 +191,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agents': typeof AgentsRoute
+  '/audio-editor': typeof AudioEditorRoute
   '/automation': typeof AutomationRoute
   '/chats': typeof ChatsRoute
   '/code': typeof CodeRoute
@@ -211,6 +219,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/agents': typeof AgentsRoute
+  '/audio-editor': typeof AudioEditorRoute
   '/automation': typeof AutomationRoute
   '/chats': typeof ChatsRoute
   '/code': typeof CodeRoute
@@ -239,6 +248,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/agents'
+    | '/audio-editor'
     | '/automation'
     | '/chats'
     | '/code'
@@ -265,6 +275,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/agents'
+    | '/audio-editor'
     | '/automation'
     | '/chats'
     | '/code'
@@ -291,6 +302,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/agents'
+    | '/audio-editor'
     | '/automation'
     | '/chats'
     | '/code'
@@ -318,6 +330,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AgentsRoute: typeof AgentsRoute
+  AudioEditorRoute: typeof AudioEditorRoute
   AutomationRoute: typeof AutomationRoute
   ChatsRoute: typeof ChatsRoute
   CodeRoute: typeof CodeRoute
@@ -356,6 +369,13 @@ declare module '@tanstack/react-router' {
       path: '/agents'
       fullPath: '/agents'
       preLoaderRoute: typeof AgentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/audio-editor': {
+      id: '/audio-editor'
+      path: '/audio-editor'
+      fullPath: '/audio-editor'
+      preLoaderRoute: typeof AudioEditorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/automation': {
@@ -518,6 +538,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AgentsRoute: AgentsRoute,
+  AudioEditorRoute: AudioEditorRoute,
   AutomationRoute: AutomationRoute,
   ChatsRoute: ChatsRoute,
   CodeRoute: CodeRoute,
