@@ -195,7 +195,7 @@
 /* Static glass surfaces: no moving backgrounds or nested blur layers. */
 :root {
   --glass-bg: oklch(0.32 0.03 285 / 30%);
-  --glass-bg-strong: oklch(0.2 0.02 285 / 62%);
+  --glass-bg-strong: oklch(0.2 0.02 285 / 48%);
   --glass-border: oklch(0.9 0.04 290 / 24%);
   --glass-edge: oklch(1 0 0 / 28%);
   --glass-highlight: linear-gradient(150deg, oklch(1 0 0 / 14%), oklch(1 0 0 / 3%) 38%, transparent 60%, oklch(0.7 0.14 245 / 8%));
