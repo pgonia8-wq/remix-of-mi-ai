@@ -79,7 +79,7 @@ export async function importProject(opts: { repo: Repo; assets: AssetStore; text
     }
     return { project: created, assets: assetsCount };
   } catch (e) {
-    await opts.assets.removeProject?.(created.id).catch(() => undefined);
+    for (const a of await opts.assets.list(created.id).catch(() => [])) await opts.assets.remove(created.id, a.id).catch(() => undefined);
     await repo.deleteProject(created.id);
     throw e;
   }
