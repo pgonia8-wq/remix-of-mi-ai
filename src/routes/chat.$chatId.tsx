@@ -110,7 +110,7 @@ function ChatPage() {
         (t) => setStreaming((out += t)),
         abort.current.signal,
       );
-      await recordUsage(repo, pid, { providerId: provider.id, model: costModel, operation: "chat", usage: { inputChars, outputChars: out.length } }).catch(() => undefined);
+      await recordUsage(repo, pid, { providerId: provider.id, model: costModel, operation: "chat", usage: { inputChars, outputChars: out.length } }).catch((e) => console.warn("No se pudo registrar el costo del chat:", e instanceof Error ? e.message : e));
       if (!out.trim()) throw new ProviderError("parameters", "El modelo no devolvió una respuesta válida.");
       if (regenerate) await repo.updateMessage(pid, regenerate.id, out);
       else await repo.addMessage(pid, chatId, "assistant", out, provider.id, provider.deployment || provider.model);
