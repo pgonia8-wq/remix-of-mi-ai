@@ -13,6 +13,7 @@ import { execute } from "@/lib/core/executor";
 import { pollRemoteJob } from "@/lib/core/remote-jobs";
 import { downloadMedia } from "@/lib/core/adapters/media-output";
 import { runwayBody } from "@/lib/core/adapters/runway";
+import { submitAzureVideoTest, finishAzureVideoTest } from "@/lib/core/azure-video-verification";
 import type { Core } from "@/lib/core";
 import type { AdapterCredentials } from "@/lib/core/adapters/types";
 
@@ -29,6 +30,27 @@ beforeEach(async () => {
 });
 afterEach(() => vi.unstubAllGlobals());
 describe("Música y medios: contratos y trabajos", () => {
+  it("Azure video verifica mediante trabajo persistente, no guarda modelo al aceptar y consulta sin reenvío", async () => {
+    const project = await core.repo.createProject("Azure video");
+    const providerId = await core.repo.saveProvider({ name: "Azure", kind: "azure_openai", endpoint: "https://resource.services.ai.azure.com/openai/v1", model: "chat", deployment: "chat", apiKey: "fixture-key" });
+    const mp4 = new Uint8Array(120); mp4.set(new TextEncoder().encode("ftyp"), 4);
+    let posts = 0;
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === "POST") { posts++; return new Response('{"id":"video-test-123","status":"queued"}'); }
+      if (url.endsWith("/content")) return new Response(mp4, { headers: { "content-type": "video/mp4" } });
+      return new Response('{"status":"completed"}');
+    }));
+    const jobId = await submitAzureVideoTest(core, project.id, providerId, "sora-deployment");
+    expect((await core.jobs.get(project.id, jobId))?.remote_id).toBe("video-test-123");
+    expect((await core.repo.registry.listModels()).some(m => m.remote_id === "sora-deployment")).toBe(false);
+    await core.jobs.recoverOnStart(() => true);
+    expect(await finishAzureVideoTest(core, project.id, jobId)).toBe(true);
+    expect(posts).toBe(1);
+    expect((await core.repo.registry.listModels()).find(m => m.remote_id === "sora-deployment")?.tests).toMatchObject([{ capability_id: "video.generate", status: "ok" }]);
+    expect(await core.assets.read(project.id, (await core.assets.list(project.id))[0]?.id ?? "missing")).toEqual(mp4);
+    const other = await core.repo.createProject("Other");
+    await expect(finishAzureVideoTest(core, other.id, jobId)).rejects.toThrow(/inexistente/);
+  });
   it("música utiliza su API independiente de TTS y rechaza respuesta JSON", async () => {
     const fetcher = vi.fn(async () => new Response(new Uint8Array(200), { headers: { "content-type": "audio/mpeg" } })); vi.stubGlobal("fetch", fetcher);
     const result = await getAdapter("elevenlabs").run(credentials, { capability: "music.generate", model: "music_v1", prompt: "Piano", params: { seconds: 3, instrumental: true } });
