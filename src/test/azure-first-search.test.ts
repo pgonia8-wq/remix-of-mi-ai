@@ -37,8 +37,8 @@ describe("Azure-first, extensible provider routing", () => {
       expect(decision.ok && decision.model.id).toBe("openai");
     }
   });
-  it("does not invent Azure music, video or 3D capabilities", () => {
-    for (const cap of ["music.generate", "video.generate", "model3d.generate"]) expect(route([{ ...model("azure_openai"), capabilities: [cap] }], { capability: cap, mode: "auto" }).ok).toBe(false);
+  it("does not invent Azure music, video editing or 3D capabilities", () => {
+    for (const cap of ["music.generate", "video.edit", "model3d.generate"]) expect(route([{ ...model("azure_openai"), capabilities: [cap] }], { capability: cap, mode: "auto" }).ok).toBe(false);
   });
   it("prefers verified open search while retaining proprietary search as a manual choice", () => {
     const search = (kind: string) => ({ ...model(kind), capabilities: ["research.web"], tests: [{ model_id: kind, capability_id: "research.web", status: "ok" as const, http_status: 200, message: null, checked_at: 1 }] });
@@ -49,10 +49,10 @@ describe("Azure-first, extensible provider routing", () => {
     expect(manual.ok && manual.model.id).toBe("tavily");
   });
   it("rejects unsupported adapter execution before touching secrets or jobs", async () => {
-    const unsupported = { ...model("azure_openai"), capabilities: ["video.generate"] };
+    const unsupported = { ...model("azure_openai"), capabilities: ["video.edit"] };
     const secret = vi.fn(), create = vi.fn();
     const repo = { registry: { listModels: async () => [unsupported], getCapability: async () => null }, getProviderSecret: secret } as unknown as Repo;
-    await expect(execute({ repo, jobs: { create } as unknown as JobManager, assets: {} as AssetStore }, "project", unsupported, { capability: "video.generate" })).rejects.toThrow(/No se accedió/);
+    await expect(execute({ repo, jobs: { create } as unknown as JobManager, assets: {} as AssetStore }, "project", unsupported, { capability: "video.edit" })).rejects.toThrow(/No se accedió/);
     expect(secret).not.toHaveBeenCalled(); expect(create).not.toHaveBeenCalled();
   });
 });

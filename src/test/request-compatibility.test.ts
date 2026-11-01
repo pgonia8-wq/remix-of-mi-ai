@@ -12,8 +12,8 @@ const model: ModelWithCaps = { id: "model", provider_id: "provider", remote_id: 
 const spec = (id: string) => INITIAL_CAPABILITIES.find((c) => c.id === id) ?? null;
 
 describe("Compatibilidad real antes de enviar una solicitud", () => {
-  it("no selecciona Azure para video aunque se declare esa capacidad", () => {
-    expect(route([model], { capability: "video.generate", mode: "auto" }).ok).toBe(false);
+  it("no selecciona Azure para edición de video aunque se declare esa capacidad", () => {
+    expect(route([{ ...model, capabilities: ["video.edit"] }], { capability: "video.edit", mode: "auto" }).ok).toBe(false);
   });
   it("rechaza audio como entrada de visión y admite PNG", () => {
     expect(route([model], { capability: "vision", mode: "auto", inputMime: "audio/wav" }).ok).toBe(false);

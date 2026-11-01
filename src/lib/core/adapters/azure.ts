@@ -7,6 +7,7 @@ import { embeddingBody, embeddingInputs, parseEmbeddings } from "./embeddings";
 import { OPENAI_VOICES, parseSpeech, parseTranscript, speechBody, transcriptionForm } from "./audio";
 import { derivedEdit, chatViaLegacy, editForm, imageBody, parseImages } from "./openai";
 import { sync, trimSlash, type AdapterCredentials, type ProviderAdapter } from "./types";
+import { azureVideoSupport, runAzureVideo, pollAzureVideo } from "./azure-video";
 
 export function azureUrl(c: AdapterCredentials, deployment: string, op: "images/generations" | "images/edits" | "chat/completions" | "audio/speech" | "audio/transcriptions" | "audio/translations" | "embeddings"): { url: string; v1: boolean } {
   let u: URL;
@@ -24,10 +25,11 @@ export function azureUrl(c: AdapterCredentials, deployment: string, op: "images/
 export const azureAdapter: ProviderAdapter = {
   id: "azure_openai",
   label: "Azure OpenAI",
-  operations: { chat: sync(), vision: sync(), "image.generate": sync(), "image.edit": sync(), "image.upscale": sync(), "image.remove_bg": sync(), "audio.tts": sync(), "audio.transcribe": sync(), "audio.translate": sync(), embedding: sync() },
+  operations: { chat: sync(), vision: sync(), "image.generate": sync(), "image.edit": sync(), "image.upscale": sync(), "image.remove_bg": sync(), "audio.tts": sync(), "audio.transcribe": sync(), "audio.translate": sync(), embedding: sync(), "video.generate": azureVideoSupport },
   async listVoices() { return OPENAI_VOICES.map((v) => ({ id: v, name: v })); },
   supports(cap) { return cap in this.operations; },
   async run(c, r) {
+    if (r.capability === "video.generate") return runAzureVideo(c, r);
     const key = requireKey(c.apiKey);
     if (r.capability === "image.upscale" || r.capability === "image.remove_bg") return azureAdapter.run(c, derivedEdit(r));
     if (r.capability === "chat") return chatViaLegacy({ ...c, deployment: r.model || c.deployment }, r);
@@ -66,5 +68,6 @@ export const azureAdapter: ProviderAdapter = {
     }
     throw new ProviderError("parameters", `Azure OpenAI no implementa «${r.capability}» en este adaptador.`);
   },
+  poll: pollAzureVideo,
   // Azure exposes deployments only through management APIs (not the API key) → manual registration.
 };
