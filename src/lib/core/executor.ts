@@ -9,7 +9,7 @@ import type { ModelWithCaps } from "./registry";
 import { TEST_PNG_B64 } from "./adapters/vision";
 import { testWav } from "./adapters/audio";
 import { b64ToBytes } from "./adapters/types";
-import { requestIssues } from "./request-compatibility";
+import { maskIssue, requestIssues } from "./request-compatibility";
 import { budgetGate, recordUsage, usageFor } from "./costs";
 
 export type ExecResult = { jobId: string; pending?: boolean; text?: string; assets: Asset[]; vectors?: number[][]; results?: import("./adapters/types").SearchResult[] };
@@ -45,6 +45,8 @@ export async function execute(deps: { repo: Repo; jobs: JobManager; assets: Asse
   if (current.context_tokens !== null && req.prompt && Math.ceil(req.prompt.length / 4) > current.context_tokens) issues.push("El texto supera el contexto declarado de este deployment.");
   if (issues.length) throw new ProviderError("parameters", issues.join(" "));
   const currentAdapter = getAdapter(current.adapter_id ?? (current.provider_kind === "azure" ? "azure_openai" : current.provider_kind));
+  const mask = maskIssue(req.capability, current.adapter_id ?? (current.provider_kind === "azure" ? "azure_openai" : current.provider_kind), req.files);
+  if (mask) throw new ProviderError("parameters", mask);
   if (!currentAdapter.supports(req.capability)) throw new ProviderError("parameters", `El adaptador ${currentAdapter.label} no implementa «${req.capability}». No se accedió a credenciales ni se creó un trabajo.`);
   if (!model.capabilities.includes(req.capability)) throw new ProviderError("parameters", `El modelo «${model.name}» no admite «${req.capability}». No se ejecutó ninguna solicitud.`);
   if (!req.existingJobId) await budgetGate(deps.repo, projectId, model.remote_id, usageFor(req.capability, req.prompt, req.params));

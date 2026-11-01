@@ -32,3 +32,16 @@ export function requestIssues(spec: CapabilitySpec | null, req: RequestConstrain
   }
   return issues;
 }
+
+/** Inpainting masks are only sent to adapters whose real API has a mask field (OpenAI/Azure images/edits), for image.edit only. */
+export const MASK_ADAPTERS = ["openai", "azure_openai"] as const;
+export function maskIssue(capability: string, adapterId: string, files: { name: string; mime: string }[] | undefined): string | null {
+  const masks = (files ?? []).filter((f) => f.name === "mask.png");
+  if (!masks.length) return null;
+  if (masks.length > 1) return "Solo se admite una máscara por edición.";
+  if (capability !== "image.edit") return "La máscara solo se admite al editar imágenes.";
+  if (!(MASK_ADAPTERS as readonly string[]).includes(adapterId)) return "Este proveedor no acepta máscaras de zona; no se envió nada.";
+  if (masks[0]!.mime !== "image/png") return "La máscara debe ser PNG.";
+  if ((files ?? []).length < 2) return "Falta la imagen a editar junto a la máscara.";
+  return null;
+}
