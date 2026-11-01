@@ -206,6 +206,14 @@ export function responseError(status: number, body: string, key?: string | null)
   else if (status === 429 || status >= 500 || /overloaded|capacity|unavailable|quota|resource_exhausted/.test(msg)) code = "unavailable";
   else if (status === 404 || status === 405) code = "endpoint";
   const labels: Record<DiagnosticCode, string> = { key: "API Key inválida.", auth: "Error de autenticación: revisa credenciales y permisos.", endpoint: "Endpoint incorrecto: revisa la dirección y la ruta del proveedor.", model: "Modelo o deployment inexistente.", unavailable: "Modelo sin disponibilidad: revisa cuota, límites o estado del servicio.", network: "Error de red.", timeout: "Error de red o timeout: el proveedor no respondió a tiempo.", parameters: "Parámetros incompatibles o respuesta inválida." };
+  if (status === 429) {
+    let reason = "";
+    try { const j = JSON.parse(technical); reason = String(j?.error?.message ?? j?.message ?? ""); } catch { reason = technical; }
+    reason = reason.replace(/\s+/g, " ").trim().slice(0, 220);
+    const label = "El proveedor rechazó la solicitud por su propio límite de velocidad o cuota (HTTP 429). MI AI no limita los mensajes; se reintentó automáticamente. Si sigue pasando, aumenta los tokens por minuto del deployment en tu cuenta del proveedor o espera un momento."
+      + (reason ? ` Detalle del proveedor: ${reason}` : "");
+    return new ProviderError("unavailable", label, status, technical);
+  }
   return new ProviderError(code, labels[code], status, technical);
 }
 /** Draft credentials stay only in memory. Success requires actual generated model text. */

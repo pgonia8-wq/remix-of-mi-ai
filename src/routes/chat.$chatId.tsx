@@ -119,8 +119,9 @@ function ChatPage() {
     } catch (e) {
       if ((e as Error).name === "BudgetError") toast.error((e as Error).message);
       else if ((e as Error).name !== "AbortError") {
-        await repo?.setProviderVerification(provider.id, "error");
-        toast.error(e instanceof ProviderError ? e.message : "Error de red: no se pudo completar la respuesta del modelo.");
+        // A provider rate limit is temporary: it must not mark the model as broken or demote it in routing.
+        if (!(e instanceof ProviderError && e.httpStatus === 429)) await repo?.setProviderVerification(provider.id, "error");
+        toast.error(e instanceof ProviderError ? e.message : "Error de red: no se pudo completar la respuesta del modelo.", { duration: 12000 });
       }
     } finally {
       if (out && repo && !regenerate) await repo.addMessage(pid, chatId, "assistant", out, provider.id, provider.deployment || provider.model);
