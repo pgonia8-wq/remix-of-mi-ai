@@ -64,12 +64,12 @@ const clampTtl = (ms: number) => Math.min(Math.max(Math.round(ms) || 600_000, 10
 
 export type OpenOpts = {
   kind?: Kind; target: string; ttlMs: number; agent: string; reconnect?: boolean;
-  nodeId?: string;          // PC kinds
-  connectionId?: string;    // SSH kinds
-  password?: string;        // SSH: one-time password if none saved
-  remotePort?: number;      // ssh.reverse
-  allow?: string[];         // ssh.socks5 destinations
-  subnets?: string[];       // vpn
+  nodeId?: string | undefined;          // PC kinds
+  connectionId?: string | undefined;    // SSH kinds
+  password?: string | undefined;        // SSH: one-time password if none saved
+  remotePort?: number | undefined;      // ssh.reverse
+  allow?: string[] | undefined;         // ssh.socks5 destinations
+  subnets?: string[] | undefined;       // vpn
 };
 
 export const tunnels = {
