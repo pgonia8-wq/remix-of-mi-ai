@@ -98,7 +98,7 @@ export const tunnels = {
     await repo.sql.run("INSERT INTO tunnels (id,project_id,node_id,remote_id,kind,target,port,agent,status,reconnect,expires_at,opened_at,closed_at,log,created_at) VALUES (?,?,?,NULL,?,?,NULL,?,'opening',?,NULL,NULL,NULL,'[]',?)", [id, p, owner, kind, kind === "ssh.reverse" ? `srv:${o.remotePort}→${target}` : target, o.agent.slice(0, 80), o.reconnect ? 1 : 0, Date.now()]);
     try {
       let r: { id: string; port: number; expiresAt: number; user?: string; pass?: string };
-      const [host, port] = target.split(":");
+      const [host = "", port = ""] = target.split(":");
       if (kind === "pc.dev") r = await rpc(repo, owner, "tunnel.open", { targetHost: host, targetPort: Number(port), ttlMs });
       else if (kind === "pc.socks5") r = await rpc(repo, owner, "socks.open", { ttlMs });
       else if (kind === "vpn") {
