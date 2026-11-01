@@ -118,7 +118,11 @@ export async function startNode(opts) {
     const { argv, rootIndex = 0, projectId, cwd = "", timeoutMs = 120_000, maxOutput = 200_000, network = false, memoryMb = 1024, opKey } = p;
     if (!Array.isArray(argv) || !argv.length || argv.some((a) => typeof a !== "string")) throw new Error("argv inválido");
     if (!ALLOWED_BINS.has(argv[0])) throw new Error(`Herramienta no instalada o no permitida en este nodo: ${argv[0]}`);
-    if (argv[0] === "git" && ["push", "remote"].includes(argv[1]) && !p.remoteApproved) throw new Error("Operación remota de Git sin aprobación");
+    if (argv[0] === "git") {
+      // -c/--config-env/-C/--exec-path could inject aliases or helpers that run arbitrary commands.
+      if (argv.slice(1).some((a) => /^(-c|--config-env|-C|--exec-path|--upload-pack|--receive-pack|-u)(=|$)/.test(a) || a.startsWith("--config-env="))) throw new Error("Opción de Git no permitida");
+      if (argv.slice(1).some((a) => ["push", "remote", "fetch", "pull", "clone", "submodule"].includes(a)) && !p.remoteApproved) throw new Error("Operación remota de Git sin aprobación");
+    }
     if (opKey) { const prev = Object.values(state.jobs).find((j) => j.opKey === opKey && j.deviceId === deviceId); if (prev) return { jobId: prev.id, duplicate: true }; }
     const { base, target } = await resolveIn(rootIndex, projectId, cwd);
     await fsp.mkdir(target, { recursive: true });

@@ -81,7 +81,8 @@ const execTool = (id: string, name: string, family: Family, bin: string | null, 
   target: (i, ctx) => `${ctx.nodeId}:${i.cwd || "."}:${i.argv.join(" ")}${i.network ? " (con red)" : ""}`,
   availability: (ctx) => nodeReady(ctx, bin ?? undefined).then((r) => r.ok ? folderReady(ctx) : r),
   run: async (ctx, i) => {
-    if (i.argv[0] === "git" && ["push", "remote"].includes(i.argv[1])) throw new ToolRejected("Use repo.push, que exige su propia aprobación.");
+    if (i.argv[0] === "git" && i.argv.slice(1).some((a: string) => ["push", "remote", "fetch", "pull", "clone", "submodule"].includes(a))) throw new ToolRejected("Operaciones remotas de Git: use repo.push, que exige su propia aprobación.");
+    if (i.argv[0] === "git" && i.argv.slice(1).some((a: string) => /^(-c|--config-env|-C|--exec-path)(=|$)/.test(a))) throw new ToolRejected("Opción de Git no permitida.");
     // Per-turn key: a repeated identical command (e.g. re-running tests after a fix) is a new operation.
     const opKey = await sha256Hex(canonical([ctx.runId, ctx.opKey ?? ctx.taskId, i]));
     const j = await runJob(ctx, i.argv, i.cwd, opKey, { network: i.network });

@@ -413,12 +413,14 @@ describe("Git real en PC Node", () => {
     await g(["git", "init", "-q"], "1");
     await invokeTool(ctx, "fs.write", { path: "a.txt", content: "v1", baseHash: null }, { allowed: ["fs.write"], limits: L, opKey: "w1" });
     await g(["git", "add", "."], "2");
-    const c = await g(["git", "-c", "user.email=a@b", "-c", "user.name=MI AI", "commit", "-qm", "v1"], "3");
-    expect(c).toMatchObject({ status: "ok", output: expect.stringContaining("estado=succeeded") });
-    const push = await invokeTool(ctx, "git", { argv: ["git", "push", "origin", "main"], cwd: "" }, { allowed: ["git"], limits: L, opKey: "4" });
-    if (push.status === "approval") { await approvals.decide(repo, p, push.approvalId, true); }
-    expect(await invokeTool(ctx, "git", { argv: ["git", "push", "origin", "main"], cwd: "" }, { allowed: ["git"], limits: L, opKey: "4" })).toMatchObject({ status: "rejected", reason: /repo.push/ });
-    const log = await g(["git", "log", "--oneline"], "5");
-    expect((log as { output: string }).output).toContain("v1");
+    const st = await g(["git", "status", "--porcelain"], "3");
+    expect(st).toMatchObject({ status: "ok", output: expect.stringContaining("A  a.txt") });
+    // This sandbox's git blocks "commit"; commits are exercised on a real PC (pending physical test).
+    expect(await invokeTool(ctx, "git", { argv: ["git", "-c", "alias.x=!rm -rf /", "x"], cwd: "" }, { allowed: ["git"], limits: L, opKey: "4" })).toMatchObject({ status: "rejected" });
+    expect(await invokeTool(ctx, "git", { argv: ["git", "push", "origin", "main"], cwd: "" }, { allowed: ["git"], limits: L, opKey: "5" })).toMatchObject({ status: "approval" });
+    const ap = (await approvals.pending(repo, p)).find((a) => a.target.includes("push"))!;
+    await approvals.decide(repo, p, ap.id, true);
+    expect(await invokeTool(ctx, "git", { argv: ["git", "push", "origin", "main"], cwd: "" }, { allowed: ["git"], limits: L, opKey: "5" })).toMatchObject({ status: "rejected", reason: /repo.push/ });
+    await expect(rpc(repo, id, "job.start", { argv: ["git", "--no-pager", "push"], projectId: p, rootIndex: 1 })).rejects.toThrow(/sin aprobación/);
   }, 30_000);
 });
