@@ -41,7 +41,7 @@ export async function recordUsage(repo: Repo, projectId: string, c: { providerId
   await repo.recordCost(projectId, { providerId: c.providerId ?? null, model: c.model, operation: c.operation, amountUsd: est.amountUsd, estimated: est.pricing === "unpriced" ? "unpriced" : true });
 }
 
-export function usageFor(capability: string, prompt: string | undefined, params: Record<string, unknown> | undefined, out?: { text?: string; files?: number }): Usage {
+export function usageFor(capability: string, prompt: string | undefined, params: Record<string, unknown> | undefined, out?: { text?: string | undefined; files?: number | undefined }): Usage {
   const n = Number(params?.["n"] ?? 1) || 1;
   if (capability.startsWith("image")) return { inputChars: prompt?.length ?? 0, images: out?.files ?? n };
   if (capability.startsWith("video") || capability.startsWith("music") || capability === "audio.music") return { inputChars: prompt?.length ?? 0, seconds: Number(params?.["seconds"] ?? 0) || 0 };

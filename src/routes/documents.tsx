@@ -75,7 +75,7 @@ function Analyze({ pid }: { pid: string }) {
           // Scanned PDF: recognize the pages on the phone with OCR.
           const { ocrPdf } = await import("@/lib/docs/ocr");
           const r = await ocrPdf(bytes, "spa+eng", (s) => setBusy(`${f.name}: ${s}`));
-          ex = { text: r.text, pages: ex.pages, ...(r.truncated ? { warning: "OCR aplicado a las primeras 30 páginas." } : r.confidence < 60 ? { warning: `Texto leído con OCR (confianza ${r.confidence}%). Revisa los datos importantes.` } : {}) };
+          ex = { text: r.text, ...(ex.pages ? { pages: ex.pages } : {}), ...(r.truncated ? { warning: "OCR aplicado a las primeras 30 páginas." } : r.confidence < 60 ? { warning: `Texto leído con OCR (confianza ${r.confidence}%). Revisa los datos importantes.` } : {}) };
         }
         if (ex.warning) toast.warning(ex.warning);
         const filePath = await savePrivateFile(pid, f);

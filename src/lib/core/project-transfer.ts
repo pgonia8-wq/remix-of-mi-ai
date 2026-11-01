@@ -62,7 +62,7 @@ export async function importProject(opts: { repo: Repo; assets: AssetStore; text
   try {
     for (const t of TABLES) {
       for (const row of payload.tables[t] ?? []) {
-        const r: Row = { ...row, id: map(row.id), project_id: created.id };
+        const r: Row = { ...row, id: map(row["id"]), project_id: created.id };
         for (const c of REFS[t] ?? []) r[c] = map(row[c]);
         const cols = Object.keys(r);
         await db.run(`INSERT INTO ${t} (${cols.join(",")}) VALUES (${cols.map(() => "?").join(",")})`, cols.map((c) => r[c] ?? null));
