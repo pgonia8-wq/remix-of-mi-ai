@@ -20,10 +20,10 @@ export const TUNNEL_INFO: Record<Kind, KindInfo> = {
 };
 const isNative = () => Capacitor.isNativePlatform();
 /** What this device can really do right now. Native kinds are unavailable in the web preview. */
-export const TUNNEL_KINDS = new Proxy({} as Record<Kind, KindInfo & { available: boolean }>, {
-  get: (_t, k: string) => { const i = TUNNEL_INFO[k as Kind]; return i && { ...i, available: !i.nativeOnly || isNative(), note: i.nativeOnly && !isNative() ? `Solo en la app Android. ${i.note}` : i.note }; },
-  ownKeys: () => Object.keys(TUNNEL_INFO), getOwnPropertyDescriptor: () => ({ enumerable: true, configurable: true }),
-});
+export function tunnelKind(k: Kind) {
+  const i = TUNNEL_INFO[k], native = nativeCheck();
+  return { ...i, available: !i.nativeOnly || native, note: i.nativeOnly && !native ? `Solo en la app Android. ${i.note}` : i.note };
+}
 
 // ---------- Native drivers (injectable for tests) ----------
 type SshCfg = { host: string; port: number; user: string; knownHosts: string; password: string };

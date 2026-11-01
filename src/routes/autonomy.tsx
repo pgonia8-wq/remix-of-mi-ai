@@ -12,7 +12,7 @@ import { availabilityReport } from "@/lib/automation/tools";
 import { dueReviews } from "@/lib/automation/triggers";
 import { nodes, pairNode, heartbeat, type NodeInfo } from "@/lib/nodes/client";
 import { folders, pcFiles } from "@/lib/nodes/storage";
-import { tunnels, TUNNEL_KINDS, TUNNEL_INFO, tunnelCredentials } from "@/lib/nodes/tunnels";
+import { tunnels, tunnelKind, TUNNEL_INFO, tunnelCredentials } from "@/lib/nodes/tunnels";
 import { connections } from "@/lib/connections";
 
 export const Route = createFileRoute("/autonomy")({ head: () => ({ meta: [
@@ -178,7 +178,7 @@ function Tunnels({ pid, act, busy }: { pid: string; act: Act; busy: boolean }) {
   const [kind, setKind] = useState<keyof typeof TUNNEL_INFO>("pc.dev");
   const [node, setNode] = useState(""), [conn, setConn] = useState(""), [target, setTarget] = useState("127.0.0.1:5173"), [mins, setMins] = useState(30);
   const [remotePort, setRemotePort] = useState(8022), [allow, setAllow] = useState("127.0.0.1:5432"), [subnets, setSubnets] = useState("192.168.1.0/24");
-  const info = TUNNEL_KINDS[kind], viaPc = info.via === "pc";
+  const info = tunnelKind(kind), viaPc = info.via === "pc";
   const ready = info.available && (viaPc ? !!node : !!conn);
   const describe = kind === "vpn" ? `VPN de ${mins} min solo hacia ${subnets}` : kind === "ssh.socks5" ? `SOCKS5 de ${mins} min solo hacia ${allow}` : kind === "pc.socks5" ? `SOCKS5 de ${mins} min en la PC` : kind === "ssh.reverse" ? `reenvío inverso de ${mins} min: puerto ${remotePort} del servidor → ${target}` : `túnel de ${mins} min hacia ${target}`;
   const open = () => act((c) => tunnels.open(c.repo, pid, { kind, nodeId: node || undefined, connectionId: conn || undefined, target, ttlMs: mins * 60_000, agent: "persona", remotePort, allow: allow.split(",").map((x) => x.trim()), subnets: subnets.split(",").map((x) => x.trim()) }), "Túnel abierto");
