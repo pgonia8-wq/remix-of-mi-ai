@@ -28,7 +28,7 @@ function Autonomy({ pid }: { pid: string }) {
   const [tab, setTab] = useState<(typeof TABS)[number][0]>("runs");
   const mutate = useCoreMutate();
   const [busy, setBusy] = useState(false);
-  const act = async <T,>(fn: Parameters<typeof mutate<T>>[0], ok?: string) => { setBusy(true); try { const r = await mutate(fn); if (ok) toast.success(ok); return r; } catch (e) { toast.error(e instanceof Error ? e.message : "No se pudo completar."); } finally { setBusy(false); } };
+  const act: Act = async (fn, ok) => { setBusy(true); try { const r = await mutate(fn); if (ok) toast.success(ok); return r; } catch (e) { toast.error(e instanceof Error ? e.message : "No se pudo completar."); return undefined; } finally { setBusy(false); } };
   const { data: pending = [] } = useCoreQuery(["auto-approvals", pid], (c) => approvals.pending(c.repo, pid));
   return <div className="space-y-4 p-4">
     <h1 className="text-2xl font-bold">Sistema autónomo</h1>
