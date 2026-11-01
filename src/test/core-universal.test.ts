@@ -64,7 +64,9 @@ describe("registro universal", () => {
   it("carga las capacidades iniciales y admite capacidades nuevas sin cambiar el esquema", async () => {
     expect((await repo.registry.listCapabilities()).length).toBe(INITIAL_CAPABILITIES.length);
     expect(INITIAL_CAPABILITIES.map((c) => c.id)).toContain("speech.realtime");
-    await repo.registry.registerCapability({ ...INITIAL_CAPABILITIES[0]!, id: "model3d.generate", label: "3D", outputs: ["model3d"] });
+    const template = INITIAL_CAPABILITIES[0];
+    if (!template) throw new Error("Fixture");
+    await repo.registry.registerCapability({ ...template, id: "custom.generate", label: "Personalizada", outputs: ["model3d"] });
     expect((await repo.registry.listCapabilities()).length).toBe(INITIAL_CAPABILITIES.length + 1);
     await expect(repo.registry.registerCapability({ ...INITIAL_CAPABILITIES[0]!, id: "Bad Id" })).rejects.toThrow();
   });

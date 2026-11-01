@@ -47,6 +47,8 @@ export const INITIAL_CAPABILITIES: CapabilitySpec[] = [
   base("audio.voice_clone", "Clonar voz", ["audio"], ["voice"], { mimeIn: ["audio/mpeg", "audio/wav", "audio/webm", "audio/mp4", "audio/ogg"], maxInputBytes: 25_000_000, restrictions: ["Solo con consentimiento explícito de la persona dueña de la voz"] }),
   base("audio.enhance", "Mejorar audio", ["audio"], ["audio"], { async: true, poll: true }),
   base("music.generate", "Generar música", ["text"], ["audio"], { async: true, poll: true, recover: true, restrictions: ["Respeta licencias y derechos de autor"] }),
+  base("audio.sfx", "Efectos sonoros", ["text"], ["audio"], { mimeOut: ["audio/mpeg"], restrictions: ["Verifica la licencia del proveedor antes de uso comercial"] }),
+  base("model3d.generate", "Generar modelo 3D", ["text", "image"], ["model3d"], { mimeIn: ["image/png", "image/jpeg", "image/webp"], mimeOut: ["model/gltf-binary"], formats: ["glb"], async: true, poll: true, recover: true, maxInputBytes: 20_000_000 }),
   base("speech.realtime", "Voz en tiempo real", ["audio"], ["audio", "text"]),
   base("embedding", "Embeddings", ["text"], ["embedding"]),
   base("rerank", "Reordenar resultados", ["text"], ["text"]),

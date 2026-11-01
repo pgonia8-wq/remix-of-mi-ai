@@ -5,6 +5,8 @@ import { openaiAdapter } from "./openai";
 import { azureAdapter } from "./azure";
 import { elevenlabsAdapter } from "./elevenlabs";
 import { tavilyAdapter } from "./tavily";
+import { meshyAdapter } from "./meshy";
+import { runwayAdapter } from "./runway";
 import { sync, trimSlash, type ProviderAdapter } from "./types";
 import { PROVIDER_KINDS } from "../../providers";
 
@@ -38,6 +40,8 @@ export function getAdapter(adapterId: string): ProviderAdapter {
   if (adapterId === "azure_openai") return azureAdapter;
   if (adapterId === "elevenlabs") return elevenlabsAdapter;
   if (adapterId === "tavily") return tavilyAdapter;
+  if (adapterId === "meshy") return meshyAdapter;
+  if (adapterId === "runway") return runwayAdapter;
   return textAdapter(adapterId.replace(/^text:/, ""));
 }
 

@@ -6,6 +6,7 @@ import { useActiveProjectId, useCoreMutate, useCoreQuery } from "@/lib/use-app";
 import type { JobStatus } from "@/lib/core/jobs";
 import { NeedProject } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
+import { pollRemoteJob, cancelRemoteJob } from "@/lib/core/remote-jobs";
 
 export const Route = createFileRoute("/jobs")({
   head: () => ({
@@ -63,6 +64,8 @@ function Jobs() {
           {j.error && <p className="break-words text-xs text-destructive">{j.error}</p>}
           {j.recovery && <p className="break-words text-xs">{j.recovery}</p>}
           <div className="flex gap-2">
+            {j.remote_id && ["processing", "interrupted", "recovery_required"].includes(j.status) && <Button size="sm" variant="outline" onClick={async () => { try { await mutate(async (c) => { const result = await pollRemoteJob(c, j.project_id, j.id); toast.success(result.pending ? "Sigue procesando" : "Resultado guardado en Biblioteca"); }); } catch (e) { toast.error(e instanceof Error ? e.message : "Consulta fallida"); } }}>Consultar</Button>}
+            {j.remote_id && j.status === "processing" && <Button size="sm" variant="outline" onClick={async () => { if (!confirm("¿Solicitar cancelación al proveedor? No garantiza reembolso.")) return; try { await mutate((c) => cancelRemoteJob(c, j.project_id, j.id)); } catch (e) { toast.error(e instanceof Error ? e.message : "Cancelación no confirmada"); } }}>Cancelar</Button>}
             {["failed", "recovery_required", "interrupted"].includes(j.status) && <Button size="sm" variant="outline" onClick={() => retry(j.id, j.status)}><RotateCcw /> Reintentar</Button>}
             {!["submitting", "processing"].includes(j.status) && <Button size="sm" variant="ghost" onClick={() => mutate((c) => c.jobs.delete(pid!, j.id))}><Trash2 /> Quitar</Button>}
           </div>
