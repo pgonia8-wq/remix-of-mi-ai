@@ -69,7 +69,13 @@ function Analyze({ pid }: { pid: string }) {
       setBusy(`Leyendo ${f.name}…`);
       try {
         const bytes = new Uint8Array(await f.arrayBuffer());
-        const ex = await extractText(bytes, f.name, f.type);
+        let ex = await extractText(bytes, f.name, f.type);
+        if (ex.warning === "scanned") {
+          // Scanned PDF: recognize the pages on the phone with OCR.
+          const { ocrPdf } = await import("@/lib/docs/ocr");
+          const r = await ocrPdf(bytes, "spa+eng", (s) => setBusy(`${f.name}: ${s}`));
+          ex = { text: r.text, pages: ex.pages, ...(r.truncated ? { warning: "OCR aplicado a las primeras 30 páginas." } : r.confidence < 60 ? { warning: `Texto leído con OCR (confianza ${r.confidence}%). Revisa los datos importantes.` } : {}) };
+        }
         if (ex.warning) toast.warning(ex.warning);
         const filePath = await savePrivateFile(pid, f);
         const id = await mutate((c) => c.repo.addDoc(pid, { name: f.name, mime: f.type || "application/octet-stream", size: f.size, text: ex.text || null, filePath }));
@@ -92,9 +98,9 @@ function Analyze({ pid }: { pid: string }) {
 
   return (
     <div className="space-y-3">
-      <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed p-4 text-sm"><Upload className="h-4 w-4" /> Subir PDF, Word, Excel, CSV o texto
+      <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed p-4 text-sm"><Upload className="h-4 w-4" /> Subir PDF, Word, Excel, CSV, texto o foto
         <input type="file" multiple accept={DOC_ACCEPT} className="hidden" onChange={(e) => upload(e.target.files)} /></label>
-      <p className="text-[10px] text-muted-foreground">El texto se extrae en tu teléfono. Solo se envía al modelo cuando pulsas una acción.</p>
+      <p className="text-[10px] text-muted-foreground">El texto se extrae en tu teléfono (las fotos y PDF escaneados se leen con OCR local; la primera vez se descarga el paquete de idioma). Solo se envía al modelo cuando pulsas una acción.</p>
       <div className="space-y-1">
         {docs.map((d) => (
           <div key={d.id} className={`flex items-center gap-2 rounded-xl border p-2 text-sm ${sel === d.id ? "border-primary bg-primary/10" : "bg-card"}`}>
@@ -132,7 +138,7 @@ function Result({ text, title }: { text: string; title: string }) {
     <section className="space-y-2 rounded-xl border bg-card p-3">
       <Markdown text={text} />
       <p className="text-[10px] text-muted-foreground">Guardado cifrado en la Biblioteca. Exportar crea una copia sin cifrar.</p>
-      <div className="grid grid-cols-4 gap-1">{(["pdf", "docx", "xlsx", "md"] as const).map((f) => <Button key={f} size="sm" variant="outline" onClick={() => exp(f)}>{f.toUpperCase()}</Button>)}</div>
+      <div className="grid grid-cols-5 gap-1">{(["pdf", "docx", "xlsx", "pptx", "md"] as const).map((f) => <Button key={f} size="sm" variant="outline" onClick={() => exp(f)}>{f.toUpperCase()}</Button>)}</div>
     </section>
   );
 }
