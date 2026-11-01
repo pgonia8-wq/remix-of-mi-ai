@@ -65,7 +65,7 @@ export async function execute(deps: { repo: Repo; jobs: JobManager; assets: Asse
     else await deps.jobs.transition(projectId, job.id, "failed", { error: msg });
     throw e;
   }
-  await recordUsage(deps.repo, projectId, { providerId: model.provider_id, model: model.remote_id, operation: req.capability, usage: usageFor(req.capability, req.prompt, req.params, { text: result.kind === "text" ? result.text : undefined, files: result.kind === "files" ? result.files.length : undefined }) }).catch(() => undefined);
+  await recordUsage(deps.repo, projectId, { providerId: model.provider_id, model: model.remote_id, operation: req.capability, usage: usageFor(req.capability, req.prompt, req.params, { text: result.kind === "text" ? result.text : undefined, files: result.kind === "files" ? result.files.length : undefined }) }).catch((e) => console.warn("No se pudo registrar el costo de la llamada:", e instanceof Error ? e.message : e));
   await deps.jobs.transition(projectId, job.id, "processing", { phase: "accepted", ...(result.kind === "remote" ? { remote_id: result.remoteId } : {}) });
   if (result.kind === "remote") return { jobId: job.id, pending: true, assets: [] };
   const saved: Asset[] = [];
