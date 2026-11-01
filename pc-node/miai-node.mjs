@@ -134,7 +134,7 @@ export async function startNode(opts) {
     const env = { PATH: process.env.PATH, HOME: base, USERPROFILE: base, TMPDIR: path.join(base, ".tmp"), LANG: "C.UTF-8", SystemRoot: process.env.SystemRoot, CI: "1" };
     await fsp.mkdir(env.TMPDIR, { recursive: true });
     let cmd = argv[0], args = argv.slice(1), level = "process";
-    if (isolation === "docker" && !p.mediaHost) {
+    if (isolation === "docker") {
       // Real OS isolation: container, no network unless approved, memory/CPU caps, only the project folder mounted.
       level = "docker"; cmd = "docker";
       args = ["run", "--rm", "-i", `--memory=${memoryMb}m`, "--cpus=2", "--pids-limit=256", ...(network ? [] : ["--network=none"]), "-v", `${base}:/work`, "-w", `/work/${path.relative(base, target).split(path.sep).join("/")}`, p.image || "node:20-bookworm", ...argv];
