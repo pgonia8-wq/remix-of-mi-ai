@@ -1,0 +1,7 @@
+// @vitest-environment node
+import {it,expect} from 'vitest';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import {mediaMethods} from '../../pc-node/media.mjs';
+it('sesiones multimedia aíslan proyecto y dispositivo; limpieza elimina copias',async()=>{const root=await fs.mkdtemp(path.join(os.tmpdir(),'miai-media-'));try{const state={jobs:{}};const methods=mediaMethods({state,cfg:{isolation:'process'},toolchains:{ffmpeg:'installed'},save:async()=>{},kill:()=>{},startJob:async()=>({jobId:'j'}),resolveIn:async(_i,p,rel)=>({base:path.join(root,p),target:path.join(root,p,rel)})});const created=await methods['media.create']?.('phone',{projectId:'p'});const params={projectId:'p',sessionId:created.sessionId,index:0,offset:0,data:Buffer.from('source').toString('base64')};await methods['media.upload']?.('phone',params);await expect(methods['media.upload']?.('other',params)).rejects.toThrow();await expect(methods['media.upload']?.('phone',{...params,projectId:'q'})).rejects.toThrow();await expect(methods['media.upload']?.('phone',params)).rejects.toThrow();await expect(methods['media.read']?.('phone',{...params,path:'../outside.wav'})).rejects.toThrow();expect((await methods['media.capabilities']?.()).demucs).toBe(false);await methods['media.cleanup']?.('phone',params);await expect(fs.access(path.join(root,'p','.media',created.sessionId))).rejects.toThrow();}finally{await fs.rm(root,{recursive:true,force:true});}});

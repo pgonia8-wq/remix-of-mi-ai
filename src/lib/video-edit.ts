@@ -25,7 +25,8 @@ export async function mixBackground(core: Core, projectId: string, tracks: Audio
   const decoded = [];
   for (const t of tracks) decoded.push({ audio: await decodeAudio(await core.assets.read(projectId, t.assetId)), offset: t.offset, gain: t.gain });
   const mixed = mixPcm(decoded);
-  const trimmed = editPcm(mixed, { start: 0, end: Math.min(videoDuration, mixed.channels[0]!.length / mixed.sampleRate), gain: 1, fadeIn: 0, fadeOut: Math.min(1, videoDuration / 4), normalize: false });
+  const first = mixed.channels[0]; if (!first) throw new Error("Mezcla vacía");
+  const trimmed = editPcm(mixed, { start: 0, end: Math.min(videoDuration, first.length / mixed.sampleRate), gain: 1, fadeIn: 0, fadeOut: Math.min(1, videoDuration / 4), normalize: false });
   const wav = encodeWav(trimmed);
   let binary = ""; for (let i = 0; i < wav.length; i += 0x8000) binary += String.fromCharCode(...wav.subarray(i, i + 0x8000));
   return btoa(binary);

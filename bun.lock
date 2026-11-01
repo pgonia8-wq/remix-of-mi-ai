@@ -21,6 +21,9 @@
         "@fontsource/space-grotesk": "^5.3.0",
         "@hookform/resolvers": "^5.2.2",
         "@jitl/quickjs-singlefile-cjs-release-sync": "^0.32.0",
+        "@jscad/modeling": "^2.13.0",
+        "@jscad/obj-serializer": "^2.1.23",
+        "@jscad/stl-serializer": "^2.1.23",
         "@radix-ui/react-accordion": "^1.2.12",
         "@radix-ui/react-alert-dialog": "^1.1.15",
         "@radix-ui/react-aspect-ratio": "^1.1.8",
@@ -286,6 +289,14 @@
     "@jridgewell/sourcemap-codec": ["@jridgewell/sourcemap-codec@1.5.5", "", {}, "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og=="],
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
+
+    "@jscad/array-utils": ["@jscad/array-utils@2.1.4", "", {}, "sha512-c31r4zSKsE+4Xfwk2V8monDA0hx5G89QGzaakWVUvuGNowYS9WSsYCwHiTIXodjR+HEnDu4okQ7k/whmP0Ne2g=="],
+
+    "@jscad/modeling": ["@jscad/modeling@2.13.0", "", {}, "sha512-Thv/JJZZOMzQ9rfhP+75PbgrNbBTZduRL+ClaGfGFts9+JdIXcUueqRL3NtZZ/v/hyZCUBkPSRxHIi4icz04tQ=="],
+
+    "@jscad/obj-serializer": ["@jscad/obj-serializer@2.1.23", "", { "dependencies": { "@jscad/array-utils": "2.1.4", "@jscad/modeling": "2.13.0" } }, "sha512-BaYuabFGkfZ2xRZqS0gabnoOqUAlHUf8jKApBecxPEq+TzJBFSTIrgCRICKTFT7Brp0vmsGQVWsL2gLF4RVcfg=="],
+
+    "@jscad/stl-serializer": ["@jscad/stl-serializer@2.1.23", "", { "dependencies": { "@jscad/array-utils": "2.1.4", "@jscad/modeling": "2.13.0" } }, "sha512-bSaz2hte30ig2kT1ogBQIjQVGD0Nu1dDyQ4q+fHBFKKmJ8A7ximnFZj7hgQegm3XUD6pSE5KwzPWspCyRWQ5kA=="],
 
     "@lezer/common": ["@lezer/common@1.5.5", "", {}, "sha512-Pw7PVCndruF1pb3ebCxpSVpkMHSDjwRCLcTRw+RizUKco5QbWylwq2g4lnG/RYN7yTTQDXE9F77MwtkAyphrjg=="],
 
