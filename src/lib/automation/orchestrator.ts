@@ -28,7 +28,7 @@ export const ROLES = {
 export type Role = keyof typeof ROLES;
 const roleIds = Object.keys(ROLES) as [Role, ...Role[]];
 
-export type AutoRun = { id: string; project_id: string; goal: string; kind: "team" | "builder"; status: "active" | "paused" | "waiting" | "review_required" | "needs_human" | "completed" | "cancelled" | "failed"; phase: "plan" | "execute" | "final_audit" | "done"; plan: string; limits: string; acceptance: string; spent_usd: number; unknown_cost_calls: number; tokens: number; calls: number; env: string; result: string; error: string | null; created_at: number; updated_at: number };
+export type AutoRun = { id: string; project_id: string; goal: string; kind: "team" | "builder" | "voice"; status: "active" | "paused" | "waiting" | "review_required" | "needs_human" | "completed" | "cancelled" | "failed"; phase: "plan" | "execute" | "final_audit" | "done"; plan: string; limits: string; acceptance: string; spent_usd: number; unknown_cost_calls: number; tokens: number; calls: number; env: string; result: string; error: string | null; created_at: number; updated_at: number };
 export type AutoTask = { id: string; project_id: string; run_id: string; title: string; role: Role; deps: string; files: string; tools: string; contract: string; status: "pending" | "active" | "waiting_approval" | "review_required" | "audit" | "approved" | "failed" | "replaced" | "cancelled"; attempts: number; max_attempts: number; turns: number; result: string; review: string; error: string | null; updated_at: number };
 type Env = { nodeId: string | null; folderId: string | null };
 
