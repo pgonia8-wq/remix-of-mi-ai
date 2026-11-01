@@ -153,9 +153,13 @@
 - [ ] Bloque 4: sistema autónomo (ReAct, Tool Manager, multiagente, AI Builder)
 - [ ] Bloque 5: APK final
 
-## Bloque 4 — avance, no cierre
-- [x] Agente adaptativo secuencial: decisiones JSON validadas, acciones persistidas y aprobación vinculada al paso; reutiliza allowlists/router/ejecutor.
-- [x] Flujo decisión→nota→observación→resultado, recarga intermedia y dos respuestas controladas comprobadas en Chromium; no llamadas reales.
-- [ ] Tool calling nativo Azure/OpenAI/Anthropic/Gemini, gestor universal de herramientas, equipo paralelo y revisor, AI Builder completo y memoria de trabajo acumulada.
-- [ ] Recuperación entre recepción de decisión y persistencia del siguiente paso; interrupción debe requerir revisión sin repetir.
-- [ ] Cierre bloques 1–3 antes del bloque 4 completo: falta implementación listada arriba, transiciones/capas generales de video y validación real Android/proveedores (dispositivo y deployments autorizados no disponibles).
+## Bloque 4 definitivo (guía de Fer, 2026-11-01)
+- [x] Gestor universal de herramientas (familias A–H), aprobaciones por acción exacta, presupuesto por ejecución/agente/herramienta
+- [x] Llamadas nativas (OpenAI/Azure `chat.tools`) y respaldo JSON por el mismo gestor
+- [x] Orquestador de 13 roles: plan DAG, paralelo con tope, bloqueo de archivos, auditor con evidencia, replanificación
+- [x] Memoria de trabajo persistente; recuperación sin repetir; pausar/reanudar/detener; disparadores solo de revisión
+- [x] AI Builder, calidad/evidencias, inteligencia de repositorios, entrega con hashes
+- [x] PC Node (servicio), almacenamiento privado, túneles de desarrollo, orquestador de recursos; pantalla «Sistema autónomo»
+- [ ] SSH local/inverso, SOCKS5, VPN — bloqueado: requiere plugin nativo (bloque 5)
+- [ ] Validación con proveedor real, Android físico, PC Windows/macOS, Docker, commit/push Git — bloqueado: dispositivo, claves y equipos de Fer
+- [ ] Bloque 5: APK final
