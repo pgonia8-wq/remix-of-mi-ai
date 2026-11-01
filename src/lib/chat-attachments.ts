@@ -34,22 +34,17 @@ export async function chatHistory(core: Core, projectId: string, chatId: string,
     return { role: message.role, content, ...(images.length ? { images } : {}) };
   }));
 }
-const msgSize = (m: ChatMsg) => m.content.length + (m.images?.reduce((a, i) => a + i.data.length, 0) ?? 0);
 /**
- * Keeps the newest turns that fit the character budget so each request stays within the provider's tokens-per-minute
- * and context limits. The latest message is always sent; images from older turns are dropped first.
- * This is a context window, not a message quota: the chat itself has no limit.
+ * Keeps the newest `maxMessages` turns (0 = all). Images from older turns are dropped; the latest message is always sent.
+ * This is the per-chat context setting, not a message quota: the chat itself stores every message.
  */
-export function fitHistory(history: ChatMsg[], maxChars = 32_000): ChatMsg[] {
-  const out: ChatMsg[] = [];
-  let used = 0;
-  for (let i = history.length - 1; i >= 0; i--) {
-    let m = history[i]!;
-    if (out.length > 0 && m.images?.length) { const { images: _drop, ...rest } = m; m = rest; }
-    const size = msgSize(m);
-    if (out.length > 0 && used + size > maxChars) break;
-    out.unshift(m); used += size;
-  }
+export function fitHistory(history: ChatMsg[], maxMessages = 20): ChatMsg[] {
+  const kept = maxMessages > 0 ? history.slice(-maxMessages) : history.slice();
+  const out = kept.map((m, i) => (i < kept.length - 1 && m.images?.length ? (({ images: _drop, ...rest }) => rest)(m) : m));
   while (out.length > 1 && out[0]!.role === "assistant") out.shift();
   return out;
+}
+/** Provider rejections caused by sending too much text in one request. */
+export function isContextOverflow(status: number | undefined, technical: string | undefined) {
+  return status === 429 || status === 413 || /context.?length|maximum context|too many tokens|token.?limit|prompt is too long|request too large|tokens? per min/i.test(technical ?? "");
 }
