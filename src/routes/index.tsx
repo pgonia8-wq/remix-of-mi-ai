@@ -87,7 +87,7 @@ function Projects() {
       <div className="space-y-2 rounded-xl border bg-card p-4">
         <input className={inputCls} placeholder="Nombre del proyecto" value={name} onChange={(e) => setName(e.target.value)} />
         <input className={inputCls} placeholder="Descripción (opcional)" value={desc} onChange={(e) => setDesc(e.target.value)} />
-        <button className={btnCls + " w-full"} onClick={create} disabled={!name.trim()}>
+        <button className={btnCls + " btn-graphite-glass w-full"} onClick={create} disabled={!name.trim()}>
           <Plus className="h-4 w-4" /> Crear proyecto
         </button>
       </div>
