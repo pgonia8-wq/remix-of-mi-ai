@@ -194,24 +194,36 @@
 
 /* Static glass surfaces: no moving backgrounds or nested blur layers. */
 :root {
-  --glass-bg: oklch(0.32 0.03 285 / 30%);
-  --glass-bg-strong: oklch(0.2 0.02 285 / 48%);
-  --glass-border: oklch(0.9 0.04 290 / 24%);
-  --glass-edge: oklch(1 0 0 / 28%);
-  --glass-highlight: linear-gradient(150deg, oklch(1 0 0 / 14%), oklch(1 0 0 / 3%) 38%, transparent 60%, oklch(0.7 0.14 245 / 8%));
-  --glass-shadow: inset 0 1px 0 var(--glass-edge), inset 0 -1px 0 oklch(0 0 0 / 20%), 0 18px 40px -18px oklch(0 0 0 / 80%), 0 0 0 1px oklch(0.66 0.17 290 / 6%);
-  --glass-blur: 22px;
-  --ambient: oklch(0.13 0.01 285);
+  --primary: oklch(0.65 0.23 292);
+  --ring: oklch(0.7 0.22 292 / 80%);
+  --gradient-brand: linear-gradient(135deg, oklch(0.68 0.25 300), oklch(0.6 0.22 275) 50%, oklch(0.66 0.17 240));
+  --gradient-primary: linear-gradient(135deg, oklch(0.66 0.25 302), oklch(0.58 0.23 278) 55%, oklch(0.6 0.19 250));
+  --gradient-heading: linear-gradient(100deg, oklch(0.98 0.01 290), oklch(0.85 0.12 295) 55%, oklch(0.8 0.12 240));
+  --glass-bg: linear-gradient(160deg, oklch(0.38 0.07 295 / 34%), oklch(0.24 0.05 270 / 26%) 55%, oklch(0.3 0.07 240 / 30%));
+  --glass-bg-strong: linear-gradient(170deg, oklch(0.26 0.07 295 / 52%), oklch(0.16 0.04 270 / 58%) 60%, oklch(0.22 0.06 240 / 54%));
+  --glass-border: oklch(0.85 0.1 295 / 30%);
+  --glass-edge: oklch(1 0 0 / 34%);
+  --glass-highlight: linear-gradient(155deg, oklch(1 0 0 / 18%), oklch(1 0 0 / 4%) 32%, transparent 58%, oklch(0.72 0.17 245 / 12%));
+  --glass-shadow:
+    inset 0 1px 0 var(--glass-edge),
+    inset 0 0 24px -8px oklch(0.7 0.2 295 / 22%),
+    inset 0 -1px 0 oklch(0 0 0 / 30%),
+    0 2px 4px oklch(0 0 0 / 35%),
+    0 22px 44px -16px oklch(0 0 0 / 85%),
+    0 14px 36px -20px oklch(0.6 0.24 295 / 55%);
+  --glass-blur: 24px;
+  --ambient: linear-gradient(180deg, oklch(0.12 0.03 290), oklch(0.09 0.02 270) 50%, oklch(0.11 0.03 245));
   --aurora:
-    radial-gradient(60% 45% at 10% 8%, oklch(0.55 0.22 295 / 55%), transparent 70%),
-    radial-gradient(55% 40% at 95% 30%, oklch(0.55 0.17 250 / 45%), transparent 70%),
-    radial-gradient(60% 45% at 20% 75%, oklch(0.5 0.2 320 / 35%), transparent 70%),
-    radial-gradient(50% 40% at 90% 95%, oklch(0.6 0.14 200 / 30%), transparent 70%);
-  --control-bg: oklch(0.12 0.01 285 / 45%);
-  --control-highlight: oklch(1 0 0 / 8%);
-  --button-highlight: linear-gradient(180deg, oklch(1 0 0 / 22%), transparent 80%);
-  --button-shadow: inset 0 1px 0 oklch(1 0 0 / 30%), 0 6px 18px -6px oklch(0.66 0.17 290 / 65%);
-  --nav-highlight: linear-gradient(90deg, oklch(0.66 0.17 290 / 32%), oklch(0.66 0.17 290 / 6%));
+    radial-gradient(70% 50% at 8% 6%, oklch(0.58 0.27 300 / 75%), transparent 70%),
+    radial-gradient(60% 45% at 98% 28%, oklch(0.58 0.21 252 / 65%), transparent 70%),
+    radial-gradient(65% 50% at 15% 72%, oklch(0.55 0.25 330 / 50%), transparent 72%),
+    radial-gradient(55% 45% at 92% 96%, oklch(0.65 0.16 200 / 45%), transparent 70%),
+    radial-gradient(40% 30% at 55% 45%, oklch(0.5 0.22 285 / 25%), transparent 75%);
+  --control-bg: oklch(0.1 0.02 285 / 55%);
+  --control-highlight: oklch(1 0 0 / 10%);
+  --button-highlight: linear-gradient(180deg, oklch(1 0 0 / 26%), transparent 70%);
+  --button-shadow: inset 0 1px 0 oklch(1 0 0 / 38%), inset 0 -2px 6px oklch(0.3 0.15 280 / 40%), 0 8px 22px -6px oklch(0.62 0.25 295 / 75%), 0 0 0 1px oklch(0.75 0.2 295 / 35%);
+  --nav-highlight: linear-gradient(90deg, oklch(0.62 0.25 298 / 48%), oklch(0.6 0.2 260 / 16%) 70%, transparent);
 }
 body { color-scheme: dark; }
 .app-bg { background: var(--ambient); position: relative; isolation: isolate; }
@@ -220,22 +232,32 @@ body { color-scheme: dark; }
   background: var(--glass-highlight), var(--glass-bg);
   border-color: var(--glass-border);
   box-shadow: var(--glass-shadow);
-  backdrop-filter: blur(var(--glass-blur)) saturate(125%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(170%);
 }
 .glass-strong {
   background: var(--glass-highlight), var(--glass-bg-strong);
-  box-shadow: inset 0 1px 0 var(--glass-edge);
-  backdrop-filter: blur(var(--glass-blur)) saturate(125%);
+  border-color: var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-edge), inset -1px 0 0 oklch(0.8 0.15 295 / 18%), 0 0 40px -10px oklch(0.55 0.24 295 / 35%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(170%);
 }
 .glass-strong .glass-strong { background: transparent; box-shadow: none; backdrop-filter: none; }
 .glass-card .bg-card, .app-bg main .bg-card .bg-card {
   background: var(--glass-highlight), var(--glass-bg);
   backdrop-filter: none;
 }
-.btn-sheen, .app-bg button.bg-primary, .app-bg label.bg-primary { background-image: var(--button-highlight); box-shadow: var(--button-shadow); }
-.glass-input { background-color: var(--control-bg); box-shadow: inset 0 1px 2px oklch(0 0 0 / 12%), 0 1px 0 var(--control-highlight); }
-.glass-input:focus-visible { border-color: var(--ring); }
-.nav-active { background: var(--nav-highlight); }
+.btn-sheen, .app-bg button.bg-primary, .app-bg label.bg-primary { background-image: var(--button-highlight), var(--gradient-primary); box-shadow: var(--button-shadow); }
+.glass-input { background-color: var(--control-bg); box-shadow: inset 0 2px 4px oklch(0 0 0 / 25%), 0 1px 0 var(--control-highlight); }
+.glass-input:focus-visible { border-color: var(--ring); box-shadow: inset 0 2px 4px oklch(0 0 0 / 25%), 0 0 0 3px oklch(0.65 0.23 292 / 25%), 0 0 18px -4px oklch(0.65 0.23 292 / 55%); }
+.nav-active { background: var(--nav-highlight); box-shadow: inset 0 1px 0 oklch(1 0 0 / 10%); }
+.nav-active::before { width: 3px; background: var(--gradient-primary); box-shadow: 0 0 10px oklch(0.68 0.25 298 / 80%); }
+.brand-mark { box-shadow: inset 0 1px 0 oklch(1 0 0 / 35%), 0 4px 16px -4px oklch(0.62 0.25 295 / 70%); }
+.app-bg main :where(h1, h2) {
+  background: var(--gradient-heading);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.app-bg main .bg-card :where(svg.text-primary, .text-primary > svg) { filter: drop-shadow(0 0 6px oklch(0.68 0.25 298 / 65%)); }
 .app-bg :where(button, a)[class*="tracking-"], .glass-card :where(h1, h2, h3, div) { letter-spacing: 0; }
 @media (min-width: 768px) { :root { --glass-blur: 20px; } }
 @supports not (backdrop-filter: blur(1px)) {
