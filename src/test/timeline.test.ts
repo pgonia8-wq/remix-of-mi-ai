@@ -5,7 +5,7 @@ const clip = (id: string, len: number, transition = "cut", transitionSeconds = 0
 it("timeline duration matches the FFmpeg render plan", () => {
   const clips = [clip("a", 4), clip("b", 3, "fade", 1), clip("c", 5, "wipeleft", 0.5)] as const;
   const plan = { clips: [...clips], overlays: [], width: 1280, height: 720, rotation: 0, mute: true, originalAudio: false, captions: [] };
-  expect(segments([...clips]).duration).toBeCloseTo(videoArgs(plan, ["a", "b", "c"], "o.mp4").duration);
+  expect(segments([...clips]).duration).toBeCloseTo(videoArgs(plan as unknown as Parameters<typeof videoArgs>[0], ["a", "b", "c"], "o.mp4").duration);
   expect(segments([...clips]).duration).toBeCloseTo(10.5);
 });
 it("frameAt reports both clips and progress during a transition", () => {

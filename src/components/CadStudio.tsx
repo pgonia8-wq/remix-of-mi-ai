@@ -33,7 +33,7 @@ function CadViewport({doc}:{doc:CadDocument}){
  return <><div ref={ref} className="h-96 w-full overflow-hidden bg-secondary/20" aria-label="Sólido CAD interactivo"/>{error?<p className="text-sm text-destructive">{error}</p>:<p className="text-xs text-muted-foreground">{stats}</p>}</>;
 }
 
-function DimInput({label,value,expr,onCommit}:{label:string;value:number;expr?:string;onCommit:(num:number|null,expr:string|null)=>void}){
+function DimInput({label,value,expr,onCommit}:{label:string;value:number;expr?:string|undefined;onCommit:(num:number|null,expr:string|null)=>void}){
  const shown=expr?`=${expr}`:String(value);const [text,setText]=useState(shown);useEffect(()=>setText(shown),[shown]);
  return <input aria-label={label} title="Número o fórmula con parámetros, por ejemplo =ancho/2" className={inputCls+(expr?' text-primary':'')} value={text} onChange={e=>setText(e.target.value)} onBlur={()=>{const t=text.trim();if(t===shown)return;if(t.startsWith('=')){onCommit(null,t.slice(1).trim()||null);return;}const n=Number(t);if(t===''||!Number.isFinite(n)){if(/[a-zA-Z(]/.test(t)){onCommit(null,t);return;}setText(shown);toast.error('Escribe un número o una fórmula (=ancho*2).');return;}onCommit(n,null);}} onKeyDown={e=>{if(e.key==='Enter')(e.target as HTMLInputElement).blur();}}/>;
 }
