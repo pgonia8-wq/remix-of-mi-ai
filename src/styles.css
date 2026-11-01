@@ -221,6 +221,7 @@ body { color-scheme: dark; }
   box-shadow: inset 0 1px 0 var(--glass-edge);
   backdrop-filter: blur(var(--glass-blur)) saturate(125%);
 }
+.glass-strong .glass-strong { background: transparent; box-shadow: none; backdrop-filter: none; }
 .glass-card .bg-card, .app-bg main .bg-card .bg-card {
   background: var(--glass-highlight), var(--glass-bg);
   backdrop-filter: none;
