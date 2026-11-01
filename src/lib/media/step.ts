@@ -1,7 +1,7 @@
 // ISO 10303-21 (STEP AP214) export of CAD solids as FACETED_BREP: planar polygon faces with exact
 // vertex coordinates in millimetres. This is a faceted boundary representation, not NURBS/analytic surfaces.
 type Poly = [number, number, number][];
-const num = (v: number) => { const s = (Math.abs(v) < 1e-12 ? 0 : v).toPrecision(12).replace(/\.?0+(e|$)/, "$1"); return s.includes(".") || s.includes("e") ? s.replace("e", ".E").replace("..", ".") : `${s}.`; };
+const num = (v: number) => { const [m = "0", e] = (Math.abs(v) < 1e-12 ? 0 : v).toExponential(10).split("e"); const mant = m.replace(/0+$/, "").replace(/\.$/, "."); const exp = Number(e); return exp === 0 ? (mant.includes(".") ? mant : mant + ".") : `${mant.includes(".") ? mant : mant + "."}E${exp}`; };
 const str = (s: string) => `'${s.replace(/'/g, "''").replace(/[^\x20-\x7e]/g, "_")}'`;
 export function stepFaceted(name: string, solids: Poly[][], when = new Date()): string {
   const valid = solids.filter((s) => s.length >= 4);

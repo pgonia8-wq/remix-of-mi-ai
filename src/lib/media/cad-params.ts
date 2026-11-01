@@ -6,6 +6,7 @@ const FUNCS: Record<string, (...a: number[]) => number> = {
   sin: (d) => Math.sin(d * Math.PI / 180), cos: (d) => Math.cos(d * Math.PI / 180), tan: (d) => Math.tan(d * Math.PI / 180),
 };
 const CONSTS: Record<string, number> = { pi: Math.PI };
+const own = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 export const PARAM_NAME = /^[a-zA-Z_][a-zA-Z0-9_]{0,31}$/;
 
 type Tok = { t: "num"; v: number } | { t: "id"; v: string } | { t: "op"; v: string };
@@ -27,7 +28,7 @@ function lex(src: string): Tok[] {
 /** Collects identifiers referenced by a formula (excluding functions/constants). */
 export function formulaRefs(src: string): string[] {
   const toks = lex(src), refs = new Set<string>();
-  toks.forEach((t, i) => { if (t.t === "id" && !(t.v in CONSTS) && !(toks[i + 1]?.t === "op" && toks[i + 1]?.v === "(")) refs.add(t.v); });
+  toks.forEach((t, i) => { if (t.t === "id" && !own(CONSTS, t.v) && !(toks[i + 1]?.t === "op" && toks[i + 1]?.v === "(")) refs.add(t.v); });
   return [...refs];
 }
 export function evalFormula(src: string, vars: Record<string, number>): number {
@@ -45,13 +46,13 @@ export function evalFormula(src: string, vars: Record<string, number>): number {
     if (t.t === "id") {
       const n = peek();
       if (n?.t === "op" && n.v === "(") {
-        const f = FUNCS[t.v]; if (!f) throw new Error(`Función desconocida: ${t.v}`);
+        const f = own(FUNCS, t.v) ? FUNCS[t.v] : undefined; if (!f) throw new Error(`Función desconocida: ${t.v}`);
         take(); const args: number[] = [];
         if (!(peek()?.t === "op" && peek()?.v === ")")) { args.push(expr()); while (peek()?.t === "op" && peek()?.v === ",") { take(); args.push(expr()); } }
         expect(")"); return f(...args);
       }
-      if (t.v in CONSTS) return CONSTS[t.v]!;
-      if (!(t.v in vars)) throw new Error(`Parámetro desconocido: ${t.v}`);
+      if (own(CONSTS, t.v)) return CONSTS[t.v]!;
+      if (!own(vars, t.v)) throw new Error(`Parámetro desconocido: ${t.v}`);
       return vars[t.v]!;
     }
     throw new Error("Fórmula inválida.");
@@ -64,10 +65,10 @@ export function evalFormula(src: string, vars: Record<string, number>): number {
 export function resolveParams(params: CadParam[] = []): Record<string, number> {
   if (params.length > 64) throw new Error("Máximo 64 parámetros.");
   const byName = new Map<string, CadParam>();
-  for (const p of params) { if (!PARAM_NAME.test(p.name) || p.name in FUNCS || p.name in CONSTS) throw new Error(`Nombre de parámetro inválido: ${p.name}`); if (byName.has(p.name)) throw new Error(`Parámetro duplicado: ${p.name}`); byName.set(p.name, p); }
-  const values: Record<string, number> = {}, visiting = new Set<string>();
+  for (const p of params) { if (!PARAM_NAME.test(p.name) || own(FUNCS, p.name) || own(CONSTS, p.name)) throw new Error(`Nombre de parámetro inválido: ${p.name}`); if (byName.has(p.name)) throw new Error(`Parámetro duplicado: ${p.name}`); byName.set(p.name, p); }
+  const values: Record<string, number> = Object.create(null) as Record<string, number>, visiting = new Set<string>();
   const visit = (name: string): number => {
-    if (name in values) return values[name]!;
+    if (own(values, name)) return values[name]!;
     const p = byName.get(name); if (!p) throw new Error(`Parámetro desconocido: ${name}`);
     if (visiting.has(name)) throw new Error(`Restricción circular en el parámetro ${name}.`);
     visiting.add(name);
