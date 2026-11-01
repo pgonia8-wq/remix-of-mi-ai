@@ -20,6 +20,15 @@ export type ProviderKind = "openai" | "anthropic" | "gemini" | "azure" | "azure_
 export type Provider = { id: string; name: string; kind: ProviderKind; endpoint: string | null; deployment: string | null; model: string; api_version: string | null; extra_params: string | null; enabled: number; created_at: number; has_key: boolean; verification_status: "verified" | "error" | "unverified"; checked_at: number | null };
 export type ProviderInput = { name: string; kind: ProviderKind; endpoint?: string; apiKey?: string | undefined; deployment?: string; model: string; apiVersion?: string; extraParams?: string; enabled?: boolean };
 
+// Free-form config columns may hold accidentally pasted credentials; backups redact recognizable secrets there.
+const SECRET_COLUMNS = new Set(["params", "extra_params", "config", "detail", "headers", "metadata"]);
+const SECRET_RE = /\b(sk-[A-Za-z0-9_-]{16,}|sk-ant-[A-Za-z0-9_-]{16,}|AIza[0-9A-Za-z_-]{30,}|gh[pousr]_[A-Za-z0-9]{30,}|xox[abpr]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|Bearer\s+[A-Za-z0-9._-]{16,})/g;
+export function scrubSecrets(row: Record<string, unknown>) {
+  const out = { ...row };
+  for (const [k, v] of Object.entries(out)) if (SECRET_COLUMNS.has(k) && typeof v === "string") out[k] = v.replace(SECRET_RE, "[secreto eliminado]");
+  return out;
+}
+
 export type ModelPrice = { model: string; input_per_mtok: number | null; output_per_mtok: number | null; per_image: number | null; per_second: number | null; per_call: number | null; updated_at: number };
 
 export function budgetLevel(limitUsd: number | null, spentUsd: number, includesEstimates = false) {
@@ -372,13 +381,28 @@ export class Repo {
   async dumpAll() {
     const tables = ["projects", "chats", "messages", "memory_items", "memory_versions", "documents", ...BACKUP_TABLES_V3] as const;
     const out: Record<string, unknown[]> = {};
-    for (const t of tables) out[t] = await this.db.all(`SELECT * FROM ${t}`);
+    for (const t of tables) out[t] = (await this.db.all<Record<string, unknown>>(`SELECT * FROM ${t}`)).map(scrubSecrets);
     const providers = await this.listProviders();
     out["providers"] = providers.map(({ has_key: _h, verification_status: _v, checked_at: _t, ...p }) => p); // without credentials or verification claims
     return { app: "MI AI", v: 1, exportedAt: now(), tables: out };
   }
   async restoreAll(dump: { tables: Record<string, Record<string, unknown>[]> }) {
     const order = ["projects", "chats", "messages", "memory_items", "memory_versions", "documents", "providers", ...BACKUP_TABLES_V3];
+    // Validate EVERYTHING before writing: known tables, allowlisted columns, scalar values, and project→chat→message coherence.
+    const allowed: Record<string, Set<string>> = {};
+    for (const t of order) allowed[t] = new Set((await this.db.all<{ name: string }>(`PRAGMA table_info(${t})`)).map((c) => c.name));
+    for (const t of Object.keys(dump.tables ?? {})) if (!allowed[t] && dump.tables[t]?.length) throw new Error(`Respaldo con tabla no admitida: ${t}`);
+    const projects = new Set([...(dump.tables["projects"] ?? []).map((r) => r["id"]), ...(await this.listProjects()).map((p) => p.id)]);
+    const chatProject = new Map<unknown, unknown>([...(dump.tables["chats"] ?? []).map((r) => [r["id"], r["project_id"]] as const), ...(await this.db.all<{ id: string; project_id: string }>(`SELECT id, project_id FROM chats`)).map((r) => [r.id, r.project_id] as const)]);
+    for (const t of order) for (const row of dump.tables[t] ?? []) {
+      if (!row || typeof row !== "object") throw new Error(`Fila inválida en ${t}`);
+      for (const [c, v] of Object.entries(row)) {
+        if (!allowed[t]!.has(c) && c !== "has_key") throw new Error(`Respaldo con columna no admitida: ${t}.${c}`);
+        if (v !== null && !["string", "number"].includes(typeof v)) throw new Error(`Valor no admitido en ${t}.${c}`);
+      }
+      if (allowed[t]!.has("project_id") && t !== "projects" && row["project_id"] != null && !projects.has(row["project_id"])) throw new Error(`Respaldo incoherente: ${t} apunta a un proyecto inexistente`);
+      if (t === "messages" && chatProject.get(row["chat_id"]) !== row["project_id"]) throw new Error("Respaldo incoherente: mensaje de otro proyecto");
+    }
     for (const t of order) {
       for (const row of dump.tables[t] ?? []) {
         const cols = Object.keys(row).filter((c) => c !== "api_key_enc" && c !== "has_key");

@@ -6,7 +6,7 @@ import type { Repo } from "../db/repo";
 import type { KeyRing } from "./keys";
 import type { BlobBackend, Asset } from "./asset-store";
 import { verifyAsset } from "./asset-crypto";
-import { deriveBackupKey, argonParams, PBKDF2_MIN_ITERATIONS, type Kdf } from "./backup";
+import { safeAssetPath, deriveBackupKey, argonParams, PBKDF2_MIN_ITERATIONS, type Kdf } from "./backup";
 
 const te = new TextEncoder(), td = new TextDecoder();
 const b64 = (u: Uint8Array) => { let s = ""; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000)); return btoa(s); };
@@ -103,7 +103,7 @@ export async function restoreBackupStream(opts: { lines: () => AsyncIterable<str
     else if (r.t === "asset") {
       const dek = unb64(r.dek);
       const { keyId, wrapped } = await opts.keys.wrapDek(dek, r.meta.id, r.meta.project_id); dek.fill(0);
-      cur = { ...r.meta, key_id: keyId, wrapped_dek: wrapped, enc_state: "encrypted" };
+      cur = { ...r.meta, path: safeAssetPath(r.meta), key_id: keyId, wrapped_dek: wrapped, enc_state: "encrypted" };
       metas.push(cur);
       const tmp = `${cur.path}.restore`;
       await opts.fs.remove(tmp).catch(() => undefined); await opts.fs.create(tmp);
