@@ -126,12 +126,38 @@ function buildRequest(p: ProviderCall, messages: ChatMsg[]): { url: string; init
   };
 }
 
+/** MI AI imposes no message quota. A provider 429 (rate limit) is retried a bounded number of times, honoring its wait hint. */
+export const RATE_LIMIT_RETRIES = 3;
+const MAX_RATE_LIMIT_WAIT_MS = 60_000;
+export function rateLimitWaitMs(res: Response, body: string, attempt: number): number {
+  const header = res.headers.get("retry-after-ms") ?? null;
+  if (header && Number.isFinite(Number(header))) return Number(header);
+  const ra = res.headers.get("retry-after");
+  if (ra && Number.isFinite(Number(ra))) return Number(ra) * 1000;
+  const m = /retry after (\d+(?:\.\d+)?)\s*(second|sec|s|millisecond|ms)/i.exec(body);
+  if (m) return Number(m[1]) * (/^m/i.test(m[2]!) ? 1 : 1000);
+  return 2000 * 2 ** attempt;
+}
+const sleep = (ms: number, signal?: AbortSignal) => new Promise<void>((resolve, reject) => {
+  if (signal?.aborted) { reject(new DOMException("Aborted", "AbortError")); return; }
+  const t = setTimeout(() => { signal?.removeEventListener("abort", onAbort); resolve(); }, ms);
+  const onAbort = () => { clearTimeout(t); reject(new DOMException("Aborted", "AbortError")); };
+  signal?.addEventListener("abort", onAbort, { once: true });
+});
+
 /** Streams text deltas. API key is only placed in request headers — never logged. */
 export async function streamChat(p: ProviderCall, messages: ChatMsg[], onDelta: (t: string) => void, signal?: AbortSignal) {
   const { url, init, parse } = buildRequest(p, messages);
-  const res = await fetch(url, { ...init, signal: signal ?? null });
-  if (!res.ok || !res.body) {
-    throw responseError(res.status, await res.text().catch(() => ""), p.apiKey);
+  let res: Response;
+  for (let attempt = 0; ; attempt++) {
+    res = await fetch(url, { ...init, signal: signal ?? null });
+    if (res.ok && res.body) break;
+    const body = await res.text().catch(() => "");
+    if (res.status === 429 && attempt < RATE_LIMIT_RETRIES) {
+      const wait = rateLimitWaitMs(res, body, attempt);
+      if (wait <= MAX_RATE_LIMIT_WAIT_MS) { await sleep(Math.max(0, wait), signal); continue; }
+    }
+    throw responseError(res.status, body, p.apiKey);
   }
   const reader = res.body.getReader();
   const dec = new TextDecoder();
@@ -180,6 +206,14 @@ export function responseError(status: number, body: string, key?: string | null)
   else if (status === 429 || status >= 500 || /overloaded|capacity|unavailable|quota|resource_exhausted/.test(msg)) code = "unavailable";
   else if (status === 404 || status === 405) code = "endpoint";
   const labels: Record<DiagnosticCode, string> = { key: "API Key inválida.", auth: "Error de autenticación: revisa credenciales y permisos.", endpoint: "Endpoint incorrecto: revisa la dirección y la ruta del proveedor.", model: "Modelo o deployment inexistente.", unavailable: "Modelo sin disponibilidad: revisa cuota, límites o estado del servicio.", network: "Error de red.", timeout: "Error de red o timeout: el proveedor no respondió a tiempo.", parameters: "Parámetros incompatibles o respuesta inválida." };
+  if (status === 429) {
+    let reason = "";
+    try { const j = JSON.parse(technical); reason = String(j?.error?.message ?? j?.message ?? ""); } catch { reason = technical; }
+    reason = reason.replace(/\s+/g, " ").trim().slice(0, 220);
+    const label = "El proveedor rechazó la solicitud por su propio límite de velocidad o cuota (HTTP 429). MI AI no limita los mensajes; se reintentó automáticamente. Si sigue pasando, aumenta los tokens por minuto del deployment en tu cuenta del proveedor o espera un momento."
+      + (reason ? ` Detalle del proveedor: ${reason}` : "");
+    return new ProviderError("unavailable", label, status, technical);
+  }
   return new ProviderError(code, labels[code], status, technical);
 }
 /** Draft credentials stay only in memory. Success requires actual generated model text. */
