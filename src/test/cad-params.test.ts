@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { evalFormula, resolveParams } from "@/lib/media/cad-params";
 import { newFeature, cadMetrics, exportCad, type CadDocument } from "@/lib/media/cad";
-import { stepFaceted } from "@/lib/media/step";
+import { stepBrep } from "@/lib/media/step";
 import { writeFileSync } from "node:fs";
 it("evaluates arithmetic formulas without eval", () => {
   expect(evalFormula("2*(ancho+3)^2/4", { ancho: 1 })).toBe(8);
@@ -29,11 +29,11 @@ it("exports a structurally valid faceted STEP with all references defined", asyn
   const text = new TextDecoder().decode(await exportCad(doc, "step"));
   writeFileSync("/tmp/miai-test.step", text);
   expect(text.startsWith("ISO-10303-21;")).toBe(true);
-  expect(text).toContain("FACETED_BREP(");
+  expect(text).toContain("MANIFOLD_SOLID_BREP(");
   expect(text).toContain("SI_UNIT(.MILLI.,.METRE.)");
   const defined = new Set([...text.matchAll(/^#(\d+)=/gm)].map((m) => m[1]));
   const used = new Set([...text.matchAll(/#(\d+)(?!=)/g)].map((m) => m[1]));
   for (const u of used) expect(defined.has(u)).toBe(true);
   expect(text).toContain("'Pieza''s'");
-  expect(() => stepFaceted("x", [])).toThrow();
+  expect(() => stepBrep("x", [])).toThrow();
 });
