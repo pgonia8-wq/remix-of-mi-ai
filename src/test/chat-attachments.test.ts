@@ -38,20 +38,41 @@ describe("Adjuntos y acciones del chat", () => {
   });
   it("rechaza archivos no analizables sin fingir lectura", () => { expect(attachmentKind("a.png", "image/png")).toBe("image"); expect(attachmentKind("a.docx", "")).toBe("document"); expect(() => attachmentKind("a.exe", "application/octet-stream")).toThrow(); });
 });
-describe("chat context window (not a message quota)", () => {
-  it("sends the newest turns within the budget and always the latest message", async () => {
+describe("per-chat context messages (not a message quota)", () => {
+  const turns = (n: number) => Array.from({ length: n }, (_, i) => ({ role: (i % 2 ? "assistant" : "user") as "user" | "assistant", content: `${i}` }));
+  it("sends the last N messages, starting on a user turn", async () => {
     const { fitHistory } = await import("@/lib/chat-attachments");
-    const long = Array.from({ length: 60 }, (_, i) => ({ role: (i % 2 ? "assistant" : "user") as "user" | "assistant", content: `${i}:` + "x".repeat(1000) }));
-    const sent = fitHistory(long, 32_000);
-    expect(sent.at(-1)!.content.startsWith("59:")).toBe(true);
-    expect(sent.reduce((a, m) => a + m.content.length, 0)).toBeLessThanOrEqual(32_000);
-    expect(sent[0]!.role).toBe("user");
-    expect(fitHistory([{ role: "user", content: "y".repeat(50_000) }], 32_000)).toHaveLength(1);
+    const sent = fitHistory(turns(1500), 20);
+    expect(sent.at(-1)!.content).toBe("1499"); expect(sent[0]!.role).toBe("user"); expect(sent.length).toBeLessThanOrEqual(20);
+  });
+  it("0 = unlimited sends all 1500 messages", async () => {
+    const { fitHistory } = await import("@/lib/chat-attachments");
+    expect(fitHistory(turns(1500), 0)).toHaveLength(1500);
   });
   it("drops images from older turns but keeps them on the latest", async () => {
     const { fitHistory } = await import("@/lib/chat-attachments");
-    const img = { mime: "image/png", data: "a".repeat(10) };
-    const sent = fitHistory([{ role: "user", content: "old", images: [img] }, { role: "assistant", content: "ok" }, { role: "user", content: "new", images: [img] }]);
+    const img = { mime: "image/png", data: "a" };
+    const sent = fitHistory([{ role: "user", content: "old", images: [img] }, { role: "assistant", content: "ok" }, { role: "user", content: "new", images: [img] }], 0);
     expect(sent[0]!.images).toBeUndefined(); expect(sent[2]!.images).toHaveLength(1);
+  });
+  it("detects provider context overflow so the user is told to lower it", async () => {
+    const { isContextOverflow } = await import("@/lib/chat-attachments");
+    expect(isContextOverflow(400, '{"error":{"code":"context_length_exceeded"}}')).toBe(true);
+    expect(isContextOverflow(429, "")).toBe(true);
+    expect(isContextOverflow(401, "invalid key")).toBe(false);
+  });
+  it("stores the setting per chat, default 20, project-scoped", async () => {
+    const SQL = await initSqlJs();
+    const repo = new Repo(wrapSqlJs(new SQL.Database()), { encrypt: async (s: string) => s, decrypt: async (s: string) => s } as never);
+    await repo.migrate();
+    const p = await repo.createProject("A"), q = await repo.createProject("B");
+    const c = await repo.createChat(p.id, "x");
+    expect(await repo.getChatContextLimit(p.id, c.id)).toBe(20);
+    await repo.setChatContextLimit(p.id, c.id, 1500);
+    expect(await repo.getChatContextLimit(p.id, c.id)).toBe(1500);
+    expect(await repo.getChatContextLimit(q.id, c.id)).toBe(20);
+    await expect(repo.setChatContextLimit(q.id, c.id, 5)).rejects.toThrow();
+    await repo.deleteChat(p.id, c.id);
+    expect(await repo.getChatContextLimit(p.id, c.id)).toBe(20);
   });
 });

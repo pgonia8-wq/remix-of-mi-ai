@@ -12,6 +12,7 @@ export interface KeyVault {
 }
 
 export type Project = { id: string; name: string; description: string | null; created_at: number };
+export const DEFAULT_CONTEXT_MESSAGES = 20;
 export type Chat = { id: string; project_id: string; title: string; provider_id: string | null; model: string | null; created_at: number; updated_at: number };
 export type Message = { id: string; project_id: string; chat_id: string; role: "user" | "assistant" | "system"; content: string; provider_id: string | null; model: string | null; created_at: number };
 export type MemoryKind = "hecho" | "decision" | "hipotesis";
@@ -83,6 +84,7 @@ export class Repo {
     await this.db.run(`CREATE TABLE IF NOT EXISTS cost_ledger (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, provider_id TEXT, model TEXT, operation TEXT NOT NULL, amount_usd REAL NOT NULL, estimated INTEGER NOT NULL, created_at INTEGER NOT NULL)`);
     await this.db.run(`CREATE TABLE IF NOT EXISTS model_prices (model TEXT PRIMARY KEY, input_per_mtok REAL, output_per_mtok REAL, per_image REAL, per_second REAL, per_call REAL, updated_at INTEGER NOT NULL)`);
     await this.db.run(`CREATE TABLE IF NOT EXISTS restore_journal (id TEXT PRIMARY KEY, kind TEXT NOT NULL, state TEXT NOT NULL, detail TEXT, updated_at INTEGER NOT NULL)`);
+    await this.db.run(`CREATE TABLE IF NOT EXISTS chat_settings (chat_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, context_messages INTEGER NOT NULL, updated_at INTEGER NOT NULL)`);
     for (const s of SCHEMA_B4) await this.db.run(s);
     await this.registry.seedCapabilities();
     await this.registry.syncLegacyProviders();
@@ -131,7 +133,7 @@ export class Repo {
     await this.db.run(`UPDATE projects SET name=?, description=? WHERE id=?`, [name, description, id]);
   }
   async deleteProject(id: string) {
-    for (const t of ["cost_ledger", "project_budgets", "messages", "chats", "memory_versions", "memory_items", "documents", ...PROJECT_TABLES_V3, ...PROJECT_TABLES_B4])
+    for (const t of ["cost_ledger", "project_budgets", "chat_settings", "messages", "chats", "memory_versions", "memory_items", "documents", ...PROJECT_TABLES_V3, ...PROJECT_TABLES_B4])
       await this.db.run(`DELETE FROM ${t} WHERE project_id=?`, [id]);
     await this.db.run(`DELETE FROM projects WHERE id=?`, [id]);
   }
@@ -214,8 +216,20 @@ export class Repo {
     need(projectId);
     await this.db.run(`DELETE FROM message_feedback WHERE project_id=? AND message_id IN (SELECT id FROM messages WHERE project_id=? AND chat_id=?)`, [projectId, projectId, chatId]);
     await this.db.run(`DELETE FROM chat_attachments WHERE project_id=? AND chat_id=?`, [projectId, chatId]);
+    await this.db.run(`DELETE FROM chat_settings WHERE project_id=? AND chat_id=?`, [projectId, chatId]);
     await this.db.run(`DELETE FROM messages WHERE project_id=? AND chat_id=?`, [projectId, chatId]);
     await this.db.run(`DELETE FROM chats WHERE project_id=? AND id=?`, [projectId, chatId]);
+  }
+  /** Messages of history sent per request; 0 = unlimited. The chat itself stores every message regardless. */
+  async getChatContextLimit(projectId: string, chatId: string): Promise<number> {
+    need(projectId);
+    const [r] = await this.db.all<{ context_messages: number }>(`SELECT context_messages FROM chat_settings WHERE project_id=? AND chat_id=?`, [projectId, chatId]);
+    return r ? r.context_messages : DEFAULT_CONTEXT_MESSAGES;
+  }
+  async setChatContextLimit(projectId: string, chatId: string, messages: number) {
+    if (!Number.isInteger(messages) || messages < 0) throw new Error("Cantidad de mensajes de contexto inválida");
+    if (!(await this.getChat(projectId, chatId))) throw new IsolationError("Chat no pertenece al proyecto");
+    await this.db.run(`INSERT OR REPLACE INTO chat_settings (chat_id, project_id, context_messages, updated_at) VALUES (?,?,?,?)`, [chatId, projectId, messages, now()]);
   }
 
   // ---------- Messages ----------
