@@ -62,9 +62,9 @@ function Research() {
           {res.invalidCitations.length > 0 && <p className="rounded-md bg-destructive/15 p-2 text-xs text-destructive">Atención: el informe cita fuentes inexistentes ({res.invalidCitations.map((n) => `[${n}]`).join(", ")}). Verifica esas afirmaciones.</p>}
           <Markdown text={res.report} />
           <div className="space-y-1 border-t pt-2">
-            {res.sources.map((s, i) => <a key={s.url} href={s.url} target="_blank" rel="noreferrer noopener" className="block truncate text-xs text-primary underline">[{i + 1}] {s.title}</a>)}
+            {res.sources.map((s, i) => <a key={s.url} href={s.url} target="_blank" rel="noreferrer noopener" className="block truncate text-xs text-primary underline">[{i + 1}] {s.title}{s.read ? " · leída" : ""}</a>)}
           </div>
-          <p className="text-[10px] text-muted-foreground">Búsquedas: {res.queries.join(" · ")}. Guardado cifrado en la Biblioteca con la etiqueta «investigación».</p>
+          <p className="text-[10px] text-muted-foreground">Búsquedas ({res.rounds} {res.rounds > 1 ? "rondas" : "ronda"}): {res.queries.join(" · ")}. {res.sources.filter((x) => x.read).length} páginas leídas completas. Guardado cifrado en la Biblioteca con la etiqueta «investigación».</p>
           <div className="grid grid-cols-3 gap-1">{(["pdf", "docx", "md"] as const).map((f) => <Button key={f} size="sm" variant="outline" onClick={() => exp(f)}>{f.toUpperCase()}</Button>)}</div>
         </section>
       )}
