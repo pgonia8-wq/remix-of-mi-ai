@@ -177,3 +177,12 @@
 - [x] SSH local/inverso, SOCKS5 (PC y SSH), VPN dividida — código listo; prueba nativa en el bloque 5
 - [ ] Validación con proveedor real, Android físico, PC Windows/macOS, Docker, commit/push Git, túneles SSH/VPN nativos — bloqueado: dispositivo, claves y equipos de Fer
 - [ ] Bloque 5: APK final
+
+## Entrega actual — funciones faltantes (build.11)
+- [ ] Música: medición LUFS integrada/corto plazo/LRA, true-peak 4x y normalización a objetivo con limitador true-peak.
+- [ ] Video: línea de tiempo arrastrable (reordenar y recortar) y vista previa compuesta con transiciones, PiP y subtítulos.
+- [ ] CAD: parámetros con fórmulas (restricciones), exportación STEP facetada.
+- [ ] 3D: edición de vértices, huesos, animación por keyframes y exportación GLB animada.
+- [ ] Voz: Azure en tiempo real y herramientas durante la llamada vía invokeTool con aprobaciones.
+- [ ] Azure música/3D: sin contrato Azure existente; no se inventa (bloqueado por proveedor).
+- [ ] Compilar APK build.11 con la misma firma y entregar ZIP.
