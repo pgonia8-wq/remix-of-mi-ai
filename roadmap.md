@@ -2,7 +2,8 @@
 
 ## Solicitud actual — recuperación y auditoría del Prompt Maestro
 - [x] Recuperar el Prompt Maestro original y las seis ampliaciones adjuntas sin sustituirlas por resúmenes.
-- [ ] Entregar TXT originales e informe completo de omisiones, implementaciones parciales y validaciones pendientes contra el código actual.
+- [ ] Entregar un único TXT con el original y las seis ampliaciones íntegros e informe completo de omisiones, implementaciones parciales y validaciones pendientes contra el código actual.
+- [ ] Continuar con las omisiones: iniciar por compatibilidad real de formatos y límites del selector de modelos, con pruebas, sin recompilar ni declarar cierre total.
 
 ## Solicitud actual — documentación, firma y cierre
 - [x] Entregar archivo de contraseña de firma Debug y distinguirlo de la contraseña personal de respaldos.
