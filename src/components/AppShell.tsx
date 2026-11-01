@@ -13,7 +13,7 @@ const tabs = [
   { to: "/tools", label: "Herramientas", icon: LayoutGrid },
   { to: "/workspace", label: "Espacio profesional", icon: Briefcase },
 ] as const;
-const studios = [{ to: "/music", label: "Música y sonido", icon: Music }, { to: "/video", label: "Video", icon: Film }, { to: "/models3d", label: "Modelos 3D", icon: Box }] as const;
+const studios = [{ to: "/voice", label: "Conversación por voz", icon: MessagesSquare }, { to: "/music", label: "Música y sonido", icon: Music }, { to: "/video", label: "Video", icon: Film }, { to: "/models3d", label: "Modelos 3D", icon: Box }] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
   const path = useRouterState({ select: (s) => s.location.pathname });

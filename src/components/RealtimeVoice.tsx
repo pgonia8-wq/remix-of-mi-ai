@@ -10,13 +10,14 @@ export function RealtimeVoice() { const pid = useActiveProjectId(); return pid ?
 function Voice({ pid }: { pid: string }) {
   const { data: models = [] } = useCoreQuery(["realtime-models"], async (c) => (await c.repo.registry.listModels()).filter((m) => m.provider_kind === "openai" && m.provider_enabled && m.capabilities.includes("speech.realtime")));
   const [modelId, setModelId] = useState(""), [voice, setVoice] = useState("marin"), [state, setState] = useState("idle"), [muted, setMuted] = useState(false), [transcripts, setTranscripts] = useState<{ role: "user" | "assistant"; text: string }[]>([]);
-  const session = useRef<Awaited<ReturnType<typeof startRealtime>> | null>(null), mutate = useCoreMutate();
-  useEffect(() => () => { session.current?.stop(); }, []);
+  const session = useRef<Awaited<ReturnType<typeof startRealtime>> | null>(null), generation = useRef(0), mutate = useCoreMutate();
+  useEffect(() => () => { generation.current++; session.current?.stop(); }, []);
   async function start() {
     const model = models.find((m) => m.id === modelId) ?? models[0]; if (!model) return;
     if (!confirm("¿Iniciar conversación de voz? Se enviará audio y contexto de este proyecto al proveedor, con posible costo.")) return;
-    setState("connecting");
-    try { session.current = await startRealtime(await getCore(), pid, model, voice, { state: setState, transcript: (role, text) => setTranscripts((v) => [...v, { role, text }]), error: () => toast.error("La sesión de voz no confirmó su estado. Comprueba la conexión y el proveedor.") }); }
+    const current = ++generation.current;
+    setState("connecting"); setMuted(false);
+    try { const active = await startRealtime(await getCore(), pid, model, voice, { state: (s) => { if (current === generation.current) setState(s); }, transcript: (role, text) => { if (current === generation.current) setTranscripts((v) => [...v, { role, text }]); }, error: () => { if (current === generation.current) toast.error("La sesión de voz no confirmó su estado. Comprueba la conexión y el proveedor."); } }); if (current !== generation.current) active.stop(); else session.current = active; }
     catch { setState("idle"); toast.error("No se pudo abrir voz en tiempo real. Revisa el modelo, permisos de micrófono y acceso del proveedor desde este dispositivo."); }
   }
   return <div className="mx-auto max-w-3xl space-y-6 p-4 sm:p-6"><h1 className="text-2xl font-semibold">Conversación por voz</h1><select aria-label="Modelo de voz en tiempo real" disabled={state !== "idle"} className={inputCls} value={modelId} onChange={(e) => setModelId(e.target.value)}><option value="">Automático</option>{models.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select><select aria-label="Voz de conversación" className={inputCls} disabled={state !== "idle"} value={voice} onChange={(e) => setVoice(e.target.value)}>{["marin", "cedar", "alloy", "ash", "coral", "sage", "verse"].map((v) => <option key={v}>{v}</option>)}</select>
