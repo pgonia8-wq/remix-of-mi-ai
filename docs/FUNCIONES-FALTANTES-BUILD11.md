@@ -10,7 +10,7 @@
 - **Voz en tiempo real con Azure OpenAI (GA /openai/v1)**, además de OpenAI. Opción para usar **herramientas durante la llamada** (memoria, notas, tareas, recordatorios, búsqueda web, JavaScript aislado y guardar en memoria). Cada llamada pasa por `invokeTool()` con límites, presupuesto y aprobación en pantalla cuando hace falta.
 
 ## Comprobado
-- 346 pruebas automáticas (incluye las de sonoridad, fórmulas, STEP, rigging, GLB, línea de tiempo y voz con Azure y herramientas).
+- 340 pruebas automáticas (incluye las de sonoridad, fórmulas, STEP, rigging, GLB, línea de tiempo y voz con Azure y herramientas).
 - En la vista previa: normalización de −47.8 a −14.0 LUFS; arrastrar para reordenar y recortar; vista previa reproducida; caja definida con parámetros (30 → 40 mm recalcula 13 500 → 32 000 mm³); STEP y GLB animado guardados; panel de voz con herramientas.
 
 ## Límites honestos
