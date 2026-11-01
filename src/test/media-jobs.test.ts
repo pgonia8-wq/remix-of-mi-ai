@@ -30,6 +30,25 @@ beforeEach(async () => {
 });
 afterEach(() => vi.unstubAllGlobals());
 describe("Música y medios: contratos y trabajos", () => {
+  it("R12: recuperación no duplica un resultado aunque cambie el orden remoto", async () => {
+    const p = await core.repo.createProject("P");
+    const provider = await core.repo.saveProvider({ name: "Meshy", kind: "meshy", model: "m", apiKey: "fixture" });
+    const job = await core.jobs.create(p.id, { capability: "model3d.generate", providerId: provider });
+    await core.jobs.markSent(p.id, job.id);
+    await core.jobs.transition(p.id, job.id, "processing", { remote_id: "text:x", phase: "accepted" });
+    const a = { bytes: new Uint8Array([1]), mime: "model/gltf-binary", name: "a.glb" };
+    const b = { bytes: new Uint8Array([2]), mime: "model/gltf-binary", name: "b.glb" };
+    const adapter = getAdapter("meshy");
+    const poll = vi.spyOn(adapter, "poll").mockResolvedValue({ kind: "files", files: [a, b] });
+    const put = core.assets.put.bind(core.assets); let writes = 0;
+    const fail = vi.spyOn(core.assets, "put").mockImplementation(async (...args) => { if (++writes === 2) throw new Error("Crash"); return put(...args); });
+    await expect(pollRemoteJob(core, p.id, job.id)).rejects.toThrow("Crash");
+    fail.mockRestore(); poll.mockResolvedValue({ kind: "files", files: [b, a] });
+    try {
+      await pollRemoteJob(core, p.id, job.id);
+      expect(await core.assets.list(p.id)).toHaveLength(2);
+    } finally { poll.mockRestore(); }
+  });
   it("Azure video verifica mediante trabajo persistente, no guarda modelo al aceptar y consulta sin reenvío", async () => {
     const project = await core.repo.createProject("Azure video");
     const providerId = await core.repo.saveProvider({ name: "Azure", kind: "azure_openai", endpoint: "https://resource.services.ai.azure.com/openai/v1", model: "chat", deployment: "chat", apiKey: "fixture-key" });
