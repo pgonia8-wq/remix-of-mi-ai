@@ -59,6 +59,19 @@ describe("costos y presupuesto", () => {
 });
 
 describe("respaldo por partes (v3)", () => {
+  it("una restauración fallida no sustituye archivos existentes ni deja archivos promovidos", async () => {
+    const p = await A.repo.createProject("P");
+    const asset = await A.assets.put(p.id, once(new Uint8Array([1, 2, 3])), { kind: "text", mime: "text/plain" });
+    const lines = await collect(createBackupStream({ ...A, password: PW, kdf: "pbkdf2" }));
+    const paths = await A.fs.list("assets/");
+    const original = A.repo.restoreAll.bind(A.repo);
+    A.repo.restoreAll = async () => { throw new Error("Injected failure"); };
+    try { await expect(restoreBackupStream({ ...A, lines: () => lines, password: PW })).rejects.toThrow("Injected failure"); }
+    finally { A.repo.restoreAll = original; }
+    expect(await A.fs.list("assets/")).toEqual(paths);
+    expect(await A.assets.read(p.id, asset.id)).toEqual(new Uint8Array([1, 2, 3]));
+    expect(await A.repo.journalPending()).toEqual([]);
+  });
   it("R07/R09: limpieza espera una escritura activa incluso entre dos AssetStore", async () => {
     const p = await A.repo.createProject("P");
     let release: (() => void) | undefined, started: (() => void) | undefined;
