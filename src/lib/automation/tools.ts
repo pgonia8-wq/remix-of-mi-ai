@@ -183,6 +183,8 @@ export async function availabilityReport(ctx: ToolCtx) {
 }
 
 async function assertLock(ctx: ToolCtx, path: string) {
+  // Undeclared files are locked on first write, so two tasks can never edit the same file concurrently.
+  if (ctx.taskId) await ctx.core.repo.sql.run("INSERT OR IGNORE INTO file_locks VALUES (?,?,?,?,?)", [ctx.projectId, path, ctx.runId, ctx.taskId, Date.now()]);
   const [l] = await ctx.core.repo.sql.all<{ task_id: string; run_id: string }>("SELECT task_id, run_id FROM file_locks WHERE project_id=? AND path=?", [ctx.projectId, path]);
   if (l && (l.run_id !== ctx.runId || l.task_id !== ctx.taskId)) throw new ToolRejected(`Archivo bloqueado por otra subtarea (${l.task_id}).`);
 }
