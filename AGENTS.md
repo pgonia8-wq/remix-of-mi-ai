@@ -37,4 +37,4 @@
 - Debug APKs must use `signing/miai-debug.keystore`, never a regenerated key. Why: signature changes prevent data-preserving updates.
 - Manual model/provider forms verify exact drafts before saving; draft credentials stay in memory. Why: supplementary setup must not bypass real-response verification.
 - SearXNG uses an explicit HTTPS JSON instance, on-device form POST without keys/proxy; validate source URLs. Why: open search without mandatory app backend or unsafe links.
-- Single-project transfer always imports as a new project with fresh IDs and re-encrypted assets; budgets/costs are project-scoped Repo tables. Why: imports must never merge into or overwrite another project.
+- Project import always creates a new project (fresh IDs, re-encrypted assets). Why: never merge/overwrite.
