@@ -75,7 +75,7 @@ export function loan(principal: number, annualRate: number, months: number) {
   }
   return { payment: r2(payment), totalPaid: r2(payment * months), totalInterest: r2(payment * months - principal), schedule };
 }
-const r2 = (x: number) => Math.round(x * 100) / 100;
+const r2 = (x: number) => Math.round(x * 100) / 100 + 0; // +0 normalizes -0
 
 /** Net present value; cashflows[0] is at t=0 (usually negative). rate in %. */
 export function npv(ratePct: number, cashflows: number[]) {
