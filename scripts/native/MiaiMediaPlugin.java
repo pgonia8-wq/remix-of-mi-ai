@@ -69,7 +69,18 @@ public class MiaiMediaPlugin extends Plugin {
           };
           effects.add(new OverlayEffect(Collections.singletonList(overlay)));
         }
-        Composition composition=new Composition.Builder(new EditedMediaItemSequence.Builder(items).build()).setEffects(new Effects(Collections.emptyList(),effects)).build();
+        EditedMediaItemSequence videoSeq=new EditedMediaItemSequence.Builder(items).build();
+        Composition.Builder cb;
+        String audio=call.getString("audio",null);
+        if(audio!=null&&!audio.isEmpty()) {
+          // Background track (already mixed and trimmed on-device as WAV) as a second, audio-only sequence.
+          byte[] ab=Base64.decode(audio,Base64.DEFAULT);
+          if(ab.length>80*1024*1024)throw new IOException();
+          File af=new File(work,"background.wav");try(FileOutputStream out=new FileOutputStream(af)) {out.write(ab);}Arrays.fill(ab,(byte)0);
+          EditedMediaItem audioItem=new EditedMediaItem.Builder(new MediaItem.Builder().setUri(Uri.fromFile(af)).build()).setRemoveVideo(true).build();
+          cb=new Composition.Builder(videoSeq,new EditedMediaItemSequence.Builder(Collections.singletonList(audioItem)).build());
+        } else cb=new Composition.Builder(videoSeq);
+        Composition composition=cb.setEffects(new Effects(Collections.emptyList(),effects)).build();
         File output=new File(work,"output.mp4");
         transformer=new Transformer.Builder(getContext()).setVideoMimeType(MimeTypes.VIDEO_H264).setAudioMimeType(MimeTypes.AUDIO_AAC).addListener(new Transformer.Listener() {
           @Override public void onCompleted(Composition c,ExportResult r) {
