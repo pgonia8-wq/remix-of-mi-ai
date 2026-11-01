@@ -16,6 +16,7 @@ const now = () => Date.now();
 export function adapterFor(kind: string): string {
   if (kind === "elevenlabs") return "elevenlabs";
   if (kind === "tavily") return "tavily";
+  if (kind === "searxng") return "searxng";
   if (kind === "meshy") return "meshy";
   if (kind === "runway") return "runway";
   if (kind === "azure_openai" || kind === "azure") return "azure_openai";
@@ -63,7 +64,7 @@ export class Registry {
       );
       await this.db.run(`INSERT OR IGNORE INTO auth_refs (id, provider_id, legacy_provider_id) VALUES (?,?,?)`, [p.id, p.id, p.id]);
       const remote = (p.kind === "azure_openai" || p.kind === "azure" ? p.deployment : p.model)?.trim();
-      if (remote && !["elevenlabs", "tavily", "meshy", "runway"].includes(p.kind)) {
+      if (remote && !["elevenlabs", "tavily", "searxng", "meshy", "runway"].includes(p.kind)) {
         const mid = await this.upsertModel({ providerId: p.id, remoteId: remote, name: remote, source: "legacy" });
         await this.db.run(`INSERT OR IGNORE INTO model_capabilities (model_id, capability_id) VALUES (?, 'chat')`, [mid]);
       }

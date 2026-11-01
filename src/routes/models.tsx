@@ -10,6 +10,7 @@ import type { ModelWithCaps } from "@/lib/core/registry";
 import { inputCls } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { MediaProviderForm } from "@/components/MediaProviderForm";
+import { SearxngForm } from "@/components/SearxngForm";
 
 export const Route = createFileRoute("/models")({
   head: () => ({
@@ -36,6 +37,8 @@ function Models() {
   const [eleven, setEleven] = useState(false);
   const [tavily, setTavily] = useState(false);
   const [media, setMedia] = useState(false);
+  const [searxng, setSearxng] = useState(false);
+  const [external, setExternal] = useState(false);
   const models = data?.models ?? [], providers = data?.providers ?? [], caps = data?.caps ?? [];
 
   async function importCatalog(providerId: string, adapterId: string) {
@@ -60,14 +63,18 @@ function Models() {
       </div>
       <p className="text-xs text-muted-foreground">Cada modelo muestra solo las capacidades que tú o su catálogo declaran. «Probar» hace una operación real con tu clave (puede tener costo). Los proveedores de texto se agregan en Ajustes.</p>
       {adding && <RegisterModel providers={providers} caps={caps.map((c) => c.id)} onDone={() => setAdding(false)} />}
-      <Button variant="outline" onClick={() => setMedia(!media)}><Plus />Proveedor de música, video o 3D</Button>
-      {media && <MediaProviderForm onDone={() => setMedia(false)} />}
 
       <section className="space-y-2 rounded-xl border bg-card p-3 text-sm">
         <div className="flex items-center justify-between"><h2 className="font-semibold">Proveedores</h2>
-          <div className="flex gap-1"><Button size="sm" variant="outline" onClick={() => setEleven((v) => !v)}><Plus /> ElevenLabs</Button><Button size="sm" variant="outline" onClick={() => setTavily((v) => !v)}><Plus /> Tavily</Button></div></div>
-        {tavily && <TavilyForm onDone={() => setTavily(false)} />}
-        {eleven && <ElevenLabsForm onDone={() => setEleven(false)} />}
+          <Button size="sm" variant="outline" onClick={() => setSearxng(v => !v)}><Plus /> SearXNG</Button></div>
+        {searxng && <SearxngForm onDone={() => setSearxng(false)} />}
+        <Button variant="ghost" size="sm" onClick={() => setExternal(v => !v)}>Otros proveedores opcionales</Button>
+        {external && <div className="space-y-2">
+          <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => setEleven(v => !v)}>ElevenLabs</Button><Button size="sm" variant="outline" onClick={() => setTavily(v => !v)}>Tavily</Button><Button size="sm" variant="outline" onClick={() => setMedia(v => !v)}>Música, video y 3D</Button></div>
+          {tavily && <TavilyForm onDone={() => setTavily(false)} />}
+          {eleven && <ElevenLabsForm onDone={() => setEleven(false)} />}
+          {media && <MediaProviderForm onDone={() => setMedia(false)} />}
+        </div>}
         {!providers.length && <p className="text-xs text-muted-foreground">Sin proveedores. Agrega uno en Ajustes.</p>}
         {providers.map((p) => (
           <div key={p.id} className="flex items-center gap-2 border-t pt-2">
@@ -144,11 +151,10 @@ function ModelCard({ m, allCaps }: { m: ModelWithCaps; allCaps: string[] }) {
 }
 
 function getAdapterForModel(m: ModelWithCaps) {
-  const kind = m.provider_kind;
-  return getAdapter(kind === "openai" ? "openai" : kind === "azure_openai" || kind === "azure" ? "azure_openai" : ["elevenlabs", "tavily", "meshy", "runway"].includes(kind) ? kind : `text:${kind}`);
+  return getAdapter(m.adapter_id ?? (m.provider_kind === "azure" ? "azure_openai" : m.provider_kind));
 }
 
-function RegisterModel({ providers, caps, onDone }: { providers: { id: string; name: string }[]; caps: string[]; onDone: () => void }) {
+function RegisterModel({ providers, caps, onDone }: { providers: { id: string; name: string; adapter: string }[]; caps: string[]; onDone: () => void }) {
   const mutate = useCoreMutate();
   const [providerId, setProviderId] = useState(providers[0]?.id ?? "");
   const [remote, setRemote] = useState("");
@@ -157,6 +163,8 @@ function RegisterModel({ providers, caps, onDone }: { providers: { id: string; n
   const [tested, setTested] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const provider = providers.find(p => p.id === providerId);
+  const availableCaps = caps.filter(cap => provider && getAdapter(provider.adapter).supports(cap));
   const fingerprint = JSON.stringify([providerId, remote.trim(), sel]);
   async function test() {
     if (!confirm("Se probarán las capacidades seleccionadas con solicitudes reales que pueden tener costo. ¿Continuar?")) return;
@@ -185,13 +193,13 @@ function RegisterModel({ providers, caps, onDone }: { providers: { id: string; n
   }
   return (
     <div className="space-y-2 rounded-xl border bg-card p-3 text-sm" aria-busy={busy}>
-      <select className={inputCls} value={providerId} onChange={(e) => setProviderId(e.target.value)}>
+      <select aria-label="Proveedor del modelo" className={inputCls} value={providerId} onChange={(e) => { setProviderId(e.target.value); setSel([]); setTested(null); setMessage(""); }}>
         {providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
       </select>
       <input className={inputCls} placeholder="Identificador oficial o deployment (p. ej. gpt-image-1)" value={remote} onChange={(e) => setRemote(e.target.value)} />
       <input className={inputCls} placeholder="Costo conocido (opcional, p. ej. «$0.04 por imagen»)" value={cost} onChange={(e) => setCost(e.target.value)} />
       <div className="grid grid-cols-2 gap-1">
-        {caps.map((c) => <label key={c} className="flex items-center gap-1 text-xs"><input type="checkbox" checked={sel.includes(c)} onChange={(e) => setSel(e.target.checked ? [...sel, c] : sel.filter((x) => x !== c))} /><span className="font-mono">{c}</span></label>)}
+        {availableCaps.map((c) => <label key={c} className="flex items-center gap-1 text-xs"><input type="checkbox" checked={sel.includes(c)} onChange={(e) => setSel(e.target.checked ? [...sel, c] : sel.filter((x) => x !== c))} /><span className="font-mono">{c}</span></label>)}
       </div>
       {message && <p role="status" className="break-words text-sm">{message}</p>}
       <Button variant="outline" disabled={busy || !providerId || !remote.trim() || !sel.length} onClick={test}>Probar conexión</Button>

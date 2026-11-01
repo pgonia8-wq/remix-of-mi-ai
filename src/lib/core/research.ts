@@ -1,4 +1,4 @@
-// Web research: plan sub-queries → search (Tavily, user's key) → report written by a chat model with numbered citations.
+// Web research: plan sub-queries → open metasearch or optional provider → cited report.
 import type { Core } from "./index";
 import { route } from "./router";
 import { execute } from "./executor";
@@ -21,7 +21,7 @@ export function invalidCitations(report: string, n: number): number[] {
 export async function runResearch(core: Core, projectId: string, question: string, opts: { deep: boolean; onStep?: (s: string) => void }): Promise<ResearchResult> {
   const models = await core.repo.registry.listModels();
   const search = route(models, { capability: "research.web", mode: "auto" });
-  if (!search.ok) throw new Error(search.reason + " Agrega un buscador (Tavily) en Modelos.");
+  if (!search.ok) throw new Error(search.reason + " Agrega SearXNG en Modelos.");
   let queries = [question];
   if (opts.deep) {
     opts.onStep?.("Planificando búsquedas…");

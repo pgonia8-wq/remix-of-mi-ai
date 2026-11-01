@@ -16,7 +16,7 @@ export type MemoryKind = "hecho" | "decision" | "hipotesis";
 export type MemoryItem = { id: string; project_id: string; kind: MemoryKind; content: string; version: number; archived: number; updated_at: number };
 export type MemoryVersion = { id: string; item_id: string; version: number; kind: MemoryKind; content: string; created_at: number };
 export type Doc = { id: string; project_id: string; name: string; mime: string | null; size: number; text_content: string | null; file_path: string | null; created_at: number };
-export type ProviderKind = "openai" | "anthropic" | "gemini" | "azure" | "azure_openai" | "xai" | "deepseek" | "mistral" | "cohere" | "openai_compatible" | "custom" | "elevenlabs" | "tavily" | "meshy" | "runway";
+export type ProviderKind = "openai" | "anthropic" | "gemini" | "azure" | "azure_openai" | "xai" | "deepseek" | "mistral" | "cohere" | "openai_compatible" | "custom" | "elevenlabs" | "tavily" | "searxng" | "meshy" | "runway";
 export type Provider = { id: string; name: string; kind: ProviderKind; endpoint: string | null; deployment: string | null; model: string; api_version: string | null; extra_params: string | null; enabled: number; created_at: number; has_key: boolean; verification_status: "verified" | "error" | "unverified"; checked_at: number | null };
 export type ProviderInput = { name: string; kind: ProviderKind; endpoint?: string; apiKey?: string | undefined; deployment?: string; model: string; apiVersion?: string; extraParams?: string; enabled?: boolean };
 

@@ -17,8 +17,8 @@ export function ConnectionDiagnostic({ result }: { result: ConnectionResult | nu
 }
 
 export function ProviderForm({ provider, onClose }: { provider?: Provider | undefined; onClose: () => void }) {
-  const first = PROVIDER_KINDS[0];
-  const [form, setForm] = useState({ name: provider?.name ?? first?.label ?? "", kind: provider?.kind ?? "openai" as ProviderKind, endpoint: provider?.endpoint ?? first?.endpoint ?? "", apiKey: "", model: provider?.model ?? first?.model ?? "", deployment: provider?.deployment ?? "", apiVersion: provider?.api_version ?? "", extraParams: provider?.extra_params ?? "" });
+  const first = PROVIDER_KINDS.find(p => p.kind === "azure_openai");
+  const [form, setForm] = useState({ name: provider?.name ?? first?.label ?? "", kind: provider?.kind ?? "azure_openai" as ProviderKind, endpoint: provider?.endpoint ?? first?.endpoint ?? "", apiKey: "", model: provider?.model ?? first?.model ?? "", deployment: provider?.deployment ?? "", apiVersion: provider?.api_version ?? "", extraParams: provider?.extra_params ?? "" });
   const [result, setResult] = useState<ConnectionResult | null>(null);
   const [tested, setTested] = useState<ProviderCall | null>(null);
   const [busy, setBusy] = useState(false);

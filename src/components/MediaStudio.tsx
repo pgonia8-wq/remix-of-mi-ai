@@ -6,11 +6,9 @@ import { NeedProject, inputCls } from "./AppShell";
 import { Button } from "./ui/button";
 import { Model3DViewer } from "./Model3DViewer";
 import { useActiveProjectId, useCoreMutate, useCoreQuery } from "@/lib/use-app";
-import { route } from "@/lib/core/router";
+import { route, compatible as isCompatible } from "@/lib/core/router";
 import { execute } from "@/lib/core/executor";
 import { pollRemoteJob } from "@/lib/core/remote-jobs";
-import { getAdapter } from "@/lib/core/adapters";
-import { adapterFor } from "@/lib/core/registry";
 import type { Asset } from "@/lib/core/asset-store";
 import { getCore } from "@/lib/core";
 import { saveExport } from "@/lib/save-export";
@@ -33,7 +31,7 @@ function Studio({ pid, kind }: { pid: string; kind: StudioKind }) {
   const [capability, setCapability] = useState(OPTIONS[kind][0]?.id ?? ""), [prompt, setPrompt] = useState("");
   const [modelId, setModelId] = useState(""), [seconds, setSeconds] = useState(kind === "music" ? 30 : 5), [instrumental, setInstrumental] = useState(true);
   const [ratio, setRatio] = useState("1280:720"), [license, setLicense] = useState(""), [busy, setBusy] = useState(false), [file, setFile] = useState<File | null>(null), [open, setOpen] = useState<Asset | null>(null);
-  const compatible = models.filter((m) => m.provider_enabled && m.status === "active" && m.capabilities.includes(capability) && getAdapter(adapterFor(m.provider_kind)).supports(capability));
+  const compatible = models.filter((m) => isCompatible(m, { capability, mode: "auto" }));
   async function act(fn: Parameters<typeof mutate>[0]) { setBusy(true); try { await mutate(fn); } catch (e) { toast.error(e instanceof Error ? e.message : "Operación no confirmada."); } finally { setBusy(false); } }
   async function generate() {
     if (!confirm("¿Enviar al proveedor con tu clave? Puede tener costo. La licencia depende del proveedor y de tu plan.")) return;
