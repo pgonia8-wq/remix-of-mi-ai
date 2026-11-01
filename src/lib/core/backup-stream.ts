@@ -80,15 +80,15 @@ async function* records(lines: AsyncIterable<string> | Iterable<string>, passwor
   if (!ended) throw new Error("Respaldo incompleto o cortado: falta el cierre");
 }
 
-/** Pass 1: authenticates every record and each asset's full encrypted file, writing nothing. */
+/** Pass 1: authenticates every record (each piece is AES-GCM authenticated), writing nothing and holding at most one record.
+ * The per-asset inner integrity check runs in pass 2 against the temporary file, before anything is committed. */
 export async function verifyBackupStream(lines: () => AsyncIterable<string> | Iterable<string>, password: string) {
-  let cur: { meta: Asset; dek: Uint8Array; parts: Uint8Array[] } | null = null, tables = 0, assets = 0;
-  const flush = async () => { if (!cur) return; const all = concat(cur.parts); await verifyAsset({ size: all.length, read: async (o, l) => all.subarray(o, o + l) }, { assetId: cur.meta.id, projectId: cur.meta.project_id }, cur.dek); cur.dek.fill(0); cur = null; assets++; };
+  let cur: string | null = null, tables = 0, assets = 0;
   for await (const r of records(lines(), password)) {
     if (r.t === "table") tables++;
-    else if (r.t === "asset") { await flush(); cur = { meta: r.meta, dek: unb64(r.dek), parts: [] }; }
-    else if (r.t === "piece") { if (!cur || cur.meta.id !== r.id) throw new Error("Respaldo alterado: pieza fuera de orden"); cur.parts.push(unb64(r.data)); }
-    else { await flush(); if (r.assets !== assets) throw new Error("Respaldo incompleto: faltan archivos"); }
+    else if (r.t === "asset") { cur = r.meta.id; assets++; }
+    else if (r.t === "piece") { if (cur !== r.id) throw new Error("Respaldo alterado: pieza fuera de orden"); }
+    else if (r.assets !== assets) throw new Error("Respaldo incompleto: faltan archivos");
   }
   return { tables, assets };
 }
@@ -121,6 +121,12 @@ export async function restoreBackupStream(opts: { lines: () => AsyncIterable<str
       await opts.fs.create(tmp);
     } else if (r.t === "piece" && cur) await opts.fs.append(`${cur.path}.restore`, unb64(r.data));
   }
+  // Inner integrity of every restored file, streamed from storage (bounded memory), before any promotion/commit.
+  for (const [k, t] of temps.entries()) {
+    const m = metas[k]!;
+    const dek = await opts.keys.unwrapDek(m.key_id, m.wrapped_dek, m.id, m.project_id);
+    try { await verifyAsset(await opts.fs.source(t.tmp), { assetId: m.id, projectId: m.project_id }, dek); } finally { dek.fill(0); }
+  }
   for (const t of temps) await opts.fs.rename(t.tmp, t.path);
   const assetIdx = new Map(metas.map((m) => [m.id, m]));
   tables["assets"] = (tables["assets"] ?? []).map((row) => ({ ...row, ...(assetIdx.get(row["id"] as string) ?? {}) }));
@@ -151,3 +157,17 @@ export async function recoverInterruptedRestores(repo: Repo, fs: BlobBackend) {
 }
 
 export function linesOf(text: string) { return text.split("\n"); }
+
+/** Reads a backup file line by line without loading it whole (Blob.stream + incremental decoding). */
+export async function* linesOfBlob(blob: Blob, chunk = 1 << 20): AsyncGenerator<string> {
+  const dec = new TextDecoder(); let buf = "";
+  const readSlice = async (b: Blob): Promise<Uint8Array> => typeof b.arrayBuffer === "function" ? new Uint8Array(await b.arrayBuffer())
+    : new Uint8Array(await new Promise<ArrayBuffer>((ok, ko) => { const r = new FileReader(); r.onload = () => ok(r.result as ArrayBuffer); r.onerror = () => ko(r.error); r.readAsArrayBuffer(b); }));
+  for (let o = 0; o < blob.size; o += chunk) {
+    buf += dec.decode(await readSlice(blob.slice(o, o + chunk)), { stream: true });
+    let nl: number;
+    while ((nl = buf.indexOf("\n")) >= 0) { yield buf.slice(0, nl); buf = buf.slice(nl + 1); }
+  }
+  buf += dec.decode();
+  if (buf) yield buf;
+}

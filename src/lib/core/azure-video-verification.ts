@@ -1,3 +1,4 @@
+import { budgetGate, recordUsage } from "./costs";
 import type { Core } from "./index";
 import { credentialsFor } from "./executor";
 import { azureVideoForm, azureVideoUrl, runAzureVideo } from "./adapters/azure-video";
@@ -6,6 +7,7 @@ import { pollRemoteJob } from "./remote-jobs";
 
 /** Billed draft verification is a durable project job, not an in-memory polling loop. */
 export async function submitAzureVideoTest(core: Core, projectId: string, providerId: string, model: string) {
+  await budgetGate(core.repo, projectId, model, { seconds: 4 }); // a test video is billed like any other
   const { creds, adapter } = await credentialsFor(core.repo, providerId);
   if (adapter !== "azure_openai") throw new Error("Selecciona una conexión Azure.");
   const request = { capability: "video.generate", model, prompt: "A blue ball on a table, static camera", params: { seconds: 4, ratio: "1280:720" } };
@@ -14,6 +16,7 @@ export async function submitAzureVideoTest(core: Core, projectId: string, provid
   await core.jobs.markSent(projectId, job.id);
   try {
     const result = await runAzureVideo(creds, request);
+    await recordUsage(core.repo, projectId, { providerId, model, operation: "video.generate.test", usage: { seconds: 4 } }).catch((e) => console.warn("No se pudo registrar el costo:", e instanceof Error ? e.message : e));
     if (result.kind !== "remote") throw new Error("Azure no confirmó el trabajo de video.");
     await core.jobs.transition(projectId, job.id, "processing", { phase: "accepted", remote_id: result.remoteId });
     return job.id;

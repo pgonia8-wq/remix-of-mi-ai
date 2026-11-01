@@ -14,6 +14,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "sonner";
 import { AppShell } from "../components/AppShell";
+import { BudgetConfirm } from "../components/BudgetConfirm";
 
 function NotFoundComponent() {
   return (
@@ -140,13 +141,6 @@ function RootComponent() {
     return () => off?.();
   }, [router]);
 
-  useEffect(() => {
-    void import("../lib/core/costs").then(({ setBudgetHooks }) => setBudgetHooks({
-      warn: ({ spentUsd, limitUsd }) => { void import("sonner").then(({ toast }) => toast.warning(`Llevas US$ ${spentUsd.toFixed(2)} de ${limitUsd.toFixed(2)} del presupuesto mensual de este proyecto.`)); },
-      confirmOverBudget: ({ spentUsd, limitUsd }) => window.confirm(`Esta llamada supera el presupuesto mensual del proyecto (US$ ${spentUsd.toFixed(2)} de ${limitUsd.toFixed(2)}). ¿Hacer solo esta llamada de todos modos?`),
-    }));
-  }, []);
-
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
@@ -154,6 +148,7 @@ function RootComponent() {
         <Outlet />
       </AppShell>
       <Toaster theme="dark" position="top-center" />
+      <BudgetConfirm />
     </QueryClientProvider>
   );
 }

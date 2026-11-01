@@ -120,17 +120,21 @@ function Backup() {
     if (!f) return;
     setBusy("Verificando la copia…");
     try {
-      const text = await f.text();
-      const { isBackupV3, restoreBackupStream, linesOf } = await import("@/lib/core/backup-stream");
-      if (isBackupV3(text.slice(0, text.indexOf("\n")))) {
+      const { isBackupV3, restoreBackupStream, linesOfBlob } = await import("@/lib/core/backup-stream");
+      const first = await f.slice(0, 4096).text();
+      if (isBackupV3(first.slice(0, first.indexOf("\n")))) {
         setBusy("Verificando cada parte de la copia…");
         const core = await getCore();
-        await restoreBackupStream({ lines: () => linesOf(text), password: pw, repo: core.repo, keys: core.keys, fs: core.files });
+        await restoreBackupStream({ lines: () => linesOfBlob(f), password: pw, repo: core.repo, keys: core.keys, fs: core.files });
         await mutate(async () => undefined);
-      } else if (JSON.parse(text)?.format === "miai-export") {
-        const dump = JSON.parse(await openWithPassword(pw, text)); // v1 compatibility
-        await mutate((r) => r.restoreAll(dump));
       } else {
+        const text = await f.text(); // legacy v1/v2 single-document formats
+        if (JSON.parse(text)?.format === "miai-export") {
+          const dump = JSON.parse(await openWithPassword(pw, text)); // v1 compatibility
+          await mutate((r) => r.restoreAll(dump));
+          toast.success("Copia restaurada. Vuelve a introducir y probar las API keys de las conexiones.");
+          return;
+        }
         const payload = await openBackup(text, pw); // authenticity checked before anything is touched
         setBusy("Restaurando y verificando archivos…");
         const core = await getCore();

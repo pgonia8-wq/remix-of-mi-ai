@@ -21,7 +21,7 @@ it("sends project context only when minting a token, sends only ephemeral token 
   const close = vi.fn(), sent: string[] = [];
   vi.stubGlobal("RTCPeerConnection", class { addTrack() {} createDataChannel() { return { readyState: "open", send: (data: string) => sent.push(data) }; } async createOffer() { return { sdp: "offer-sdp" }; } async setLocalDescription() {} async setRemoteDescription() {} close = close; });
   vi.stubGlobal("Audio", class { autoplay = false; srcObject = null; pause() {} });
-  const core = { repo: { buildContext: vi.fn(async () => "private project A") } } as unknown as Core;
+  const core = { repo: { buildContext: vi.fn(async () => "private project A"), getModelPrice: vi.fn(async () => null), budgetStatus: vi.fn(async () => ({ level: "ok", spentUsd: 0, limitUsd: null })), recordCost: vi.fn(async () => undefined) } } as unknown as Core;
   const model = { capabilities: ["speech.realtime"], provider_kind: "openai", provider_id: "provider", remote_id: "voice-model" } as ModelWithCaps;
   const active = await startRealtime(core, "project-a", model, "marin", { state() {}, transcript() {}, error() {} });
   expect(core.repo.buildContext).toHaveBeenCalledWith("project-a", "");
