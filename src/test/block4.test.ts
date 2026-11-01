@@ -247,7 +247,7 @@ describe("C · Repositorios y calidad (lógica pura)", () => {
 // ---------------- Real PC Node (process in this sandbox, loopback) ----------------
 let nodeMod: any, node: any, stateDir: string, shareA: string, shareB: string, echo: net.Server, echoPort: number;
 async function boot(port = 0) {
-  return nodeMod.startNode({ share: [shareA, shareB], port, host: "127.0.0.1", state: stateDir, discovery: false, isolation: "process", allowTargets: [`127.0.0.1:${echoPort}`], name: "pc-prueba" });
+  return nodeMod.startNode({ share: [shareA, shareB], port, host: "127.0.0.1", state: stateDir, discovery: false, isolation: "process", allowTargets: [`127.0.0.1:${echoPort}`], vpnSubnets: ["127.0.0.0/8"], name: "pc-prueba" });
 }
 beforeAll(async () => {
   nodeMod = await import(/* @vite-ignore */ path.resolve("pc-node/miai-node.mjs"));
@@ -338,7 +338,7 @@ describe("F · Túneles", () => {
   it("solo destinos permitidos, tráfico real, cierre, revocación y reconexión controlada", async () => {
     const id = await paired(), p = (await repo.createProject("P")).id;
     await expect(tunnels.open(repo, p, { nodeId: id, target: "127.0.0.1:1", ttlMs: 60_000, agent: "infra" })).rejects.toThrow(/no autorizado/);
-    await expect(tunnels.open(repo, p, { nodeId: id, target: "127.0.0.1:22", ttlMs: 60_000, agent: "infra", kind: "socks5" })).rejects.toThrow();
+    await expect(tunnels.open(repo, p, { nodeId: id, target: "127.0.0.1:22", ttlMs: 60_000, agent: "infra", kind: "ssh.local" })).rejects.toThrow(/solo disponible en la app Android/);
     const t = await tunnels.open(repo, p, { nodeId: id, target: `127.0.0.1:${echoPort}`, ttlMs: 60_000, agent: "infra" });
     const [row] = await tunnels.list(repo, p);
     const reply = await new Promise<string>((res, rej) => { const s = net.connect(row!.port!, "127.0.0.1", () => s.write("hola")); s.on("data", (d) => { res(String(d)); s.end(); }); s.on("error", rej); });
@@ -445,5 +445,88 @@ describe("Consumo honesto", () => {
     const p = (await repo.createProject("P")).id, run = await createRun(core, p, { goal: "x" });
     const r = await stepRun(core, p, run, async () => { throw new NoRequestSent("Ningún modelo"); });
     expect(r.status).toBe("needs_human"); expect(r.calls).toBe(0); expect(r.tokens).toBe(0);
+  });
+});
+
+// ---------- SOCKS5 + VPN dividida (PC Node real en loopback; el plugin Android se sustituye por un cliente de prueba) ----------
+import { tunnelCredentials, __setTunnelNatives, validSubnet } from "@/lib/nodes/tunnels";
+import { connections } from "@/lib/connections";
+
+function socksConnect(port: number, user: string, pass: string, host: string, dport: number) {
+  return new Promise<net.Socket>((res, rej) => {
+    const s = net.connect(port, "127.0.0.1"); let stage = 0;
+    s.on("error", rej);
+    s.on("connect", () => s.write(Buffer.from([5, 1, 2])));
+    s.on("data", function on(d: Buffer) {
+      if (stage === 0) { if (d[1] !== 2) return rej(new Error("método")); const u = Buffer.from(user), pw = Buffer.from(pass); s.write(Buffer.concat([Buffer.from([1, u.length]), u, Buffer.from([pw.length]), pw])); stage = 1; }
+      else if (stage === 1) { if (d[1] !== 0) return rej(new Error("auth")); const h = Buffer.from(host); const b = Buffer.alloc(2); b.writeUInt16BE(dport); s.write(Buffer.concat([Buffer.from([5, 1, 0, 3, h.length]), h, b])); stage = 2; }
+      else { s.off("data", on); if (d[1] !== 0) return rej(new Error(`socks ${d[1]}`)); res(s); }
+    });
+  });
+}
+const echoOnce = (s: net.Socket, msg: string) => new Promise<string>((res) => { s.once("data", (d) => { res(String(d)); s.end(); }); s.write(msg); });
+
+describe("F2 · SOCKS5 y VPN en el PC Node", () => {
+  it("SOCKS5 en la PC: credenciales de un solo uso, solo destinos permitidos, tráfico real", async () => {
+    const id = await paired(), p = (await repo.createProject("P")).id;
+    const t = await tunnels.open(repo, p, { kind: "pc.socks5", nodeId: id, target: "", ttlMs: 60_000, agent: "infra" });
+    const row = (await tunnels.list(repo, p)).find((x) => x.id === t)!, cred = tunnelCredentials(t)!;
+    expect(cred.user).toBeTruthy(); expect(JSON.stringify(row)).not.toContain(cred.pass!);
+    const ok = await socksConnect(row.port!, cred.user!, cred.pass!, "127.0.0.1", echoPort); expect(await echoOnce(ok, "via-socks")).toBe("via-socks");
+    await expect(socksConnect(row.port!, cred.user!, "mala", "127.0.0.1", echoPort)).rejects.toThrow(/auth/);
+    await expect(socksConnect(row.port!, cred.user!, cred.pass!, "10.1.2.3", 80)).rejects.toThrow(/socks 2/);
+    await tunnels.close(repo, p, t); expect(tunnelCredentials(t)).toBeNull();
+    await expect(socksConnect(row.port!, cred.user!, cred.pass!, "127.0.0.1", echoPort)).rejects.toThrow();
+  });
+
+  it("VPN dividida: subredes validadas, cliente cifrado real, TCP de punta a punta y rechazo fuera de subred", async () => {
+    expect(validSubnet("192.168.1.0/24")).toBe(true); expect(validSubnet("0.0.0.0/0")).toBe(false); expect(validSubnet("10.0.0.0/7")).toBe(false);
+    const relay = await import(/* @vite-ignore */ path.resolve("pc-node/relay.mjs"));
+    let client: { sock: net.Socket; got: Buffer[]; seal: (b: Buffer) => Buffer } | null = null;
+    const fakeTunnel = { forwardLocal: async () => ({ id: "f1", port: 40001, expiresAt: Date.now() + 60_000 }), forwardRemote: async () => ({ id: "f2", port: 8022, expiresAt: Date.now() + 60_000 }), socksDynamic: async () => ({ id: "f3", port: 40003, expiresAt: Date.now() + 60_000, user: "u", pass: "p" }), closeForward: async () => {}, listForwards: async () => ({ forwards: [] }) };
+    const fakeVpn = {
+      // Simulates MiaiVpnService.java: connects to the node and speaks the encrypted frame protocol.
+      start: async (o: { host: string; port: number; key: string }) => {
+        const key = Buffer.from(o.key, "base64"), sock = net.connect(o.port, o.host), seal = relay.frameSealer(key, 0), got: Buffer[] = [];
+        const ready = new Promise<void>((res) => { let hello = false; sock.on("data", relay.frameOpener(key, 1, (pt: Buffer) => { if (!hello) { hello = true; res(); } else got.push(pt); })); });
+        sock.on("connect", () => sock.write(seal(relay.VPN_HELLO))); await ready; client = { sock, got, seal };
+      },
+      stop: async () => { client?.sock.destroy(); }, status: async () => ({ state: client ? "activa" : "detenida", expiresAt: 0 }),
+    };
+    __setTunnelNatives(fakeTunnel, fakeVpn);
+    const id = await paired(), p = (await repo.createProject("P")).id;
+    await expect(tunnels.open(repo, p, { kind: "vpn", nodeId: id, target: "", subnets: ["10.0.0.0/8"], ttlMs: 60_000, agent: "infra" })).rejects.toThrow(/no compartida/);
+    const t = await tunnels.open(repo, p, { kind: "vpn", nodeId: id, target: "", subnets: ["127.0.0.0/8"], ttlMs: 60_000, agent: "infra" });
+    const c = client!; const wait = async (pred: () => boolean) => { for (let i = 0; i < 100 && !pred(); i++) await new Promise((r) => setTimeout(r, 20)); };
+    const F = relay.TCP_FLAGS;
+    const send = (flags: number, seq: number, ack: number, data = Buffer.alloc(0), dst = "127.0.0.1", dp = echoPort) => c.sock.write(c.seal(relay.buildPacket(6, "10.88.0.2", dst, relay.tcpSeg(40000, dp, seq, ack, flags, data))));
+    send(F.SYN, 1000, 0);
+    await wait(() => c.got.length > 0);
+    const synack = relay.parsePacket(c.got.shift()); expect(synack.flags & (F.SYN | F.ACK)).toBe(F.SYN | F.ACK); expect(synack.ack).toBe(1001);
+    const srvSeq = (synack.seq + 1) >>> 0;
+    send(F.ACK | F.PSH, 1001, srvSeq, Buffer.from("por-la-vpn"));
+    await wait(() => c.got.some((b) => relay.parsePacket(b).data?.length > 0));
+    const data = c.got.map((b) => relay.parsePacket(b)).find((x) => x.data?.length > 0)!;
+    expect(String(data.data)).toBe("por-la-vpn");
+    c.got.length = 0; send(F.SYN, 5000, 0, Buffer.alloc(0), "8.8.8.8", 53);
+    await wait(() => c.got.length > 0);
+    expect(relay.parsePacket(c.got[0]).flags & F.RST).toBe(F.RST);
+    await tunnels.close(repo, p, t);
+    expect((await tunnels.list(repo, p)).find((x) => x.id === t)!.status).toBe("cerrado");
+  });
+
+  it("SSH (plugin simulado): conexión del proyecto obligatoria, destinos validados, recuperación sin reabrir", async () => {
+    const p = (await repo.createProject("P")).id, q = (await repo.createProject("Q")).id;
+    const conn = await connections.save(repo, p, "vps", { host: "vps.example", port: 22, user: "fer", knownHosts: "vps.example ssh-ed25519 AAAA" });
+    await expect(tunnels.open(repo, q, { kind: "ssh.local", connectionId: conn, target: "127.0.0.1:5432", password: "x", ttlMs: 60_000, agent: "infra" })).rejects.toThrow(/ajena/);
+    await expect(tunnels.open(repo, p, { kind: "ssh.reverse", connectionId: conn, target: "127.0.0.1:3000", remotePort: 80, password: "x", ttlMs: 60_000, agent: "infra" })).rejects.toThrow(/≥1024/);
+    await expect(tunnels.open(repo, p, { kind: "ssh.socks5", connectionId: conn, target: "", allow: ["*:*"], password: "x", ttlMs: 60_000, agent: "infra" })).rejects.toThrow(/SOCKS/);
+    const a = await tunnels.open(repo, p, { kind: "ssh.local", connectionId: conn, target: "127.0.0.1:5432", password: "x", ttlMs: 60_000, agent: "infra" });
+    const b = await tunnels.open(repo, p, { kind: "ssh.socks5", connectionId: conn, target: "", allow: ["db.internal:5432"], password: "x", ttlMs: 60_000, agent: "infra" });
+    expect(tunnelCredentials(b)).toEqual({ user: "u", pass: "p" });
+    await tunnels.recover(repo); // the fake plugin reports no live forwards, as after an app restart
+    const rows = await tunnels.list(repo, p);
+    expect(rows.find((x) => x.id === a)!.status).toBe("interrumpido"); expect(rows.find((x) => x.id === b)!.status).toBe("interrumpido");
+    await expect(tunnels.reconnect(repo, p, a)).rejects.toThrow();
   });
 });
