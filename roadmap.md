@@ -12,9 +12,10 @@
 - [x] R11: respuesta inválida/5xx/cancelación tras envío requieren revisión, no reintento automático.
 - [x] Restauración SQL atómica; rutas promovidas únicas y journal previo, rollback sin sustituir archivos existentes.
 - [x] R20: límites por deployment revalidados antes de claves/red; cambiar restricciones invalida pruebas.
-- [ ] R18: hash de etiquetas incremental y lectura interna sin tabla de bloques implementados; faltan verificación del respaldo sin acumular archivo, tablas paginadas y límite estricto de memoria de descifrado público.
+- [x] R18: respaldo v3 se lee del archivo por trozos de 1 MB; verificación sin acumular archivos (integridad interna sobre el temporal antes de confirmar). Filas de tablas aún se juntan antes de la transacción (texto, pequeño).
 - [x] R12: identidad por contenido y ocurrencia, no por orden remoto; fallo tras primer archivo y recuperación reordenada comprobados.
-- [ ] Revisar contabilidad de llamadas directas y persistencia nativa por partes antes de cerrar riesgos R01–R20.
+- [x] Presupuesto también en voz en tiempo real y video de prueba Azure; fallos de registro de costo ya no se ocultan; confirmación con diálogo propio por llamada.
+- [x] Máscaras solo a OpenAI/Azure en edición de imagen; investigación rechaza IPv6, IPv4 codificadas, CGNAT y destinos finales privados.
 
 ## Bloque 2 — medios y documentos
 - [x] OCR local con worker, WASM e idiomas español/inglés incluidos: primera lectura sin descarga externa comprobada en Chromium; Android pendiente.
