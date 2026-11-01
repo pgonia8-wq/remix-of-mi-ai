@@ -76,7 +76,9 @@ const execInput = z.object({ argv: z.array(z.string().max(2000)).min(1).max(64),
   .refine((v) => !v.cwd.startsWith("/") && !v.cwd.split(/[\\/]/).includes(".."), "Directorio fuera del proyecto");
 const execTool = (id: string, name: string, family: Family, bin: string | null, roles: string[] | "all"): ToolDef => ({
   id, name, description: bin ? `Ejecuta ${bin} en el espacio del proyecto en la PC.` : "Ejecuta un proceso autorizado (sin shell) en el espacio del proyecto en la PC.",
-  family, input: bin ? execInput.refine((v) => v.argv[0] === bin, `Solo ${bin}`) : execInput, output: "salida y código de salida", permissions: ["pc.exec"], network: false, cost: "none",
+  family, input: (bin ? execInput.refine((v) => v.argv[0] === bin, `Solo ${bin}`) : execInput)
+    .refine((v) => v.argv[0] !== "git" || !v.argv.slice(1).some((a) => /^(-c|--config-env|-C|--exec-path)(=|$)/.test(a)), "Opción de Git no permitida")
+    .refine((v) => v.argv[0] !== "git" || !v.argv.slice(1).some((a) => ["push", "remote", "fetch", "pull", "clone", "submodule"].includes(a)), "Operaciones remotas de Git: use repo.push"), output: "salida y código de salida", permissions: ["pc.exec"], network: false, cost: "none",
   maxCalls: 40, timeoutMs: 600_000, parallel: true, env: ["pc", "vm"], risk: "medium", approval: "always", sideEffect: true, roles,
   target: (i, ctx) => `${ctx.nodeId}:${i.cwd || "."}:${i.argv.join(" ")}${i.network ? " (con red)" : ""}`,
   availability: (ctx) => nodeReady(ctx, bin ?? undefined).then((r) => r.ok ? folderReady(ctx) : r),

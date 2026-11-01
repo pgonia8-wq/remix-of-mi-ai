@@ -427,3 +427,14 @@ describe("Git real en PC Node", () => {
     await expect(rpc(repo, id, "job.start", { argv: ["git", "--no-pager", "push"], projectId: p, rootIndex: 1 })).rejects.toThrow(/sin aprobación/);
   }, 30_000);
 });
+
+describe("Git: protecciones siempre activas", () => {
+  it("rechaza alias/config inyectados y operaciones remotas sin aprobación, en el gestor y en el nodo", async () => {
+    const id = await paired(), p = (await repo.createProject("P")).id, run = await createRun(core, p, { goal: "g" });
+    const ctx: ToolCtx = { core, projectId: p, runId: run, taskId: "g", agent: "integrator", nodeId: id, folderId: null };
+    expect(await invokeTool(ctx, "git", { argv: ["git", "-c", "alias.x=!rm -rf /", "x"], cwd: "" }, { allowed: ["git"], limits: L, opKey: "1" })).toMatchObject({ status: "rejected", reason: /no permitida/ });
+    expect(await invokeTool(ctx, "git", { argv: ["git", "--no-pager", "push"], cwd: "" }, { allowed: ["git"], limits: L, opKey: "2" })).toMatchObject({ status: "rejected", reason: /repo.push/ });
+    await expect(rpc(repo, id, "job.start", { argv: ["git", "--no-pager", "push"], projectId: p })).rejects.toThrow(/sin aprobación/);
+    await expect(rpc(repo, id, "job.start", { argv: ["git", "-c", "core.pager=sh", "log"], projectId: p })).rejects.toThrow(/no permitida/);
+  });
+});
