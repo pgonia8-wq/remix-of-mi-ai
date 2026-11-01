@@ -129,21 +129,6 @@ async function parseHeader(src: ByteSource, ctx: AssetContext) {
   return { header, hh: await sha256(hb), prefix, start: MAGIC.length + 4 + hl };
 }
 
-/** Scans record boundaries. The last record must be the final record. */
-async function recordTable(src: ByteSource, start: number, blockSize: number) {
-  const recs: { off: number; len: number }[] = [];
-  let off = start;
-  while (off < src.size) {
-    if (off + 4 > src.size) throw new AssetIntegrityError("Archivo truncado");
-    const len = readU32(await src.read(off, 4));
-    if (len < TAG || len > blockSize + TAG || off + 4 + len > src.size) throw new AssetIntegrityError("Registro con longitud inválida");
-    recs.push({ off: off + 4, len });
-    off += 4 + len;
-  }
-  if (!recs.length) throw new AssetIntegrityError("Archivo incompleto: falta el registro final");
-  return recs;
-}
-
 /** Internal provisional decoder. Never expose its output to a caller before full verification. */
 async function* decryptProvisional(src: ByteSource, ctx: AssetContext, dekRaw: Uint8Array): AsyncGenerator<Uint8Array, { blocks: number; size: number }> {
   const key = await importDek(dekRaw);

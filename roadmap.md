@@ -13,7 +13,8 @@
 - [x] Restauración SQL atómica; rutas promovidas únicas y journal previo, rollback sin sustituir archivos existentes.
 - [x] R20: límites por deployment revalidados antes de claves/red; cambiar restricciones invalida pruebas.
 - [ ] R18: hash de etiquetas incremental y lectura interna sin tabla de bloques implementados; faltan verificación del respaldo sin acumular archivo, tablas paginadas y límite estricto de memoria de descifrado público.
-- [ ] Revisar R12 (identidad estable de múltiples resultados remotos), contabilidad de llamadas directas y persistencia nativa por partes antes de cerrar riesgos R01–R20.
+- [x] R12: identidad por contenido y ocurrencia, no por orden remoto; fallo tras primer archivo y recuperación reordenada comprobados.
+- [ ] Revisar contabilidad de llamadas directas y persistencia nativa por partes antes de cerrar riesgos R01–R20.
 
 ## Bloque 2 — medios y documentos
 - [x] OCR local con worker, WASM e idiomas español/inglés incluidos: primera lectura sin descarga externa comprobada en Chromium; Android pendiente.
