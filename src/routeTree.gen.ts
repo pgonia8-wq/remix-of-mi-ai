@@ -33,6 +33,7 @@ import { Route as StudyRouteImport } from './routes/study'
 import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as VideoRouteImport } from './routes/video'
 import { Route as VideoEditorRouteImport } from './routes/video-editor'
+import { Route as VoiceRouteImport } from './routes/voice'
 import { Route as WorkspaceRouteImport } from './routes/workspace'
 import { Route as ChatChatIdRouteImport } from './routes/chat.$chatId'
 
@@ -156,6 +157,11 @@ const VideoEditorRoute = VideoEditorRouteImport.update({
   path: '/video-editor',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VoiceRoute = VoiceRouteImport.update({
+  id: '/voice',
+  path: '/voice',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WorkspaceRoute = WorkspaceRouteImport.update({
   id: '/workspace',
   path: '/workspace',
@@ -192,6 +198,7 @@ export interface FileRoutesByFullPath {
   '/tools': typeof ToolsRoute
   '/video': typeof VideoRoute
   '/video-editor': typeof VideoEditorRoute
+  '/voice': typeof VoiceRoute
   '/workspace': typeof WorkspaceRoute
   '/chat/$chatId': typeof ChatChatIdRoute
 }
@@ -220,6 +227,7 @@ export interface FileRoutesByTo {
   '/tools': typeof ToolsRoute
   '/video': typeof VideoRoute
   '/video-editor': typeof VideoEditorRoute
+  '/voice': typeof VoiceRoute
   '/workspace': typeof WorkspaceRoute
   '/chat/$chatId': typeof ChatChatIdRoute
 }
@@ -249,6 +257,7 @@ export interface FileRoutesById {
   '/tools': typeof ToolsRoute
   '/video': typeof VideoRoute
   '/video-editor': typeof VideoEditorRoute
+  '/voice': typeof VoiceRoute
   '/workspace': typeof WorkspaceRoute
   '/chat/$chatId': typeof ChatChatIdRoute
 }
@@ -279,6 +288,7 @@ export interface FileRouteTypes {
     | '/tools'
     | '/video'
     | '/video-editor'
+    | '/voice'
     | '/workspace'
     | '/chat/$chatId'
   fileRoutesByTo: FileRoutesByTo
@@ -307,6 +317,7 @@ export interface FileRouteTypes {
     | '/tools'
     | '/video'
     | '/video-editor'
+    | '/voice'
     | '/workspace'
     | '/chat/$chatId'
   id:
@@ -335,6 +346,7 @@ export interface FileRouteTypes {
     | '/tools'
     | '/video'
     | '/video-editor'
+    | '/voice'
     | '/workspace'
     | '/chat/$chatId'
   fileRoutesById: FileRoutesById
@@ -364,6 +376,7 @@ export interface RootRouteChildren {
   ToolsRoute: typeof ToolsRoute
   VideoRoute: typeof VideoRoute
   VideoEditorRoute: typeof VideoEditorRoute
+  VoiceRoute: typeof VoiceRoute
   WorkspaceRoute: typeof WorkspaceRoute
   ChatChatIdRoute: typeof ChatChatIdRoute
 }
@@ -538,6 +551,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VideoEditorRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/voice': {
+      id: '/voice'
+      path: '/voice'
+      fullPath: '/voice'
+      preLoaderRoute: typeof VoiceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/workspace': {
       id: '/workspace'
       path: '/workspace'
@@ -580,6 +600,7 @@ const rootRouteChildren: RootRouteChildren = {
   ToolsRoute: ToolsRoute,
   VideoRoute: VideoRoute,
   VideoEditorRoute: VideoEditorRoute,
+  VoiceRoute: VoiceRoute,
   WorkspaceRoute: WorkspaceRoute,
   ChatChatIdRoute: ChatChatIdRoute,
 }
