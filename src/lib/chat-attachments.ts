@@ -34,3 +34,22 @@ export async function chatHistory(core: Core, projectId: string, chatId: string,
     return { role: message.role, content, ...(images.length ? { images } : {}) };
   }));
 }
+const msgSize = (m: ChatMsg) => m.content.length + (m.images?.reduce((a, i) => a + i.data.length, 0) ?? 0);
+/**
+ * Keeps the newest turns that fit the character budget so each request stays within the provider's tokens-per-minute
+ * and context limits. The latest message is always sent; images from older turns are dropped first.
+ * This is a context window, not a message quota: the chat itself has no limit.
+ */
+export function fitHistory(history: ChatMsg[], maxChars = 32_000): ChatMsg[] {
+  const out: ChatMsg[] = [];
+  let used = 0;
+  for (let i = history.length - 1; i >= 0; i--) {
+    let m = history[i]!;
+    if (out.length > 0 && m.images?.length) { const { images: _drop, ...rest } = m; m = rest; }
+    const size = msgSize(m);
+    if (out.length > 0 && used + size > maxChars) break;
+    out.unshift(m); used += size;
+  }
+  while (out.length > 1 && out[0]!.role === "assistant") out.shift();
+  return out;
+}
