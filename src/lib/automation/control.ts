@@ -44,6 +44,8 @@ export const schedules = {
     if (!p) throw new Error("projectId requerido");
     const [s] = await repo.sql.all<Schedule>("SELECT * FROM schedules WHERE project_id=? AND id=?", [p, id]);
     if (!s || s.status !== "scheduled" || s.due_at > Date.now()) throw new Error("Programación no disponible");
+    // Autonomy triggers only open a review; they never start or advance anything.
+    if (s.workflow_id.startsWith("auto:")) throw new Error("Este recordatorio abre una revisión, no inicia ejecuciones.");
     // Persist a claim before creating a run: a crash must require review, not create a second run.
     await repo.sql.run("UPDATE schedules SET status='starting' WHERE project_id=? AND id=?", [p, id]);
     const run = await runs.create(repo, p, s.workflow_id, s.input);

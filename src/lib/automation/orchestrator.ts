@@ -113,11 +113,11 @@ export async function createRun(core: Core, p: string, o: { goal: string; accept
   if (o.plan) await insertPlan(core, p, id, validatePlan(o.plan));
   return id;
 }
-async function insertPlan(core: Core, p: string, runId: string, plan: z.infer<typeof planSchema>, prefix = "") {
+async function insertPlan(core: Core, p: string, runId: string, plan: z.infer<typeof planSchema>, prefix = "", existing: string[] = []) {
   for (const t of plan.tasks) {
     const tools = t.tools.length ? t.tools : ["fs.list", "fs.read", "fs.write", "fs.search", "note.save"];
     await core.repo.sql.run("INSERT INTO auto_tasks (id,project_id,run_id,title,role,deps,files,tools,contract,status,updated_at) VALUES (?,?,?,?,?,?,?,?,?, 'pending', ?)",
-      [`${runId.slice(0, 8)}-${prefix}${t.id}`, p, runId, t.title, t.role, JSON.stringify(t.deps.map((d) => d.includes("-") && d.length > 9 ? d : `${runId.slice(0, 8)}-${prefix}${d}`)), JSON.stringify(t.files), JSON.stringify(tools), t.contract, now()]);
+      [`${runId.slice(0, 8)}-${prefix}${t.id}`, p, runId, t.title, t.role, JSON.stringify(t.deps.map((d) => existing.includes(d) ? d : `${runId.slice(0, 8)}-${prefix}${d}`)), JSON.stringify(t.files), JSON.stringify(tools), t.contract, now()]);
   }
   const [r] = await core.repo.sql.all<{ acceptance: string }>("SELECT acceptance FROM auto_runs WHERE id=?", [runId]);
   const acc = [...new Set([...(JSON.parse(r?.acceptance ?? "[]") as string[]), ...plan.acceptance])];
@@ -272,7 +272,7 @@ async function replan(core: Core, p: string, run: AutoRun, failed: AutoTask, lim
   const out = await think(core, p, run, "coordinator", prompt, [], model);
   const n = replans + 1;
   const plan = validatePlan(extractJson<unknown>(out.text), approved);
-  await insertPlan(core, p, run.id, plan, `r${n}-`);
+  await insertPlan(core, p, run.id, plan, `r${n}-`, approved);
   const newIds = plan.tasks.map((t) => `${run.id.slice(0, 8)}-r${n}-${t.id}`);
   for (const t of await autoRuns.tasks(core, p, run.id)) {
     const deps = JSON.parse(t.deps) as string[];
