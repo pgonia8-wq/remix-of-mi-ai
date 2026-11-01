@@ -24,6 +24,11 @@ if ! grep -q "abiFilters" android/app/build.gradle; then
   sed -i -E "s/(defaultConfig \{)/\1\n        ndk { abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64' }/" android/app/build.gradle
 fi
 
+# Fixed Debug signing key (same certificate as build.5+), so every Debug APK can update the previous one.
+if ! grep -q "miai-debug.keystore" android/app/build.gradle; then
+  sed -i -E "s#(^android \{)#\1\n    signingConfigs { debug { storeFile file('../../signing/miai-debug.keystore'); storePassword 'android'; keyAlias 'androiddebugkey'; keyPassword 'android' } }#" android/app/build.gradle
+fi
+
 # No cloud backup of app data (encrypted DB stays on the device).
 sed -i -E 's/android:allowBackup="true"/android:allowBackup="false"/' android/app/src/main/AndroidManifest.xml
 # Microphone for dictation / voice notes (Capacitor's WebChromeClient asks the user at runtime).
