@@ -19,7 +19,7 @@
 - Provider calls run on-device from the WebView (user's own keys), no server functions.
 - Azure OpenAI uses a distinct provider kind; derive its stored display name/model from deployment and normalize URLs in the shared adapter, selecting deployment in the body for /openai/v1 and in the route for legacy endpoints. Why: the same setup supports testing, saved retests and chats with both Azure API contracts.
 - Provider diagnostics and real-response validation live in the shared on-device provider adapter; verification status uses a separate SQLite table, and restoring backups resets verification because credentials are excluded.
-- Android self-tests use a shared sentinel recovery check to exercise password encryption, deletion and restoration through Repo; unit coverage validates the check without claiming native execution. Why: emulator reports must not mistake dump-only checks for recovery testing.
+- Android self-tests use a shared sentinel recovery check to exercise password encryption, deletion and restoration through Repo; unit coverage validates the check without claiming native execution. Why: dump-only checks are not recovery tests.
 - Universal routing requires exact capability, executable adapter and declared limits; revalidate before secrets/jobs/network. Auto prefers verified Azure and open SearXNG; manual/favorite choices remain. Why: declarations must not cause incompatible calls.
 - AssetStore uses per-file-DEK AES-GCM wrapped by versioned Keystore keys; public decryption authenticates the complete file before output and pins rereads by digest. Why: no provisional plaintext or cross-project leakage.
 - Document extraction/export is lazy-loaded on-device; text tasks use exact chat routing. Why: offline-first reading without a server.
@@ -37,4 +37,4 @@
 - Debug APKs must use `signing/miai-debug.keystore`, never a regenerated key. Why: signature changes prevent data-preserving updates.
 - Manual model/provider forms verify exact drafts before saving; draft credentials stay in memory. Why: supplementary setup must not bypass real-response verification.
 - SearXNG uses an explicit HTTPS JSON instance, on-device form POST without keys/proxy; validate source URLs. Why: open search without mandatory app backend or unsafe links.
-- Project import always creates a new project (fresh IDs, re-encrypted assets). Why: never merge/overwrite.
+- Project import creates a new project; backups v3 are per-record AES-GCM, verified fully before a journaled restore; budgetGate runs before credentials. Why: no merges, partial restores or unconfirmed overspend.
