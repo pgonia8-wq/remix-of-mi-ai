@@ -8,7 +8,7 @@ import { getRepo, isNative } from "@/lib/app-db";
 import { openWithPassword } from "@/lib/crypto";
 import { Link } from "@tanstack/react-router";
 import { getCore } from "@/lib/core";
-import { createBackup, openBackup, restoreBackup, passwordStrength } from "@/lib/core/backup";
+import { openBackup, restoreBackup, passwordStrength } from "@/lib/core/backup";
 import { useMutate, useRepoQuery } from "@/lib/use-app";
 import { btnCls, btnGhost, inputCls } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -98,15 +98,19 @@ function Backup() {
       const core = await getCore();
       const nav = navigator as Navigator & { deviceMemory?: number };
       const mem = core.device.totalMemMB ? core.device.totalMemMB / 1024 : nav.deviceMemory ?? null;
-      const sealed = await createBackup({ repo: core.repo, keys: core.keys, fs: core.files, password: pw, deviceMemGB: mem });
+      const { createBackupStream } = await import("@/lib/core/backup-stream");
       const name = `miai-${new Date().toISOString().slice(0, 10)}.miai`;
+      const stream = createBackupStream({ repo: core.repo, keys: core.keys, fs: core.files, password: pw, deviceMemGB: mem });
       if (isNative()) {
         const { Filesystem, Directory, Encoding } = await import("@capacitor/filesystem");
-        await Filesystem.writeFile({ path: name, data: sealed, directory: Directory.Documents, encoding: Encoding.UTF8 });
+        await Filesystem.writeFile({ path: name, data: "", directory: Directory.Documents, encoding: Encoding.UTF8 });
+        for await (const line of stream) await Filesystem.appendFile({ path: name, data: line, directory: Directory.Documents, encoding: Encoding.UTF8 });
         toast.success(`Guardado en Documentos/${name}`);
       } else {
+        const parts: string[] = [];
+        for await (const line of stream) parts.push(line);
         const a = document.createElement("a");
-        a.href = URL.createObjectURL(new Blob([sealed], { type: "application/octet-stream" }));
+        a.href = URL.createObjectURL(new Blob(parts, { type: "application/octet-stream" }));
         a.download = name;
         a.click();
       }
@@ -117,8 +121,13 @@ function Backup() {
     setBusy("Verificando la copia…");
     try {
       const text = await f.text();
-      const format = JSON.parse(text)?.format;
-      if (format === "miai-export") {
+      const { isBackupV3, restoreBackupStream, linesOf } = await import("@/lib/core/backup-stream");
+      if (isBackupV3(text.slice(0, text.indexOf("\n")))) {
+        setBusy("Verificando cada parte de la copia…");
+        const core = await getCore();
+        await restoreBackupStream({ lines: () => linesOf(text), password: pw, repo: core.repo, keys: core.keys, fs: core.files });
+        await mutate(async () => undefined);
+      } else if (JSON.parse(text)?.format === "miai-export") {
         const dump = JSON.parse(await openWithPassword(pw, text)); // v1 compatibility
         await mutate((r) => r.restoreAll(dump));
       } else {
