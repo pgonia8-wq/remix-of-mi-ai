@@ -199,8 +199,8 @@
   --glass-border: oklch(1 0 0 / 9%);
   --glass-highlight: linear-gradient(180deg, oklch(1 0 0 / 7%), oklch(1 0 0 / 0%) 45%);
   --glass-blur: 16px;
-  --ambient: radial-gradient(60rem 40rem at 85% -10%, oklch(0.66 0.17 290 / 16%), transparent 60%),
-             radial-gradient(50rem 36rem at -10% 110%, oklch(0.62 0.12 245 / 12%), transparent 60%);
+  --ambient: radial-gradient(60rem 40rem at 85% -10%, oklch(0.66 0.17 290 / 30%), transparent 62%),
+             radial-gradient(50rem 36rem at -10% 110%, oklch(0.62 0.12 245 / 22%), transparent 62%);
 }
 body { background-image: var(--ambient); background-attachment: fixed; }
 .app-bg { background: transparent; }
