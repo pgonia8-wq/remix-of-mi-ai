@@ -56,6 +56,7 @@ export class Repo {
     for (const s of SCHEMA) await this.db.run(s);
     // v3 is additive: new tables only; existing rows are mirrored into the registry, never moved or deleted.
     for (const s of SCHEMA_V3) await this.db.run(s);
+    await this.db.run(`CREATE TABLE IF NOT EXISTS project_states (project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE, archived INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL)`);
     await this.registry.seedCapabilities();
     await this.registry.syncLegacyProviders();
   }
@@ -71,6 +72,33 @@ export class Repo {
     const p: Project = { id: uid(), name, description, created_at: now() };
     await this.db.run(`INSERT INTO projects VALUES (?,?,?,?)`, [p.id, p.name, p.description, p.created_at]);
     return p;
+  }
+  async isProjectArchived(id: string) {
+    const r = await this.db.all<{ archived: number }>(`SELECT archived FROM project_states WHERE project_id=?`, [id]);
+    return r[0]?.archived === 1;
+  }
+  async listArchivedProjectIds() {
+    return (await this.db.all<{ project_id: string }>(`SELECT project_id FROM project_states WHERE archived=1`)).map((r) => r.project_id);
+  }
+  async setProjectArchived(id: string, archived: boolean) {
+    if (!(await this.getProject(id))) throw new IsolationError("Proyecto inexistente");
+    await this.db.run(`INSERT OR REPLACE INTO project_states VALUES (?,?,?)`, [id, archived ? 1 : 0, now()]);
+  }
+  /** Copies chats, messages and active memory into a new project; credentials and files are not copied. */
+  async duplicateProject(id: string) {
+    const src = await this.getProject(id);
+    if (!src) throw new IsolationError("Proyecto inexistente");
+    const copy = await this.createProject(`${src.name} (copia)`, src.description ?? "");
+    const chats = await this.db.all<{ id: string; title: string; provider_id: string | null; model: string | null; created_at: number; updated_at: number }>(`SELECT * FROM chats WHERE project_id=?`, [id]);
+    for (const c of chats) {
+      const nc = uid();
+      await this.db.run(`INSERT INTO chats VALUES (?,?,?,?,?,?,?)`, [nc, copy.id, c.title, c.provider_id, c.model, c.created_at, c.updated_at]);
+      const msgs = await this.db.all<{ role: string; content: string; provider_id: string | null; model: string | null; created_at: number }>(`SELECT * FROM messages WHERE project_id=? AND chat_id=? ORDER BY created_at`, [id, c.id]);
+      for (const m of msgs) await this.db.run(`INSERT INTO messages VALUES (?,?,?,?,?,?,?,?)`, [uid(), copy.id, nc, m.role, m.content, m.provider_id, m.model, m.created_at]);
+    }
+    const mem = await this.db.all<MemoryItem>(`SELECT * FROM memory_items WHERE project_id=? AND archived=0`, [id]);
+    for (const m of mem) await this.db.run(`INSERT INTO memory_items VALUES (?,?,?,?,?,?,?)`, [uid(), copy.id, m.kind, m.content, 1, 0, now()]);
+    return copy;
   }
   async renameProject(id: string, name: string, description: string) {
     await this.db.run(`UPDATE projects SET name=?, description=? WHERE id=?`, [name, description, id]);
