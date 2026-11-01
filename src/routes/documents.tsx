@@ -11,6 +11,7 @@ import { DOC_ACCEPT, docKind, extractText } from "@/lib/docs/extract";
 import { exportDoc, EXPORT_MIME, type ExportFormat } from "@/lib/docs/export";
 import { saveExport } from "@/lib/save-export";
 import { savePrivateFile } from "@/lib/files";
+import { compareTexts, comparisonMarkdown, type Comparison } from "@/lib/docs/compare";
 import { NeedProject, inputCls } from "@/components/AppShell";
 import { ModelPicker } from "@/components/ModelPicker";
 import { Markdown } from "@/components/Markdown";
@@ -39,15 +40,15 @@ const ACTIONS = [
 
 function Documents() {
   const pid = useActiveProjectId();
-  const [tab, setTab] = useState<"analyze" | "create">("analyze");
+  const [tab, setTab] = useState<"analyze" | "create" | "compare">("analyze");
   if (!pid) return <NeedProject />;
   return (
     <div className="space-y-4 p-4">
       <h1 className="text-2xl font-bold">Documentos</h1>
       <div className="flex gap-1">
-        {(["analyze", "create"] as const).map((t) => <button key={t} onClick={() => setTab(t)} className={`flex-1 rounded-lg border px-2 py-1.5 text-xs ${tab === t ? "border-primary bg-primary text-primary-foreground" : ""}`}>{t === "analyze" ? "Analizar" : "Crear"}</button>)}
+        {(["analyze", "create", "compare"] as const).map((t) => <button key={t} onClick={() => setTab(t)} className={`flex-1 rounded-lg border px-2 py-1.5 text-xs ${tab === t ? "border-primary bg-primary text-primary-foreground" : ""}`}>{t === "analyze" ? "Analizar" : t === "create" ? "Crear" : "Comparar"}</button>)}
       </div>
-      {tab === "analyze" ? <Analyze pid={pid} /> : <Create pid={pid} />}
+      {tab === "analyze" ? <Analyze pid={pid} /> : tab === "create" ? <Create pid={pid} /> : <Compare pid={pid} />}
     </div>
   );
 }
@@ -176,6 +177,32 @@ function Create({ pid }: { pid: string }) {
         <Button className="w-full" disabled={busy} onClick={run}><Sparkles />{busy ? "Escribiendo…" : "Crear documento"}</Button>
       </section>
       {out && <Result text={out} title={`${t.label} ${new Date().toISOString().slice(0, 10)}`} />}
+    </div>
+  );
+}
+
+function Compare({ pid }: { pid: string }) {
+  const { data: docs = [] } = useCoreQuery(["docs", pid], (c) => c.repo.listDocs(pid));
+  const withText = docs.filter((d) => d.text_content);
+  const [a, setA] = useState(""), [b, setB] = useState(""), [gran, setGran] = useState<"lines" | "words">("lines");
+  const [res, setRes] = useState<Comparison | null>(null);
+  const da = withText.find((d) => d.id === a), db = withText.find((d) => d.id === b);
+  return (
+    <div className="space-y-3">
+      <section className="space-y-2 rounded-xl border bg-card p-3">
+        <p className="text-xs text-muted-foreground">Compara dos documentos en el teléfono, sin enviar nada a un modelo.</p>
+        <select aria-label="Documento original" className={inputCls} value={a} onChange={(e) => setA(e.target.value)}><option value="">Documento original</option>{withText.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select>
+        <select aria-label="Documento nuevo" className={inputCls} value={b} onChange={(e) => setB(e.target.value)}><option value="">Documento nuevo</option>{withText.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select>
+        <select aria-label="Detalle de comparación" className={inputCls} value={gran} onChange={(e) => setGran(e.target.value as "lines" | "words")}><option value="lines">Por líneas</option><option value="words">Por palabras</option></select>
+        <Button className="w-full" disabled={!da || !db || a === b} onClick={() => setRes(compareTexts(da!.text_content!.slice(0, 400_000), db!.text_content!.slice(0, 400_000), gran))}>Comparar</Button>
+      </section>
+      {res && da && db && (
+        <section className="space-y-2 rounded-xl border bg-card p-3">
+          <p className="text-sm">Similitud <b>{res.similarity}%</b> · <span className="text-primary">+{res.added}</span> · <span className="text-destructive">−{res.removed}</span></p>
+          <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap text-xs">{res.parts.map((p, i) => <span key={i} className={p.kind === "added" ? "bg-primary/20" : p.kind === "removed" ? "bg-destructive/20 line-through" : "text-muted-foreground"}>{p.text}</span>)}</pre>
+          <Result text={comparisonMarkdown(da.name, db.name, res)} title={`Comparación ${da.name}`} />
+        </section>
+      )}
     </div>
   );
 }
