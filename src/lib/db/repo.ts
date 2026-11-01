@@ -3,6 +3,7 @@ import { SCHEMA } from "./schema";
 import { SCHEMA_V3, PROJECT_TABLES_V3 } from "../core/schema-v3";
 import { Registry } from "../core/registry";
 import type { ChatAttachment } from "../chat-attachments";
+import { exclusive } from "../core/operation-lock";
 
 export interface KeyVault {
   encrypt(plain: string): Promise<string>;
@@ -387,6 +388,9 @@ export class Repo {
     return { app: "MI AI", v: 1, exportedAt: now(), tables: out };
   }
   async restoreAll(dump: { tables: Record<string, Record<string, unknown>[]> }) {
+    return exclusive(this.db, () => this.restoreAllLocked(dump));
+  }
+  private async restoreAllLocked(dump: { tables: Record<string, Record<string, unknown>[]> }) {
     const order = ["projects", "chats", "messages", "memory_items", "memory_versions", "documents", "providers", ...BACKUP_TABLES_V3];
     // Validate EVERYTHING before writing: known tables, allowlisted columns, scalar values, and project→chat→message coherence.
     const allowed: Record<string, Set<string>> = {};
@@ -397,12 +401,14 @@ export class Repo {
     for (const t of order) for (const row of dump.tables[t] ?? []) {
       if (!row || typeof row !== "object") throw new Error(`Fila inválida en ${t}`);
       for (const [c, v] of Object.entries(row)) {
-        if (!allowed[t]!.has(c) && c !== "has_key") throw new Error(`Respaldo con columna no admitida: ${t}.${c}`);
+        if (!allowed[t]?.has(c) && c !== "has_key") throw new Error(`Respaldo con columna no admitida: ${t}.${c}`);
         if (v !== null && !["string", "number"].includes(typeof v)) throw new Error(`Valor no admitido en ${t}.${c}`);
       }
-      if (allowed[t]!.has("project_id") && t !== "projects" && row["project_id"] != null && !projects.has(row["project_id"])) throw new Error(`Respaldo incoherente: ${t} apunta a un proyecto inexistente`);
+      if (allowed[t]?.has("project_id") && t !== "projects" && row["project_id"] != null && !projects.has(row["project_id"])) throw new Error(`Respaldo incoherente: ${t} apunta a un proyecto inexistente`);
       if (t === "messages" && chatProject.get(row["chat_id"]) !== row["project_id"]) throw new Error("Respaldo incoherente: mensaje de otro proyecto");
     }
+    await this.db.run("BEGIN TRANSACTION");
+    try {
     for (const t of order) {
       for (const row of dump.tables[t] ?? []) {
         const cols = Object.keys(row).filter((c) => c !== "api_key_enc" && c !== "has_key");
@@ -414,5 +420,7 @@ export class Repo {
       }
     }
     await this.registry.syncLegacyProviders();
+    await this.db.run("COMMIT");
+    } catch (error) { await this.db.run("ROLLBACK"); throw error; }
   }
 }

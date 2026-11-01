@@ -1,5 +1,4 @@
-// Local OCR (Tesseract WASM, lazy-loaded). Recognition runs on the phone; only the public language pack is
-// downloaded once on first use (no document data leaves the device).
+// Local OCR: engine, worker and language packs are bundled with the app, including first use offline.
 export const OCR_LANGS = { spa: "Español", eng: "Inglés", "spa+eng": "Español + inglés" } as const;
 export type OcrLang = keyof typeof OCR_LANGS;
 export const MAX_OCR_PAGES = 30;
@@ -8,7 +7,12 @@ type Worker = { recognize(img: unknown): Promise<{ data: { text: string; confide
 
 async function worker(lang: OcrLang, onProgress?: (p: number) => void): Promise<Worker> {
   const { createWorker } = await import("tesseract.js");
-  return (await createWorker(lang, 1, { logger: (m: { status: string; progress: number }) => { if (m.status === "recognizing text") onProgress?.(m.progress); } })) as unknown as Worker;
+  const base = new URL("/ocr/", window.location.href).href;
+  return (await createWorker(lang, 1, {
+    workerPath: `${base}worker.min.js`, corePath: `${base}tesseract-core-lstm.wasm.js`,
+    langPath: base, workerBlobURL: false, cacheMethod: "none",
+    logger: (m: { status: string; progress: number }) => { if (m.status === "recognizing text") onProgress?.(m.progress); },
+  })) as unknown as Worker;
 }
 
 /** Joins OCR'd pages with the same page markers used by PDF text extraction. */
@@ -41,7 +45,9 @@ export async function ocrPdf(bytes: Uint8Array, lang: OcrLang = "spa", onStep?: 
       const vp = page.getViewport({ scale: 2 });
       const canvas = document.createElement("canvas");
       canvas.width = Math.min(vp.width, 3000); canvas.height = Math.min(vp.height, 4200);
-      await page.render({ canvas, canvasContext: canvas.getContext("2d")!, viewport: vp } as never).promise;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("No se pudo abrir la página para OCR.");
+      await page.render({ canvas, canvasContext: context, viewport: vp } as never).promise;
       const r = await w.recognize(canvas);
       pages.push({ text: r.data.text, confidence: r.data.confidence });
       page.cleanup(); canvas.width = 0;

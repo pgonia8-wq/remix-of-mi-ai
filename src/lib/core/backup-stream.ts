@@ -42,12 +42,14 @@ export async function* createBackupStream(opts: { repo: Repo; keys: KeyRing; fs:
   }
   for (const a of (dump.tables["assets"] ?? []) as Asset[]) {
     const dek = await opts.keys.unwrapDek(a.key_id, a.wrapped_dek, a.id, a.project_id);
+    try {
     const src = await opts.fs.source(a.path);
     await verifyAsset(src, { assetId: a.id, projectId: a.project_id }, dek);
     const { wrapped_dek: _w, ...meta } = a;
-    yield await seal({ t: "asset", meta: meta as Asset, dek: b64(dek) }); dek.fill(0);
+    yield await seal({ t: "asset", meta: meta as Asset, dek: b64(dek) });
     for (let o = 0; o < src.size; o += BACKUP_PIECE) yield await seal({ t: "piece", id: a.id, data: b64(await src.read(o, Math.min(BACKUP_PIECE, src.size - o))) });
     assets++;
+    } finally { dek.fill(0); }
   }
   yield await seal({ t: "end", tables, assets });
 }
@@ -61,12 +63,14 @@ async function* records(lines: AsyncIterable<string> | Iterable<string>, passwor
     if (!key) {
       let h: Header; try { h = JSON.parse(line); } catch { throw new Error("Archivo de respaldo ilegible"); }
       if (h.format !== "miai-backup" || h.v !== 3) throw new Error("Formato de respaldo no reconocido");
-      hs = line; prefix = unb64(h.prefix); key = await deriveBackupKey(password, h.kdf); continue;
+      hs = line; prefix = unb64(h.prefix);
+      if (prefix.length !== 8) throw new Error("Préfixe de respaldo inválido");
+      key = await deriveBackupKey(password, h.kdf); continue;
     }
     if (ended) throw new Error("Respaldo alterado: datos después del final");
     let rec: Rec | null = null;
     for (const final of [false, true]) {
-      try { rec = JSON.parse(td.decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: nonce(prefix, i) as BufferSource, additionalData: aad(hs, i, final) as BufferSource }, key, unb64(line) as BufferSource))); if ((rec!.t === "end") !== final) rec = null; break; } catch { /* try other flag */ }
+      try { const parsed = JSON.parse(td.decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: nonce(prefix, i) as BufferSource, additionalData: aad(hs, i, final) as BufferSource }, key, unb64(line) as BufferSource))) as Rec; if ((parsed.t === "end") === final) rec = parsed; break; } catch { /* try other flag */ }
     }
     if (!rec) throw new Error(i === 0 ? "Contraseña incorrecta o respaldo alterado" : `Respaldo alterado en la parte ${i + 1}`);
     i++; if (rec.t === "end") ended = true;
@@ -98,25 +102,35 @@ export async function restoreBackupStream(opts: { lines: () => AsyncIterable<str
   const tables: Record<string, Record<string, unknown>[]> = {};
   const metas: Asset[] = [];
   let cur: Asset | null = null;
+  try {
   for await (const r of records(opts.lines(), opts.password)) {
     if (r.t === "table") (tables[r.name] ??= []).push(...r.rows);
     else if (r.t === "asset") {
       const dek = unb64(r.dek);
-      const { keyId, wrapped } = await opts.keys.wrapDek(dek, r.meta.id, r.meta.project_id); dek.fill(0);
-      cur = { ...r.meta, path: safeAssetPath(r.meta), key_id: keyId, wrapped_dek: wrapped, enc_state: "encrypted" };
+      let keyId: number, wrapped: string;
+      try { ({ keyId, wrapped } = await opts.keys.wrapDek(dek, r.meta.id, r.meta.project_id)); }
+      finally { dek.fill(0); }
+      // Never overwrite an existing encrypted file before the database commit.
+      const path = safeAssetPath({ id: crypto.randomUUID(), project_id: r.meta.project_id });
+      cur = { ...r.meta, path, key_id: keyId, wrapped_dek: wrapped, enc_state: "encrypted" };
       metas.push(cur);
       const tmp = `${cur.path}.restore`;
-      await opts.fs.remove(tmp).catch(() => undefined); await opts.fs.create(tmp);
       temps.push({ tmp, path: cur.path });
-      await opts.repo.journalSet(journal, "applied", { temps: temps.map((t) => t.tmp) }).catch(() => undefined);
+      // Journal intent BEFORE creating/promoting a file. A failed journal write stops restoration.
+      await opts.repo.journalSet(journal, "applied", { temps: temps.map((t) => t.tmp), promoted: temps.map((t) => t.path) });
+      await opts.fs.create(tmp);
     } else if (r.t === "piece" && cur) await opts.fs.append(`${cur.path}.restore`, unb64(r.data));
   }
-  for (const t of temps) { await opts.fs.remove(t.path).catch(() => undefined); await opts.fs.rename(t.tmp, t.path); }
+  for (const t of temps) await opts.fs.rename(t.tmp, t.path);
   const assetIdx = new Map(metas.map((m) => [m.id, m]));
   tables["assets"] = (tables["assets"] ?? []).map((row) => ({ ...row, ...(assetIdx.get(row["id"] as string) ?? {}) }));
   await opts.repo.restoreAll({ tables });
   await opts.repo.journalSet(journal, "committed", { temps: [] });
   return { assets: metas.length };
+  } catch (error) {
+    await recoverInterruptedRestores(opts.repo, opts.fs);
+    throw error;
+  }
 }
 
 /** Startup: an interrupted restore leaves only `.restore` temps (rows are written last), so cleaning them is a safe rollback. */
@@ -125,7 +139,12 @@ export async function recoverInterruptedRestores(repo: Repo, fs: BlobBackend) {
   for (const j of await repo.journalPending()) {
     if (j.kind !== "restore") continue;
     const temps = (JSON.parse(j.detail ?? "{}")?.temps ?? []) as string[];
-    for (const t of temps) await fs.remove(t).catch(() => undefined);
+    const promoted = (JSON.parse(j.detail ?? "{}")?.promoted ?? []) as string[];
+    const known = new Set((await repo.sql.all<{ path: string }>("SELECT path FROM assets")).map((a) => a.path));
+    for (const t of [...temps, ...promoted]) {
+      if (!t.startsWith("assets/") || t.includes("..")) throw new Error("Ruta de recuperación inválida");
+      if (!known.has(t)) await fs.remove(t);
+    }
     await repo.journalSet(j.id, "rolled_back"); n++;
   }
   return n;
