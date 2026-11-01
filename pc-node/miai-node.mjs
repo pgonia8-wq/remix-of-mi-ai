@@ -3,6 +3,7 @@
 // Standalone (Node 20+, no dependencies). Runs on Windows, Linux and macOS. LAN only; no Internet needed.
 // Usage: node miai-node.mjs --share <folder> [--share <folder>] [--port 47820] [--allow-target 127.0.0.1:5173] [--vpn-subnet 192.168.1.0/24] [--state <dir>] [--isolation auto|docker|process]
 import http from "node:http";
+import { mediaMethods } from "./media.mjs";
 import net from "node:net";
 import dgram from "node:dgram";
 import os from "node:os";
@@ -17,7 +18,7 @@ import { generateKeys, fingerprint, pairProof, nodeProof, safeEqual, sessionKey,
 
 export const VERSION = "1.0.0";
 const TOOLCHAINS = [
-  ["node", ["--version"]], ["npm", ["--version"]], ["python3", ["--version"]], ["python", ["--version"]], ["pip", ["--version"]],
+  ["ffmpeg", ["-version"]], ["demucs", ["--help"]], ["node", ["--version"]], ["npm", ["--version"]], ["python3", ["--version"]], ["python", ["--version"]], ["pip", ["--version"]],
   ["java", ["-version"]], ["kotlinc", ["-version"]], ["gradle", ["--version"]], ["sdkmanager", ["--version"]], ["gcc", ["--version"]], ["clang", ["--version"]],
   ["cmake", ["--version"]], ["ninja", ["--version"]], ["rustc", ["--version"]], ["cargo", ["--version"]], ["go", ["version"]], ["dotnet", ["--version"]],
   ["git", ["--version"]], ["sqlite3", ["--version"]], ["psql", ["--version"]], ["forge", ["--version"]], ["npx", ["--version"]], ["docker", ["--version"]], ["podman", ["--version"]],
@@ -27,7 +28,7 @@ function parseArgs(argv) {
   const o = { share: [], port: 47820, allowTargets: [], vpnSubnets: [], state: path.join(os.homedir(), ".miai-node"), isolation: "auto", name: os.hostname(), discovery: true, host: "0.0.0.0" };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i], v = argv[i + 1];
-    if (a === "--share") { o.share.push(path.resolve(v)); i++; } else if (a === "--port") { o.port = Number(v); i++; }
+    if (a === "--demucs-models") { o.demucsModels = path.resolve(v); i++; } else if (a === "--share") { o.share.push(path.resolve(v)); i++; } else if (a === "--port") { o.port = Number(v); i++; }
     else if (a === "--allow-target") { o.allowTargets.push(v); i++; } else if (a === "--vpn-subnet") { o.vpnSubnets.push(v); i++; } else if (a === "--state") { o.state = path.resolve(v); i++; }
     else if (a === "--isolation") { o.isolation = v; i++; } else if (a === "--name") { o.name = v; i++; }
     else if (a === "--host") { o.host = v; i++; } else if (a === "--no-discovery") o.discovery = false;
@@ -133,7 +134,7 @@ export async function startNode(opts) {
     const env = { PATH: process.env.PATH, HOME: base, USERPROFILE: base, TMPDIR: path.join(base, ".tmp"), LANG: "C.UTF-8", SystemRoot: process.env.SystemRoot, CI: "1" };
     await fsp.mkdir(env.TMPDIR, { recursive: true });
     let cmd = argv[0], args = argv.slice(1), level = "process";
-    if (isolation === "docker") {
+    if (isolation === "docker" && !p.mediaHost) {
       // Real OS isolation: container, no network unless approved, memory/CPU caps, only the project folder mounted.
       level = "docker"; cmd = "docker";
       args = ["run", "--rm", "-i", `--memory=${memoryMb}m`, "--cpus=2", "--pids-limit=256", ...(network ? [] : ["--network=none"]), "-v", `${base}:/work`, "-w", `/work/${path.relative(base, target).split(path.sep).join("/")}`, p.image || "node:20-bookworm", ...argv];
@@ -265,6 +266,8 @@ export async function startNode(opts) {
     "tunnel.list": async (d) => state.tunnels.filter((t) => t.deviceId === d).map((t) => ({ ...t, log: servers.get(t.id)?.log ?? [] })),
     "device.revokeSelf": async (d) => { state.devices[d].revoked = true; keyCache.delete(d); for (const t of state.tunnels) if (t.deviceId === d && t.status === "open") await closeTunnel(t.id, "revocado"); await save(); return { revoked: true }; },
   };
+
+  Object.assign(methods, mediaMethods({ resolveIn, startJob, state, save, toolchains, cfg: { ...cfg, isolation }, kill }));
 
   const readBody = (req) => new Promise((res, rej) => { let s = ""; req.on("data", (c) => { s += c; if (s.length > 12_000_000) { rej(new Error("Solicitud demasiado grande")); req.destroy(); } }); req.on("end", () => res(s)); req.on("error", rej); });
   const send = (res, code, obj) => { res.writeHead(code, { "content-type": "application/json", "access-control-allow-origin": "*", "access-control-allow-headers": "content-type" }); res.end(JSON.stringify(obj)); };
