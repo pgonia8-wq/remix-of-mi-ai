@@ -15,7 +15,7 @@ export const stepSchema = z.object({
   next: z.string().nullable().optional(), otherwise: z.string().nullable().optional(),
   dependsOn: z.array(z.string()).max(20).optional(),
 });
-export const flowSchema = z.object({ steps: z.array(stepSchema).min(1).max(20), maxCalls: z.number().int().min(1).max(20) }).superRefine((v, ctx) => {
+export const flowSchema = z.object({ steps: z.array(stepSchema).min(1).max(20), maxCalls: z.number().int().min(1).max(20), autonomous: z.object({ agentId: z.string().min(1), maxTurns: z.number().int().min(1).max(8), goal: z.string().min(1).max(12000) }).optional() }).superRefine((v, ctx) => {
   if (new Set(v.steps.map((s) => s.id)).size !== v.steps.length) ctx.addIssue({ code: "custom", message: "Los pasos necesitan identificadores únicos." });
   v.steps.forEach((s, i) => {
     for (const target of [s.next, s.otherwise, ...(s.dependsOn ?? [])]) {
@@ -51,6 +51,7 @@ export const workflows = {
   async save(repo: Repo, p: string, name: string, flow: Flow, id?: string) {
     await project(repo, p); const data = flowSchema.parse(flow); if (!name.trim()) throw new Error("Falta el nombre del flujo.");
     for (const s of data.steps) if (s.agentId && !await agents.get(repo, p, s.agentId)) throw new Error("Agente ajeno al proyecto");
+    if (data.autonomous && !await agents.get(repo, p, data.autonomous.agentId)) throw new Error("Agente ajeno al proyecto");
     if (id && !await workflows.get(repo, p, id)) throw new Error("Flujo ajeno al proyecto");
     const key = id ?? crypto.randomUUID();
     if (id) await repo.sql.run("UPDATE workflows SET name=?, definition=?, updated_at=? WHERE project_id=? AND id=?", [name.trim(), JSON.stringify(data), Date.now(), p, id]);

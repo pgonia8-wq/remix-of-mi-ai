@@ -101,7 +101,7 @@ function Analyze({ pid }: { pid: string }) {
     <div className="space-y-3">
       <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed p-4 text-sm"><Upload className="h-4 w-4" /> Subir PDF, Word, Excel, CSV, texto o foto
         <input type="file" multiple accept={DOC_ACCEPT} className="hidden" onChange={(e) => upload(e.target.files)} /></label>
-      <p className="text-[10px] text-muted-foreground">El texto se extrae en tu teléfono (las fotos y PDF escaneados se leen con OCR local; la primera vez se descarga el paquete de idioma). Solo se envía al modelo cuando pulsas una acción.</p>
+      <p className="text-[10px] text-muted-foreground">Lectura local sin conexión. Solo se envía al modelo cuando pulsas una acción.</p>
       <div className="space-y-1">
         {docs.map((d) => (
           <div key={d.id} className={`flex items-center gap-2 rounded-xl border p-2 text-sm ${sel === d.id ? "border-primary bg-primary/10" : "bg-card"}`}>

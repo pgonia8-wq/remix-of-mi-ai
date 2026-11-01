@@ -31,15 +31,26 @@ export async function pollRemoteJob(core: Core, projectId: string, id: string) {
     }
     if (result.kind !== "files" || !result.files.length) throw new Error("El proveedor no devolvió archivos completos.");
     const meta = JSON.parse(j.params ?? "{}") as Record<string, unknown>;
-    const saved = await core.repo.sql.all<{ id: string }>("SELECT id FROM assets WHERE project_id=? AND job_id=?", [projectId, id]);
-    // Recover a crash after an asset commit without registering duplicate output.
-    // Per-output dedupe: resume after the files already committed (a crash mid multi-file save loses nothing).
-    for (const file of result.files.slice(saved.length)) {
+    const saved = await core.repo.sql.all<{ id: string; params: string | null }>("SELECT id,params FROM assets WHERE project_id=? AND job_id=?", [projectId, id]);
+    const committed = new Set<string>();
+    for (const asset of saved) {
+      const key = (JSON.parse(asset.params ?? "{}") as Record<string, unknown>)["remoteOutputKey"];
+      if (typeof key !== "string") throw new Error("Resultado anterior sin identidad verificable. Revisa Biblioteca; no se duplicarán archivos automáticamente.");
+      committed.add(key);
+    }
+    // Content identity plus duplicate occurrence, independent of remote output ordering.
+    const seen = new Map<string, number>();
+    for (const file of result.files) {
+      const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", file.bytes as BufferSource));
+      const hash = `${file.mime}:${Array.from(digest, (b) => b.toString(16).padStart(2, "0")).join("")}`;
+      const occurrence = seen.get(hash) ?? 0; seen.set(hash, occurrence + 1);
+      const key = `${hash}:${occurrence}`;
+      if (committed.has(key)) continue;
       await core.assets.put(projectId, (async function* () { yield file.bytes; })(), {
         kind: file.mime === "model/gltf-binary" ? "model3d" : file.mime.split("/")[0] ?? "document", mime: file.mime, name: file.name,
         providerId: j.provider_id, modelId: j.model_id, capability: j.capability_id, jobId: id,
         prompt: typeof meta["prompt"] === "string" ? meta["prompt"] : null,
-        parentId: typeof meta["parentAssetId"] === "string" ? meta["parentAssetId"] : null, params: meta,
+        parentId: typeof meta["parentAssetId"] === "string" ? meta["parentAssetId"] : null, params: { ...meta, remoteOutputKey: key },
       });
     }
     await core.jobs.finishAttempt(projectId, id, "completed");

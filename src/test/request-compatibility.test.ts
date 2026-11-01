@@ -12,6 +12,11 @@ const model: ModelWithCaps = { id: "model", provider_id: "provider", remote_id: 
 const spec = (id: string) => INITIAL_CAPABILITIES.find((c) => c.id === id) ?? null;
 
 describe("Compatibilidad real antes de enviar una solicitud", () => {
+  it("R20: restricciones de un deployment no se aplican a otro", () => {
+    const restricted = { ...model, constraints: { "image.generate": { params: { n: { type: "number" as const, min: 1, max: 1 } } } } };
+    expect(route([restricted], { capability: "image.generate", mode: "auto", params: { n: 2 } }).ok).toBe(false);
+    expect(route([model], { capability: "image.generate", mode: "auto", params: { n: 2 } }).ok).toBe(true);
+  });
   it("no selecciona Azure para edición de video aunque se declare esa capacidad", () => {
     expect(route([{ ...model, capabilities: ["video.edit"] }], { capability: "video.edit", mode: "auto" }).ok).toBe(false);
   });

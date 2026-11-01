@@ -3,6 +3,7 @@ import type { SqlDb } from "../db/sql";
 import { encryptAsset, readAll, verifyAsset, newDek, type ByteSource } from "./asset-crypto";
 import type { KeyRing } from "./keys";
 import type { PerfProfile } from "./device-profile";
+import { exclusive } from "./operation-lock";
 
 export interface BlobBackend {
   create(path: string): Promise<void>;
@@ -38,6 +39,10 @@ export class AssetStore {
    * temp file → stream-encrypt → verify integrity → rename → register row. An interruption never registers an incomplete asset.
    */
   async put(projectId: string, data: AsyncIterable<Uint8Array>, meta: NewAsset): Promise<Asset> {
+    return exclusive(this.db, () => this.putLocked(projectId, data, meta));
+  }
+
+  private async putLocked(projectId: string, data: AsyncIterable<Uint8Array>, meta: NewAsset): Promise<Asset> {
     need(projectId);
     const [proj] = await this.db.all(`SELECT id FROM projects WHERE id=?`, [projectId]);
     if (!proj) throw new AssetError("Proyecto inexistente");
@@ -75,7 +80,7 @@ export class AssetStore {
       return row;
     } catch (e) {
       // Roll back the row too (e.g. relate failed after INSERT) so no metadata points at a deleted file.
-      await this.db.run(`DELETE FROM asset_relations WHERE to_id=?`, [id]).catch(() => undefined);
+      await this.db.run(`DELETE FROM asset_relations WHERE project_id=? AND to_asset=?`, [projectId, id]).catch(() => undefined);
       await this.db.run(`DELETE FROM assets WHERE id=? AND project_id=?`, [id, projectId]).catch(() => undefined);
       await this.fs.remove(tmp).catch(() => undefined);
       await this.fs.remove(final).catch(() => undefined);
@@ -162,6 +167,10 @@ export class AssetStore {
 
   /** On start: delete abandoned temp files and encrypted files whose row no longer exists (e.g. deleted project). */
   async cleanup(): Promise<{ temps: number; orphans: number }> {
+    return exclusive(this.db, () => this.cleanupLocked());
+  }
+
+  private async cleanupLocked(): Promise<{ temps: number; orphans: number }> {
     const files = await this.fs.list("assets/");
     const known = new Set((await this.db.all<{ path: string }>(`SELECT path FROM assets`)).map((r) => r.path));
     let temps = 0, orphans = 0;

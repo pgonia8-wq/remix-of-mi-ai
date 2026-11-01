@@ -12,6 +12,7 @@
  * - The final record encrypts {blocks, size, tagsHash} where tagsHash = SHA-256 over every data tag in order:
  *   missing, reordered, duplicated or truncated blocks are detected. Without a valid final record the file is incomplete.
  */
+import { createSHA256 } from "hash-wasm";
 export const MAGIC = new TextEncoder().encode("MIAIAST1");
 export const FORMAT_VERSION = 1;
 const FINAL_COUNTER = 0xffffffffffffffffn;
@@ -87,13 +88,13 @@ export async function* encryptAsset(src: AsyncIterable<Uint8Array>, ctx: AssetCo
   yield concat(MAGIC, u32(hb.length), hb);
 
   const conc = Math.max(1, Math.min(8, opts.concurrency ?? 1));
-  const tags: Uint8Array[] = [];
+  const tagHash = await createSHA256(); tagHash.init();
   let index = 0n, size = 0;
   const seal = async (pt: Uint8Array, i: bigint) =>
     new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce(prefix, i) as BufferSource, additionalData: aad(hh, header, i, false) as BufferSource, tagLength: 128 }, key, pt as BufferSource));
   let window: { i: bigint; p: Promise<Uint8Array> }[] = [];
   const flush = async function* () {
-    for (const w of window) { const ct = await w.p; tags.push(ct.subarray(ct.length - TAG)); yield concat(u32(ct.length), ct); }
+    for (const w of window) { const ct = await w.p; tagHash.update(ct.subarray(ct.length - TAG)); yield concat(u32(ct.length), ct); }
     window = [];
   };
   for await (const pt of blocks(src, opts.blockSize)) {
@@ -105,7 +106,7 @@ export async function* encryptAsset(src: AsyncIterable<Uint8Array>, ctx: AssetCo
   }
   yield* flush();
   const total = Number(index);
-  const fin = te.encode(JSON.stringify({ blocks: total, size, tagsHash: b64(await sha256(concat(...tags))) }));
+  const fin = te.encode(JSON.stringify({ blocks: total, size, tagsHash: b64(tagHash.digest("binary")) }));
   const fct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce(prefix, FINAL_COUNTER) as BufferSource, additionalData: aad(hh, header, FINAL_COUNTER, true) as BufferSource, tagLength: 128 }, key, fin as BufferSource));
   yield concat(u32(fct.length), fct);
   return { blocks: total, size };
@@ -128,50 +129,40 @@ async function parseHeader(src: ByteSource, ctx: AssetContext) {
   return { header, hh: await sha256(hb), prefix, start: MAGIC.length + 4 + hl };
 }
 
-/** Scans record boundaries. The last record must be the final record. */
-async function recordTable(src: ByteSource, start: number, blockSize: number) {
-  const recs: { off: number; len: number }[] = [];
-  let off = start;
-  while (off < src.size) {
-    if (off + 4 > src.size) throw new AssetIntegrityError("Archivo truncado");
-    const len = readU32(await src.read(off, 4));
-    if (len < TAG || len > blockSize + TAG || off + 4 + len > src.size) throw new AssetIntegrityError("Registro con longitud inválida");
-    recs.push({ off: off + 4, len });
-    off += 4 + len;
-  }
-  if (!recs.length) throw new AssetIntegrityError("Archivo incompleto: falta el registro final");
-  return recs;
-}
-
 /** Internal provisional decoder. Never expose its output to a caller before full verification. */
 async function* decryptProvisional(src: ByteSource, ctx: AssetContext, dekRaw: Uint8Array): AsyncGenerator<Uint8Array, { blocks: number; size: number }> {
   const key = await importDek(dekRaw);
   const { header, hh, prefix, start } = await parseHeader(src, ctx);
-  const recs = await recordTable(src, start, header.blockSize);
-  const data = recs.slice(0, -1), last = recs[recs.length - 1];
-  if (!last) throw new AssetIntegrityError("Registro final ausente");
-  const tags: Uint8Array[] = [];
-  let size = 0;
-  for (let i = 0; i < data.length; i++) {
-    const record = data[i];
-    if (!record) throw new AssetIntegrityError("Registro ausente");
-    const ct = await src.read(record.off, record.len);
+  const tagHash = await createSHA256(); tagHash.init();
+  let size = 0, off = start, blocks = 0, previousSize = header.blockSize;
+  let finalCipher: Uint8Array | null = null;
+  while (off < src.size) {
+    if (off + 4 > src.size) throw new AssetIntegrityError("Archivo truncado");
+    const len = readU32(await src.read(off, 4));
+    if (len < TAG || len > header.blockSize + TAG || off + 4 + len > src.size) throw new AssetIntegrityError("Registro con longitud inválida");
+    const ct = await src.read(off + 4, len);
+    off += 4 + len;
+    if (off === src.size) { finalCipher = ct; break; }
+    if (previousSize !== header.blockSize || blocks >= MAX_BLOCKS) throw new AssetIntegrityError("Tamaño o cantidad de bloques inconsistente");
+    const i = blocks;
     let pt: Uint8Array;
     try {
       pt = new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: nonce(prefix, BigInt(i)) as BufferSource, additionalData: aad(hh, header, BigInt(i), false) as BufferSource, tagLength: 128 }, key, ct as BufferSource));
     } catch { throw new AssetIntegrityError(`Bloque ${i} alterado, fuera de orden o con llave incorrecta`); }
-    if (i < data.length - 1 && pt.length !== header.blockSize) throw new AssetIntegrityError("Tamaño de bloque inconsistente");
-    tags.push(ct.subarray(ct.length - TAG));
+    previousSize = pt.length;
+    tagHash.update(ct.subarray(ct.length - TAG));
+    blocks++;
     size += pt.length;
     yield pt;
   }
   let fin: { blocks: number; size: number; tagsHash: string };
   try {
-    const fct = await src.read(last.off, last.len);
+    if (!finalCipher) throw new AssetIntegrityError("Registro final ausente");
+    const fct = finalCipher;
     fin = JSON.parse(td.decode(new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: nonce(prefix, FINAL_COUNTER) as BufferSource, additionalData: aad(hh, header, FINAL_COUNTER, true) as BufferSource, tagLength: 128 }, key, fct as BufferSource))));
   } catch { throw new AssetIntegrityError("Registro final ausente o alterado: archivo incompleto"); }
-  if (fin.blocks !== data.length || fin.size !== size || fin.tagsHash !== b64(await sha256(concat(...tags)))) throw new AssetIntegrityError("El registro final no coincide: bloques eliminados, duplicados o reordenados");
-  return { blocks: data.length, size };
+  if (fin.blocks !== blocks || fin.size !== size || fin.tagsHash !== b64(tagHash.digest("binary"))) throw new AssetIntegrityError("El registro final no coincide: bloques eliminados, duplicados o reordenados");
+  return { blocks, size };
 }
 
 /** Full verification without keeping plaintext. */

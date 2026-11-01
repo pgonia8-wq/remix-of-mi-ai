@@ -59,6 +59,34 @@ describe("costos y presupuesto", () => {
 });
 
 describe("respaldo por partes (v3)", () => {
+  it("una restauración fallida no sustituye archivos existentes ni deja archivos promovidos", async () => {
+    const p = await A.repo.createProject("P");
+    const asset = await A.assets.put(p.id, once(new Uint8Array([1, 2, 3])), { kind: "text", mime: "text/plain" });
+    const lines = await collect(createBackupStream({ ...A, password: PW, kdf: "pbkdf2" }));
+    const paths = await A.fs.list("assets/");
+    const original = A.repo.restoreAll.bind(A.repo);
+    A.repo.restoreAll = async () => { throw new Error("Injected failure"); };
+    try { await expect(restoreBackupStream({ ...A, lines: () => lines, password: PW })).rejects.toThrow("Injected failure"); }
+    finally { A.repo.restoreAll = original; }
+    expect(await A.fs.list("assets/")).toEqual(paths);
+    expect(await A.assets.read(p.id, asset.id)).toEqual(new Uint8Array([1, 2, 3]));
+    expect(await A.repo.journalPending()).toEqual([]);
+  });
+  it("R07/R09: limpieza espera una escritura activa incluso entre dos AssetStore", async () => {
+    const p = await A.repo.createProject("P");
+    let release: (() => void) | undefined, started: (() => void) | undefined;
+    const pause = new Promise<void>((r) => { release = r; });
+    const entered = new Promise<void>((r) => { started = r; });
+    const source = async function* () { started?.(); await pause; yield new Uint8Array([1, 2, 3]); };
+    const write = A.assets.put(p.id, source(), { kind: "text", mime: "text/plain" });
+    await entered;
+    let cleaned = false;
+    const other = new AssetStore(A.db, A.fs, A.keys, profile);
+    const cleanup = other.cleanup().then(() => { cleaned = true; });
+    await Promise.resolve(); expect(cleaned).toBe(false);
+    release?.(); const asset = await write; await cleanup;
+    expect(await A.assets.read(p.id, asset.id)).toEqual(new Uint8Array([1, 2, 3]));
+  });
   it("restaura en otro dispositivo un archivo grande dividido en partes; contraseña errónea se rechaza", async () => {
     const p = await A.repo.createProject("A");
     const c = await A.repo.createChat(p.id, "Hola");

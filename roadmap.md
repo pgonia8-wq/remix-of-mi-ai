@@ -1,16 +1,23 @@
 # MI AI — Roadmap
 
 ## Bloque 1 — seguridad y núcleo (en curso)
+- [ ] Solicitud de Fer: cerrar pendientes de bloques 1–3 y después completar bloque 4 autónomo; sin compilar antes del bloque 5.
 - [x] Archivar, restaurar y duplicar proyectos.
 - [x] Exportar/importar un solo proyecto cifrado (siempre como proyecto nuevo; contraseña errónea no crea nada).
 - [x] Presupuesto mensual por proyecto y registro de costos (aviso 80%, bloqueo 100%, marca de estimados).
 - [x] Costos y bloqueo de presupuesto en cada llamada (chat y ejecutor), tarifas editables, confirmación por llamada.
 - [x] Respaldos v3 por partes con verificación completa previa; v2 legible.
 - [x] Restauración con journal (revierte al iniciar) y rotación de llaves reanudada al iniciar.
-- [x] Riesgos corregidos: R01–R06, R08, R10, R12–R17, R19. Abiertos: R07/R09 (coordinación limpieza-escritura), R11 (fallos tras aceptación), R18 (memoria cripto), R20 (límites por deployment).
+- [x] R07/R09: escritura y limpieza serializadas por base; R10: un solo envío concurrente; regresiones comprobadas.
+- [x] R11: respuesta inválida/5xx/cancelación tras envío requieren revisión, no reintento automático.
+- [x] Restauración SQL atómica; rutas promovidas únicas y journal previo, rollback sin sustituir archivos existentes.
+- [x] R20: límites por deployment revalidados antes de claves/red; cambiar restricciones invalida pruebas.
+- [ ] R18: hash de etiquetas incremental y lectura interna sin tabla de bloques implementados; faltan verificación del respaldo sin acumular archivo, tablas paginadas y límite estricto de memoria de descifrado público.
+- [x] R12: identidad por contenido y ocurrencia, no por orden remoto; fallo tras primer archivo y recuperación reordenada comprobados.
+- [ ] Revisar contabilidad de llamadas directas y persistencia nativa por partes antes de cerrar riesgos R01–R20.
 
 ## Bloque 2 — medios y documentos
-- [x] OCR local (fotos y PDF escaneados, 30 págs); paquete de idioma se descarga una vez.
+- [x] OCR local con worker, WASM e idiomas español/inglés incluidos: primera lectura sin descarga externa comprobada en Chromium; Android pendiente.
 - [x] Relleno por zona con máscara (OpenAI/Azure images/edits) y lote de herramientas locales.
 - [x] Video: pistas de audio de fondo mezcladas localmente + segunda secuencia Media3 (sin compilar aún).
 - [x] Mezcla de audio con remuestreo; música solo con proveedores que lo declaren.
@@ -144,3 +151,10 @@
 - [ ] Bloques 2–3: medios, documentos, investigación, datos
 - [ ] Bloque 4: sistema autónomo (ReAct, Tool Manager, multiagente, AI Builder)
 - [ ] Bloque 5: APK final
+
+## Bloque 4 — avance, no cierre
+- [x] Agente adaptativo secuencial: decisiones JSON validadas, acciones persistidas y aprobación vinculada al paso; reutiliza allowlists/router/ejecutor.
+- [x] Flujo decisión→nota→observación→resultado, recarga intermedia y dos respuestas controladas comprobadas en Chromium; no llamadas reales.
+- [ ] Tool calling nativo Azure/OpenAI/Anthropic/Gemini, gestor universal de herramientas, equipo paralelo y revisor, AI Builder completo y memoria de trabajo acumulada.
+- [ ] Recuperación entre recepción de decisión y persistencia del siguiente paso; interrupción debe requerir revisión sin repetir.
+- [ ] Cierre bloques 1–3 antes del bloque 4 completo: falta implementación listada arriba, transiciones/capas generales de video y validación real Android/proveedores (dispositivo y deployments autorizados no disponibles).
