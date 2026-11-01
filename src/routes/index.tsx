@@ -1,6 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { Plus, Trash2, Copy, Archive, ArchiveRestore, Check } from "lucide-react";
+import { Plus, Trash2, Copy, Archive, ArchiveRestore, Check, Download, Upload, Wallet } from "lucide-react";
+import { getCore } from "@/lib/core";
+import { exportProject, importProject } from "@/lib/core/project-transfer";
+import { passwordStrength } from "@/lib/core/backup";
+import { saveExport } from "@/lib/save-export";
 import { toast } from "sonner";
 import { setActiveProject, useActiveProjectId, useMutate, useRepoQuery } from "@/lib/use-app";
 import { btnCls, inputCls } from "@/components/AppShell";
@@ -28,6 +32,11 @@ function Projects() {
   const [desc, setDesc] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const { data: archivedIds = [] } = useRepoQuery(["projects", "archived"], (r) => r.listArchivedProjectIds());
+  const [panel, setPanel] = useState<{ mode: "export" | "import" | "budget"; projectId?: string } | null>(null);
+  const [pw, setPw] = useState("");
+  const [budget, setBudget] = useState("");
+  const [busy, setBusy] = useState(false);
+  const { data: status } = useRepoQuery(["budget", panel?.projectId ?? ""], (r) => r.budgetStatus(panel!.projectId!), panel?.mode === "budget");
   const visible = projects.filter((p) => archivedIds.includes(p.id) === showArchived);
 
   async function create() {
@@ -37,6 +46,38 @@ function Projects() {
     setName("");
     setDesc("");
     toast.success("Proyecto creado");
+  }
+
+  const panelProject = projects.find((x) => x.id === panel?.projectId);
+  async function doExport() {
+    if (!panelProject) return;
+    const st = passwordStrength(pw); if (!st.ok) { toast.error(st.hint); return; }
+    setBusy(true);
+    try {
+      const core = await getCore();
+      const mem = core.device.totalMemMB ? core.device.totalMemMB / 1024 : null;
+      const text = await exportProject({ repo: core.repo, assets: core.assets, projectId: panelProject.id, password: pw, deviceMemGB: mem });
+      await saveExport(new TextEncoder().encode(text), `${panelProject.name.replace(/[^\w-]+/g, "_")}.miaiproj`, "application/octet-stream");
+      toast.success("Proyecto exportado y cifrado"); setPanel(null);
+    } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); setPw(""); }
+  }
+  async function doImport(f: File | undefined) {
+    if (!f) return;
+    setBusy(true);
+    try {
+      const core = await getCore();
+      const r = await importProject({ repo: core.repo, assets: core.assets, text: await f.text(), password: pw });
+      await mutate(async () => undefined);
+      toast.success(`Proyecto "${r.project.name}" importado como proyecto nuevo`); setPanel(null);
+    } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); setPw(""); }
+  }
+  async function saveBudget() {
+    if (!panelProject) return;
+    try {
+      const v = budget.trim() ? Number(budget) : null;
+      await mutate((r) => r.setProjectBudget(panelProject.id, v));
+      toast.success(v ? "Presupuesto guardado" : "Presupuesto quitado"); setPanel(null);
+    } catch (e) { toast.error((e as Error).message); }
   }
 
   return (
@@ -51,6 +92,32 @@ function Projects() {
       </div>
       {error && <p className="text-sm text-destructive">No se pudo abrir la base de datos: {String((error as Error).message)}</p>}
       {isLoading && <p className="text-sm text-muted-foreground">Abriendo base de datos cifrada…</p>}
+      {panel && (
+        <div className="space-y-2 rounded-xl border bg-card p-4">
+          {panel.mode === "budget" ? (
+            <>
+              <h2 className="font-semibold">Presupuesto mensual — {panelProject?.name}</h2>
+              {status && <p className="text-xs text-muted-foreground">Gastado este mes: US$ {status.spentUsd.toFixed(2)}{status.includesEstimates ? " (incluye estimados)" : ""}. Aviso al 80% y bloqueo al 100%, con opción de confirmar.</p>}
+              <input className={inputCls} inputMode="decimal" placeholder="Límite en US$ (vacío = sin límite)" value={budget} onChange={(e) => setBudget(e.target.value)} />
+              <div className="flex gap-2"><button className={btnCls + " flex-1"} onClick={saveBudget}>Guardar</button><button className="flex-1 text-sm underline" onClick={() => setPanel(null)}>Cancelar</button></div>
+            </>
+          ) : (
+            <>
+              <h2 className="font-semibold">{panel.mode === "export" ? `Exportar "${panelProject?.name}"` : "Importar proyecto"}</h2>
+              <p className="text-xs text-muted-foreground">{panel.mode === "export" ? "Incluye chats, memoria, notas, tareas, documentos y archivos, cifrados con esta contraseña. Las API keys no se incluyen." : "Se crea un proyecto nuevo; nunca se mezcla con otro. Una contraseña incorrecta se rechaza sin cambiar nada."}</p>
+              <input className={inputCls} type="password" placeholder="Contraseña del archivo" value={pw} onChange={(e) => setPw(e.target.value)} />
+              {busy && <p className="text-xs text-primary">Procesando…</p>}
+              <div className="flex gap-2">
+                {panel.mode === "export"
+                  ? <button className={btnCls + " flex-1"} disabled={busy || !pw} onClick={doExport}><Download className="h-4 w-4" /> Exportar</button>
+                  : <label className={btnCls + " flex-1 cursor-pointer" + (busy || !pw ? " pointer-events-none opacity-50" : "")}><Upload className="h-4 w-4" /> Elegir archivo<input type="file" className="hidden" accept=".miaiproj,application/octet-stream" onChange={(e) => doImport(e.target.files?.[0])} /></label>}
+                <button className="flex-1 text-sm underline" onClick={() => setPanel(null)}>Cancelar</button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+      <button className="w-full text-center text-sm text-muted-foreground underline" onClick={() => { setPw(""); setPanel({ mode: "import" }); }}><Upload className="mr-1 inline h-4 w-4" />Importar proyecto desde archivo</button>
       <ul className="space-y-2">
         {visible.map((p) => (
           <li key={p.id} className={`flex items-center gap-3 rounded-xl border p-4 ${active === p.id ? "border-primary bg-accent/40" : "bg-card"}`}>
@@ -65,6 +132,12 @@ function Projects() {
               {p.description && <div className="text-xs text-muted-foreground">{p.description}</div>}
             </button>
             {active === p.id && <Check className="h-4 w-4 text-primary" />}
+            <button aria-label="Presupuesto del proyecto" className="text-muted-foreground" onClick={async () => { const b = await mutate((r) => r.getProjectBudget(p.id)); setBudget(b ? String(b) : ""); setPanel({ mode: "budget", projectId: p.id }); }}>
+              <Wallet className="h-4 w-4" />
+            </button>
+            <button aria-label="Exportar proyecto" className="text-muted-foreground" onClick={() => { setPw(""); setPanel({ mode: "export", projectId: p.id }); }}>
+              <Download className="h-4 w-4" />
+            </button>
             <button aria-label="Duplicar proyecto" className="text-muted-foreground" onClick={async () => { await mutate((r) => r.duplicateProject(p.id)); toast.success("Proyecto duplicado"); }}>
               <Copy className="h-4 w-4" />
             </button>

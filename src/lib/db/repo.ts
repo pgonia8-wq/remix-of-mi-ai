@@ -20,11 +20,17 @@ export type ProviderKind = "openai" | "anthropic" | "gemini" | "azure" | "azure_
 export type Provider = { id: string; name: string; kind: ProviderKind; endpoint: string | null; deployment: string | null; model: string; api_version: string | null; extra_params: string | null; enabled: number; created_at: number; has_key: boolean; verification_status: "verified" | "error" | "unverified"; checked_at: number | null };
 export type ProviderInput = { name: string; kind: ProviderKind; endpoint?: string; apiKey?: string | undefined; deployment?: string; model: string; apiVersion?: string; extraParams?: string; enabled?: boolean };
 
+export function budgetLevel(limitUsd: number | null, spentUsd: number, includesEstimates = false) {
+  if (limitUsd === null) return { level: "none" as const, limitUsd, spentUsd, ratio: 0, includesEstimates };
+  const ratio = spentUsd / limitUsd;
+  return { level: ratio >= 1 ? "blocked" as const : ratio >= 0.8 ? "warn" as const : "ok" as const, limitUsd, spentUsd, ratio, includesEstimates };
+}
+
 export class IsolationError extends Error {}
 
 // Catalog + project data from migration v3 included in backups. Excluded on purpose: capability_tests
 // (verification claims reset on restore), key_versions (device-bound), asset_blobs (bytes travel separately).
-const BACKUP_TABLES_V3 = ["capabilities", "providers_registry", "endpoints", "auth_refs", "models", "model_versions", "model_capabilities", "model_configs", "jobs", "job_attempts", "assets", "asset_tags", "asset_relations", "workflow_steps", "voices", "notes", "tasks", "embeddings", "flashcards", "agents", "workflows", "workflow_runs", "execution_events", "connections", "schedules", "workspace_items", "tool_favorites", "chat_attachments", "message_feedback"] as const;
+const BACKUP_TABLES_V3 = ["capabilities", "providers_registry", "endpoints", "auth_refs", "models", "model_versions", "model_capabilities", "model_configs", "jobs", "job_attempts", "assets", "asset_tags", "asset_relations", "workflow_steps", "voices", "notes", "tasks", "embeddings", "flashcards", "agents", "workflows", "workflow_runs", "execution_events", "connections", "schedules", "workspace_items", "tool_favorites", "chat_attachments", "message_feedback", "project_budgets", "cost_ledger"] as const;
 
 const uid = () => crypto.randomUUID();
 const now = () => Date.now();
@@ -57,6 +63,8 @@ export class Repo {
     // v3 is additive: new tables only; existing rows are mirrored into the registry, never moved or deleted.
     for (const s of SCHEMA_V3) await this.db.run(s);
     await this.db.run(`CREATE TABLE IF NOT EXISTS project_states (project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE, archived INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL)`);
+    await this.db.run(`CREATE TABLE IF NOT EXISTS project_budgets (project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE, monthly_limit_usd REAL NOT NULL, updated_at INTEGER NOT NULL)`);
+    await this.db.run(`CREATE TABLE IF NOT EXISTS cost_ledger (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, provider_id TEXT, model TEXT, operation TEXT NOT NULL, amount_usd REAL NOT NULL, estimated INTEGER NOT NULL, created_at INTEGER NOT NULL)`);
     await this.registry.seedCapabilities();
     await this.registry.syncLegacyProviders();
   }
@@ -104,9 +112,40 @@ export class Repo {
     await this.db.run(`UPDATE projects SET name=?, description=? WHERE id=?`, [name, description, id]);
   }
   async deleteProject(id: string) {
-    for (const t of ["messages", "chats", "memory_versions", "memory_items", "documents", ...PROJECT_TABLES_V3])
+    for (const t of ["cost_ledger", "project_budgets", "messages", "chats", "memory_versions", "memory_items", "documents", ...PROJECT_TABLES_V3])
       await this.db.run(`DELETE FROM ${t} WHERE project_id=?`, [id]);
     await this.db.run(`DELETE FROM projects WHERE id=?`, [id]);
+  }
+
+  // ---------- Costs & budgets ----------
+  async setProjectBudget(projectId: string, monthlyLimitUsd: number | null) {
+    need(projectId);
+    if (!(await this.getProject(projectId))) throw new IsolationError("Proyecto inexistente");
+    if (monthlyLimitUsd === null) { await this.db.run(`DELETE FROM project_budgets WHERE project_id=?`, [projectId]); return; }
+    if (!Number.isFinite(monthlyLimitUsd) || monthlyLimitUsd <= 0) throw new Error("El presupuesto debe ser mayor que cero");
+    await this.db.run(`INSERT OR REPLACE INTO project_budgets VALUES (?,?,?)`, [projectId, monthlyLimitUsd, now()]);
+  }
+  async getProjectBudget(projectId: string) {
+    need(projectId);
+    return (await this.db.all<{ monthly_limit_usd: number }>(`SELECT monthly_limit_usd FROM project_budgets WHERE project_id=?`, [projectId]))[0]?.monthly_limit_usd ?? null;
+  }
+  /** Records a call's cost. `estimated` = the provider did not report an exact price. */
+  async recordCost(projectId: string, c: { providerId?: string | null; model?: string | null; operation: string; amountUsd: number; estimated: boolean; at?: number }) {
+    need(projectId);
+    if (!Number.isFinite(c.amountUsd) || c.amountUsd < 0) throw new Error("Costo inválido");
+    await this.db.run(`INSERT INTO cost_ledger VALUES (?,?,?,?,?,?,?,?)`, [uid(), projectId, c.providerId ?? null, c.model ?? null, c.operation, c.amountUsd, c.estimated ? 1 : 0, c.at ?? now()]);
+  }
+  async monthSpend(projectId: string, at = now()) {
+    need(projectId);
+    const d = new Date(at); const start = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+    const [r] = await this.db.all<{ total: number | null; est: number | null }>(`SELECT SUM(amount_usd) total, MAX(estimated) est FROM cost_ledger WHERE project_id=? AND created_at>=?`, [projectId, start]);
+    return { totalUsd: r?.total ?? 0, includesEstimates: (r?.est ?? 0) === 1 };
+  }
+  /** ok <80%, warn 80–99%, blocked >=100% (the user may still confirm manually). */
+  async budgetStatus(projectId: string, nextCostUsd = 0, at = now()) {
+    const limit = await this.getProjectBudget(projectId);
+    const spend = await this.monthSpend(projectId, at);
+    return budgetLevel(limit, spend.totalUsd + nextCostUsd, spend.includesEstimates);
   }
 
   // ---------- Chats ----------

@@ -1,5 +1,14 @@
 # MI AI — Roadmap
 
+## Bloque 1 — seguridad y núcleo (en curso)
+- [x] Archivar, restaurar y duplicar proyectos.
+- [x] Exportar/importar un solo proyecto cifrado (siempre como proyecto nuevo; contraseña errónea no crea nada).
+- [x] Presupuesto mensual por proyecto y registro de costos (aviso 80%, bloqueo 100%, marca de estimados).
+- [ ] Conectar el registro de costos y el bloqueo de presupuesto a cada llamada de proveedor, con confirmación manual.
+- [ ] Respaldos por partes (memoria acotada) con verificación previa.
+- [ ] Restauración y rotación de llaves reanudables (journal).
+- [ ] Riesgos R01–R20 reproducibles.
+
 ## Solicitud actual — corregir auditoría, Azure multimarca y búsqueda abierta
 - [x] Añadir SearXNG como búsqueda abierta prioritaria (instancia HTTPS/JSON explícita, sin claves); verificación/guardado/recarga comprobados con respuesta controlada. Instancia real pendiente.
 - [x] Azure por defecto y prioridad automática para capacidades verificadas; otros proveedores opcionales conservados y registro filtrado por adaptador ejecutable.
