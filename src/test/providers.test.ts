@@ -118,3 +118,29 @@ describe("provider adapter contracts (controlled responses, not live verificatio
     expect(await testProvider(azure)).toMatchObject({ ok: false, code: "network" });
   });
 });
+describe("no app-imposed message quota", () => {
+  it("retries a provider 429 honoring retry-after and then answers", async () => {
+    const { streamChat } = await import("@/lib/providers");
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(new Response('{"error":{"message":"Rate limit"}}', { status: 429, headers: { "retry-after-ms": "1" } }))
+      .mockResolvedValueOnce(new Response('{"error":{"message":"Please retry after 0 seconds"}}', { status: 429 }))
+      .mockResolvedValueOnce(sse({ choices: [{ delta: { content: "hola" } }] }));
+    vi.stubGlobal("fetch", fetcher);
+    let out = ""; await streamChat(draft, [{ role: "user", content: "x" }], (t) => { out += t; });
+    expect(out).toBe("hola"); expect(fetcher).toHaveBeenCalledTimes(3);
+  });
+  it("after 3 retries reports the provider's own 429 reason, not an app quota", async () => {
+    const { streamChat, ProviderError } = await import("@/lib/providers");
+    const fetcher = vi.fn().mockImplementation(async () => new Response('{"error":{"message":"Token rate limit exceeded"}}', { status: 429, headers: { "retry-after-ms": "1" } }));
+    vi.stubGlobal("fetch", fetcher);
+    const err = await streamChat(draft, [{ role: "user", content: "x" }], () => undefined).catch((e) => e);
+    expect(err).toBeInstanceOf(ProviderError); expect(err.httpStatus).toBe(429);
+    expect(err.message).toContain("Token rate limit exceeded");
+    expect(fetcher).toHaveBeenCalledTimes(4);
+  });
+  it("sends the 30th message without any local cap", async () => {
+    const { streamChat } = await import("@/lib/providers");
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async () => sse({ choices: [{ delta: { content: "ok" } }] })));
+    for (let i = 0; i < 30; i++) { let out = ""; await streamChat(draft, [{ role: "user", content: `m${i}` }], (t) => { out += t; }); expect(out).toBe("ok"); }
+  });
+});
