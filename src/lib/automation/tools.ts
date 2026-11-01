@@ -17,7 +17,7 @@ import { scrubSecrets } from "../db/repo";
 export type Family = "ia" | "investigacion" | "ingenieria" | "desarrollo" | "infraestructura" | "datos" | "multimedia" | "productividad";
 export type Permission = "provider" | "network" | "local.write" | "pc.read" | "pc.write" | "pc.exec" | "remote" | "tunnel" | "memory" | "sensitive";
 export type Risk = "low" | "medium" | "high";
-export type ToolCtx = { core: Core; projectId: string; runId: string; taskId: string | null; agent: string; nodeId?: string | null; folderId?: string | null; signal?: AbortSignal };
+export type ToolCtx = { core: Core; projectId: string; runId: string; taskId: string | null; agent: string; nodeId?: string | null; folderId?: string | null; signal?: AbortSignal; opKey?: string };
 export type ToolOut = { output: string; trusted: boolean; evidence?: { kind: string; status: EvidenceStatus; command: string; output: string }; costUsd?: number | null };
 export type EvidenceStatus = "passed" | "failed" | "not_run" | "blocked" | "simulated";
 export type ToolDef = {
@@ -82,7 +82,8 @@ const execTool = (id: string, name: string, family: Family, bin: string | null, 
   availability: (ctx) => nodeReady(ctx, bin ?? undefined).then((r) => r.ok ? folderReady(ctx) : r),
   run: async (ctx, i) => {
     if (i.argv[0] === "git" && ["push", "remote"].includes(i.argv[1])) throw new ToolRejected("Use repo.push, que exige su propia aprobación.");
-    const opKey = await sha256Hex(canonical([ctx.runId, ctx.taskId, i]));
+    // Per-turn key: a repeated identical command (e.g. re-running tests after a fix) is a new operation.
+    const opKey = await sha256Hex(canonical([ctx.runId, ctx.opKey ?? ctx.taskId, i]));
     const j = await runJob(ctx, i.argv, i.cwd, opKey, { network: i.network });
     const status: EvidenceStatus = j.status === "succeeded" ? "passed" : "failed";
     return { output: `estado=${j.status} código=${j.exitCode} aislamiento=${j.isolation}\n${j.output}`.slice(0, 20_000), trusted: true, evidence: { kind: "exec", status, command: i.argv.join(" "), output: j.output.slice(-8000) } };
@@ -136,7 +137,7 @@ export const TOOL_REGISTRY: ToolDef[] = [
   ...LANGS.map(([id, name, bin]) => execTool(id, name, "desarrollo", bin, ENG)),
   { id: "repo.push", name: "Publicar en repositorio remoto", description: "git push: siempre requiere aprobación expresa.", family: "ingenieria", input: z.object({ remote: z.string().regex(/^[\w.-]{1,60}$/), branch: z.string().regex(/^[\w./-]{1,120}$/) }).strict(), output: "resultado", permissions: ["remote", "network"], network: true, cost: "none", maxCalls: 3, timeoutMs: 120_000, parallel: false, env: ["pc"], risk: "high", approval: "always", sideEffect: true, roles: ["integrator", "coordinator"],
     target: (i, ctx) => `${ctx.nodeId}:${i.remote}/${i.branch}`, availability: (ctx) => nodeReady(ctx, "git").then((r) => r.ok ? folderReady(ctx) : r),
-    run: async (ctx, i) => { const j = await runJob(ctx, ["git", "push", i.remote, i.branch], "", await sha256Hex(canonical([ctx.runId, "push", i])), { remoteApproved: true, network: true }); return { output: `estado=${j.status}\n${j.output}`, trusted: true }; } },
+    run: async (ctx, i) => { const j = await runJob(ctx, ["git", "push", i.remote, i.branch], "", await sha256Hex(canonical([ctx.runId, ctx.opKey ?? "push", "push", i])), { remoteApproved: true, network: true }); return { output: `estado=${j.status}\n${j.output}`, trusted: true }; } },
   { id: "quality.run", name: "Verificación de calidad", description: "Ejecuta compilación, tipos, lint, pruebas y auditoría de dependencias detectadas.", family: "ingenieria", input: z.object({ checks: z.array(z.enum(["build", "typecheck", "lint", "test", "e2e", "audit"])).min(1).max(6) }).strict(), output: "evidencias", permissions: ["pc.exec"], network: false, cost: "none", maxCalls: 20, timeoutMs: 1_800_000, parallel: false, env: ["pc"], risk: "medium", approval: "always", sideEffect: true, roles: ["tester", "auditor", "debugger", "integrator", "security"],
     target: (i, ctx) => `${ctx.nodeId}:${i.checks.join(",")}`, availability: folderReady,
     run: async (ctx, i) => { const { runQuality } = await import("./quality"); return runQuality(ctx, i.checks, runJob); } },
@@ -158,7 +159,7 @@ export const TOOL_REGISTRY: ToolDef[] = [
   // F. Datos
   { id: "data.sql", name: "SQL sobre SQLite del proyecto (solo lectura)", description: "Consulta de solo lectura sobre una base SQLite del espacio del proyecto en la PC.", family: "datos", input: z.object({ db: relPath, query: z.string().min(1).max(4000).refine((q) => /^\s*(select|with|pragma table_info)\b/i.test(q) && !/;\s*\S/.test(q), "Solo lectura y una sentencia") }).strict(), output: "filas", permissions: ["pc.exec"], network: false, cost: "none", maxCalls: 40, timeoutMs: 60_000, parallel: true, env: ["pc"], risk: "low", approval: "never", sideEffect: false, roles: "all",
     availability: (ctx) => nodeReady(ctx, "sqlite3").then((r) => r.ok ? folderReady(ctx) : r),
-    run: async (ctx, i) => { const j = await runJob(ctx, ["sqlite3", "-readonly", "-json", i.db, i.query], "", await sha256Hex(canonical([ctx.runId, ctx.taskId, "sql", i]))); return { output: j.output.slice(0, 20_000), trusted: false }; } },
+    run: async (ctx, i) => { const j = await runJob(ctx, ["sqlite3", "-readonly", "-json", i.db, i.query], "", await sha256Hex(canonical([ctx.runId, ctx.opKey ?? ctx.taskId, "sql", i]))); return { output: j.output.slice(0, 20_000), trusted: false }; } },
   // G. Multimedia
   provider("image.generate", "Generar imagen", "multimedia", "image.generate"),
   provider("audio.tts", "Voz", "multimedia", "audio.tts"),
@@ -261,7 +262,7 @@ export async function invokeTool(ctx: ToolCtx, toolId: string, raw: unknown, opt
   let out: ToolOut;
   try {
     if (!def.run) throw new ToolRejected("Sin implementación ejecutable.");
-    out = await Promise.race([def.run(ctx, input), new Promise<never>((_r, rej) => setTimeout(() => rej(new ToolRejected("Tiempo máximo superado.")), def.timeoutMs))]);
+    out = await Promise.race([def.run({ ...ctx, opKey: opts.opKey }, input), new Promise<never>((_r, rej) => setTimeout(() => rej(new ToolRejected("Tiempo máximo superado.")), def.timeoutMs))]);
   } catch (e) {
     const msg = String(scrubSecrets({ detail: e instanceof Error ? e.message : String(e) })["detail"]).slice(0, 500);
     // Definite local rejections are safe to clear; anything else with side effects stays uncertain.
