@@ -16,11 +16,11 @@ Ninguna capacidad se marca "funcional con proveedor" sin una operación real con
 | audio.voice_clone | Programada · Web (grabación) · unitarias | ElevenLabs | consentimiento | Según plan | Unitarias; sin operación real | 3 |
 | audio.translate | Programada · unitarias | OpenAI, Azure OpenAI | — | Por minuto | Unitarias | 3 |
 | music.generate / audio.sfx | Programada · Web (pantalla) · unitarias | ElevenLabs music / sound-generation; independientes de TTS | clave y modelo compatible; licencia por plan | proveedor | contratos controlados, sin generación real con clave | 8 |
-| video.generate / video.edit | Programada · Web (pantalla) · unitarias | Runway text/image/video-to-video | trabajos remotos persistentes y consulta | proveedor | contratos controlados; sin generación real | 9 |
+| video.generate / video.edit | Programada · Web (contrato controlado) · unitarias | Azure Sora 2 v1 texto a video; Runway opcional text/image/video-to-video | IDs remotos persistentes; Azure solo v1, sin referencias ni edición | proveedor | guardado Azure tras MP4 y recarga sin reenvío; sin generación real | 9 |
 | model3d.generate | Programada · Web (importar/visor GLB real) · unitarias | Meshy texto/imagen a GLB; Three.js para visor local | trabajos remotos persistentes | proveedor / visor local gratis | GLB cifrado reaparece tras recarga; no generación real | 9 |
 | document.analyze / crear documentos | Programada · Web (lectura PDF/DOCX) · unitarias | Lectura local + cualquier modelo de chat; exportación local PDF/DOCX/XLSX | router chat | Por token | Unitarias; sin operación real | 4 |
 | notas y tareas | Programada · Web · unitarias | Local | — | Sin costo | Unitarias + persistencia web | 4 |
-| research.web | Programada · unitarias | Tavily + modelo de chat | router | Por búsqueda + tokens | Unitarias; sin operación real | 5 |
+| research.web | Programada · Web controlada · unitarias | SearXNG open source prioritario + modelo de chat; Tavily opcional | Instancia HTTPS con JSON y acceso autorizado; no buscador embebido | instancia/hosting + tokens de síntesis | verificación y persistencia controladas, sin instancia real | 5 |
 | estudio (cuestionarios, tarjetas SM-2, planes) | Programada · Web · unitarias | Cualquier modelo de chat | — | Por token | Unitarias | 5 |
 | code.execute (JavaScript síncrono) | Programada · Web · unitarias · APK compilada | QuickJS WASM en worker sin puentes al host | límites memoria/tiempo/salida | Local sin costo | Ejecución real en Chromium; pendiente Android | 6 |
 | agent.run / workflow.run (secuencias revisadas) | Programada · Web local · unitarias · APK compilada | Herramientas permitidas, router exacto, aprobaciones, límites | agentes por proyecto, jobs, biblioteca | Por solicitud externa | Flujo real guardar nota; sin proveedores reales | 6 |
@@ -37,9 +37,9 @@ Ninguna capacidad se marca "funcional con proveedor" sin una operación real con
 | Componente | Estado |
 |---|---|
 | Registro de proveedores/modelos/capacidades + migración de proveedores existentes | Programada · Web · unitarias |
-| Router exacto (manual / favorito / automático con razones) | Programada · Web · unitarias |
+| Router exacto (manual / favorito / automático con razones; prioridad Azure verificado y SearXNG abierto) | Programada · Web · unitarias |
 | Job Manager (8 estados, idempotencia, recovery_required) | Programada · unitarias |
-| Archivo cifrado AES-256-GCM, DEK por archivo, nonce prefijo+contador, registro final | Programada · unitarias (manipulación, truncamiento, vacío, 8 MiB) |
+| Archivo cifrado AES-256-GCM, DEK por archivo, nonce prefijo+contador, registro final; descifrado sin salida provisional y relecturas fijadas por digest | Programada · unitarias (manipulación, truncamiento, vacío, 8 MiB, registro final corrupto y fuente cambiante) |
 | Llaves maestras versionadas + rotación | Programada · Web · unitarias |
 | Plugin Android Keystore/StrongBox | Programada · compilada build.4/build.5; ejecución Android pendiente |
 | Respaldo v2 Argon2id (PBKDF2 600 000 alternativo), restauración entre dispositivos | Programada · Web (exportación) · unitarias |

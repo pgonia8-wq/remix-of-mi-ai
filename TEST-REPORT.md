@@ -1,5 +1,14 @@
 # MI AI — Informe de pruebas
 
+## 1-nov-2026 — Azure-first, búsqueda abierta y seguridad (posterior a build.8)
+- Programado: Azure OpenAI es el valor inicial del formulario; selección automática prioriza Azure con la capacidad verificada, mantiene selección manual/favoritos y otros proveedores opcionales. Registro muestra solo capacidades del adaptador real. El ejecutor rechaza adaptadores incompatibles antes de claves/trabajos.
+- SearXNG: instancia HTTPS configurada explícitamente, POST de formulario con JSON, sin API key/cookies/redirecciones, URLs de fuentes HTTP(S) validadas. Preferido automáticamente si está verificado. No incluye un servidor de búsqueda embebido; JSON/CORS/limiter de la instancia condicionan acceso. Tavily permanece opcional.
+- Azure video: contrato Sora 2 v1 /openai/v1/videos, multipart con modelo provisionado, 4/8/12 segundos; solo texto a video. Referencias, música y 3D no se inventan. Consulta /videos/{id} y contenido /content en el origen guardado; claves nunca se envían a una URL de resultado arbitraria. Pruebas facturables registradas como jobs; guardado del modelo exige MP4 real recibido, y consulta tras recarga no reenvía generación.
+- Seguridad: descifrado público realiza verificación completa antes de emitir bytes; relecturas fijadas por SHA-256 detectan cambios entre pasadas. readAll conserva retorno únicamente tras autenticación completa. Pruebas con registro final alterado y fuente mutante no emiten plaintext.
+- Automatizadas: 215/215, 24 archivos. Respuestas controladas acreditan contratos y rechazo de errores, NO disponibilidad real de Azure ni SearXNG.
+- Chromium 1280×1800: Azure inicial con cuatro campos, verificación/guardado; SearXNG guardado y recuperado tras recarga; Azure video de prueba con ID persistente, recarga, consulta, una sola generación, MP4 cifrado y modelo registrado solo al completarse. Capturas revisadas; cero errores JS. Todo proveedor respondió mediante interceptación controlada; no se usaron claves reales.
+- Vista previa: último informe automático build OK. APK no recompilada; Android/emulador/Poco C40 y proveedores reales NO probados en esta entrega. El resto de las brechas de la auditoría sigue abierto; no se declara cierre total.
+
 ## 1-nov-2026 — Auditoría maestra y comienzo de corrección de compatibilidad (posterior a build.8)
 - Documentos: siete originales recuperados íntegramente; TXT único contiene las 3.581 líneas de las fuentes. Auditoría estática: 166 brechas agrupadas y 20 riesgos técnicos con referencias; no certificación absoluta ni prueba de explotación/concurrencia.
 - Programado: el router descarta adaptadores sin ejecutor, aplica restricciones declaradas de entrada/parámetros y contexto conocido. El ejecutor revalida modelo activo/proveedor habilitado y formatos/límites antes de recuperar claves o crear trabajos; no inventa límites desconocidos ni resuelve aún presupuestos/restricciones por deployment.
