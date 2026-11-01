@@ -11,6 +11,7 @@ import { KeyRing, webBackend } from "@/lib/core/keys";
 import { JobManager } from "@/lib/core/jobs";
 import { chooseProfile, type DeviceFacts } from "@/lib/core/device-profile";
 import type { Core } from "@/lib/core";
+import { validateDecision, createAdaptiveRun, advanceAdaptive } from "@/lib/automation/react";
 let repo: Repo, core: Core;
 const flow = (): Flow => ({ maxCalls: 2, steps: [{ id: "1", name: "Nota", tool: "note.save", prompt: "{{input}}", agentId: null, approval: false, contains: "", repeat: 1 }] });
 beforeEach(async () => {
@@ -24,6 +25,21 @@ beforeEach(async () => {
   core = { repo, keys, files, assets, jobs: new JobManager(db), profile, device, startup: { temps: 0, orphans: 0, requeued: 0, interrupted: 0, needsUser: 0 } };
 });
 describe("Agentes y flujos", () => {
+  it("decisiones adaptativas no conceden herramientas ni cambian permisos", () => {
+    expect(() => validateDecision('{"kind":"tool","tool":"note.save","name":"N","input":"x"}', ["chat"])).toThrow(/permiso/);
+    expect(() => validateDecision('{"kind":"tool","tool":"shell","name":"N","input":"x"}', ["chat"])).toThrow();
+    expect(() => validateDecision('{"kind":"final","answer":"x","approval":false}', ["chat"])).toThrow();
+  });
+  it("ejecución adaptativa persiste aprobación y rechaza una autorización de otro paso", async () => {
+    const p = await repo.createProject("P");
+    const a = await agents.save(repo, p.id, "A", { instructions: "x", objective: "", expected: "", tools: ["chat", "note.save"], modelId: null, memory: false, maxCalls: 5 });
+    const id = await createAdaptiveRun(core, p.id, a, "Objetivo", 5);
+    expect((await advanceAdaptive(core, p.id, id)).status).toBe("approval");
+    expect((await runs.get(repo, p.id, id))?.calls).toBe(0);
+    await expect(advanceAdaptive(core, p.id, id, "action-wrong")).rejects.toThrow(/aprobación/);
+    const b = await repo.createProject("B");
+    await expect(advanceAdaptive(core, b.id, id)).rejects.toThrow(/ajena/);
+  });
   it("no accede ni modifica agentes de otro proyecto", async () => {
     const a = await repo.createProject("A"), b = await repo.createProject("B");
     const id = await agents.save(repo, a.id, "Autor", { objective: "", instructions: "Escribe", expected: "", modelId: null, tools: ["chat"], memory: false, maxCalls: 2 });

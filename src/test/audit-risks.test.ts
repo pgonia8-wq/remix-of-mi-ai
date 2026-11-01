@@ -6,6 +6,8 @@ import { importRawKey, randomBytes } from "@/lib/crypto";
 import { makeVault } from "@/lib/app-db";
 import { JobManager } from "@/lib/core/jobs";
 import { deriveBackupKey, safeAssetPath } from "@/lib/core/backup";
+import { ambiguous } from "@/lib/core/executor";
+import { ProviderError } from "@/lib/providers";
 
 let SQL: Awaited<ReturnType<typeof initSqlJs>>, db: SqlDb, repo: Repo;
 beforeEach(async () => {
@@ -42,8 +44,19 @@ describe("riesgos de auditoría corregidos", () => {
     const p = await repo.createProject("P");
     const jobs = new JobManager(db);
     const j = await jobs.create(p.id, { capability: "chat", providerId: null, modelId: null, params: {} } as never);
-    await jobs.markSent(p.id, j.id);
-    await expect(jobs.markSent(p.id, j.id)).rejects.toThrow();
+    const outcomes = await Promise.allSettled([jobs.markSent(p.id, j.id), new JobManager(db).markSent(p.id, j.id)]);
+    expect(outcomes.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect((await jobs.get(p.id, j.id))?.attempts).toBe(1);
+  });
+  it("R11: HTTP 200 inválido, cancelación y HTTP 500 requieren revisión; rechazo 401 no", () => {
+    expect(ambiguous(new ProviderError("parameters", "invalid", 200))).toBe(true);
+    expect(ambiguous(new Error("Abort"))).toBe(true);
+    expect(ambiguous(new ProviderError("network", "error", 500))).toBe(true);
+    expect(ambiguous(new ProviderError("auth", "rejected", 401))).toBe(false);
+  });
+  it("R05: un fallo SQL a mitad de restauración revierte todas las filas", async () => {
+    await expect(repo.restoreAll({ tables: { projects: [{ id: "p", name: "P", created_at: 1 }, { id: "bad", created_at: 1 }] } })).rejects.toThrow();
+    expect(await repo.listProjects()).toEqual([]);
   });
   it("R15: un catálogo parcial o vacío no retira modelos", async () => {
     await db.run(`INSERT INTO providers_registry (id, name, kind, adapter, enabled, created_at) VALUES ('pr','P','openai','openai',1,1)`).catch(() => undefined);

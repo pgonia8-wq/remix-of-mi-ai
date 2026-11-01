@@ -59,6 +59,21 @@ describe("costos y presupuesto", () => {
 });
 
 describe("respaldo por partes (v3)", () => {
+  it("R07/R09: limpieza espera una escritura activa incluso entre dos AssetStore", async () => {
+    const p = await A.repo.createProject("P");
+    let release: (() => void) | undefined, started: (() => void) | undefined;
+    const pause = new Promise<void>((r) => { release = r; });
+    const entered = new Promise<void>((r) => { started = r; });
+    const source = async function* () { started?.(); await pause; yield new Uint8Array([1, 2, 3]); };
+    const write = A.assets.put(p.id, source(), { kind: "text", mime: "text/plain" });
+    await entered;
+    let cleaned = false;
+    const other = new AssetStore(A.db, A.fs, A.keys, profile);
+    const cleanup = other.cleanup().then(() => { cleaned = true; });
+    await Promise.resolve(); expect(cleaned).toBe(false);
+    release?.(); const asset = await write; await cleanup;
+    expect(await A.assets.read(p.id, asset.id)).toEqual(new Uint8Array([1, 2, 3]));
+  });
   it("restaura en otro dispositivo un archivo grande dividido en partes; contraseña errónea se rechaza", async () => {
     const p = await A.repo.createProject("A");
     const c = await A.repo.createChat(p.id, "Hola");
