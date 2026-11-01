@@ -24,7 +24,7 @@ function Editor({ pid }: { pid: string }) {
     if (!Number.isFinite(duration)) throw new Error("No se pudo leer la duración.");
     const core = await getCore(), bytes = new Uint8Array(await file.arrayBuffer());
     const asset = await core.assets.put(pid, (async function* () { yield bytes; })(), { kind: "video", mime: file.type || "video/mp4", name: file.name, capability: "video.local.source" });
-    setClips((v) => [...v, { assetId: asset.id, name: file.name, start: 0, end: duration, duration, transition: "cut", transitionSeconds: 0.5 }].slice(0, 8));
+    setClips((v) => [...v, { assetId: asset.id, name: file.name, start: 0, end: duration, duration, transition: "cut" as const, transitionSeconds: 0.5 }].slice(0, 8));
   }
   function move(index: number, delta: number) { const next = [...clips], item = next[index], other = next[index + delta]; if (!item || !other) return; next[index] = other; next[index + delta] = item; setClips(next); }
   const plan={clips:clips.map(c=>({...c,transition:c.transition??"cut",transitionSeconds:c.transitionSeconds??0.5})),overlays,width:ratio==="9:16"?720:1280,height:ratio==="9:16"?1280:720};
