@@ -378,3 +378,47 @@ describe("C · Ingeniería real en PC Node con equipo de agentes", () => {
     expect(fs.readFileSync(path.join(shareA, "miai", p, "sum.js"), "utf8")).toBe(good);
   }, 60_000);
 });
+
+describe("Llamadas nativas a herramientas", () => {
+  it("formato nativo OpenAI/Azure y normalización de la respuesta", async () => {
+    const { toolCallBody, parseToolCalls } = await import("@/lib/core/adapters/tool-calls");
+    const b = toolCallBody({ capability: "chat.tools", model: "dep", prompt: JSON.stringify({ messages: [{ role: "user", content: "x" }], tools: [{ type: "function", function: { name: "fs__read" } }] }) }, false);
+    expect(b).not.toHaveProperty("model"); expect(b.tool_choice).toBe("auto");
+    const out = JSON.parse(parseToolCalls({ choices: [{ message: { content: null, tool_calls: [{ type: "function", function: { name: "fs__read", arguments: '{"path":"a"}' } }] } }] }));
+    expect(out.tool_calls).toEqual([{ name: "fs__read", arguments: '{"path":"a"}' }]);
+    expect(() => parseToolCalls({ choices: [{ message: {} }] })).toThrow(/inválida/);
+    expect(() => toolCallBody({ capability: "chat.tools", model: "m", prompt: "no json" }, true)).toThrow();
+  });
+  it("una llamada nativa pasa por el mismo gestor: herramienta no permitida se rechaza", async () => {
+    const p = (await repo.createProject("P")).id;
+    const run = await createRun(core, p, { goal: "x", plan: { tasks: [{ id: "a", title: "A", role: "analyst", deps: [], files: [], tools: ["note.save"], contract: "c" }], acceptance: [] } });
+    const m: ModelCall = async ({ role }) => role === "analyst" ? { text: "", native: { kind: "tool", tool: "repo.push", input: { remote: "o", branch: "m" } } } : { text: approve };
+    await stepRun(core, p, run, m); await stepRun(core, p, run, m);
+    const obs = await autoRuns.observations(core, p, run);
+    expect(obs.find((o) => o.kind === "rejected")?.output).toMatch(/fuera de la lista/);
+  });
+});
+
+describe("Git real en PC Node", () => {
+  it("init, commit, diff y versión anterior mediante la herramienta git con aprobación", async () => {
+    const id = await paired(), p = (await repo.createProject("P")).id, f = await folders.authorize(repo, p, id, 1, null);
+    await rpc(repo, id, "info", {}).then((info) => repo.sql.run("UPDATE pc_nodes SET info=? WHERE id=?", [JSON.stringify(info), id]));
+    const run = await createRun(core, p, { goal: "git", nodeId: id, folderId: f });
+    const ctx: ToolCtx = { core, projectId: p, runId: run, taskId: "g", agent: "integrator", nodeId: id, folderId: f };
+    const g = async (argv: string[], k: string) => {
+      let r = await invokeTool(ctx, "git", { argv, cwd: "" }, { allowed: ["git", "fs.write"], limits: L, opKey: k });
+      if (r.status === "approval") { await approvals.decide(repo, p, r.approvalId, true); r = await invokeTool(ctx, "git", { argv, cwd: "" }, { allowed: ["git"], limits: L, opKey: k }); }
+      return r;
+    };
+    await g(["git", "init", "-q"], "1");
+    await invokeTool(ctx, "fs.write", { path: "a.txt", content: "v1", baseHash: null }, { allowed: ["fs.write"], limits: L, opKey: "w1" });
+    await g(["git", "add", "."], "2");
+    const c = await g(["git", "-c", "user.email=a@b", "-c", "user.name=MI AI", "commit", "-qm", "v1"], "3");
+    expect(c).toMatchObject({ status: "ok", output: expect.stringContaining("estado=succeeded") });
+    const push = await invokeTool(ctx, "git", { argv: ["git", "push", "origin", "main"], cwd: "" }, { allowed: ["git"], limits: L, opKey: "4" });
+    if (push.status === "approval") { await approvals.decide(repo, p, push.approvalId, true); }
+    expect(await invokeTool(ctx, "git", { argv: ["git", "push", "origin", "main"], cwd: "" }, { allowed: ["git"], limits: L, opKey: "4" })).toMatchObject({ status: "rejected", reason: /repo.push/ });
+    const log = await g(["git", "log", "--oneline"], "5");
+    expect((log as { output: string }).output).toContain("v1");
+  }, 30_000);
+});
