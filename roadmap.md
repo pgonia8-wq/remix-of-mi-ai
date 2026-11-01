@@ -1,11 +1,11 @@
 # MI AI — Roadmap
 
 ## Solicitud actual — documentación, firma y cierre
-- [ ] Entregar archivo de contraseña de firma Debug y distinguirlo de la contraseña personal de respaldos.
-- [ ] Entregar manual completo de configuración de proveedores, capacidades, herramientas y agentes.
-- [ ] Entregar catálogo de herramientas con soluciones, requisitos y límites reales.
-- [ ] Cerrar el guardado sin verificación en altas manuales de modelos, ElevenLabs y Tavily; probar las reglas.
-- [ ] Compilar nueva APK con la firma conservada y comparar su certificado con build.7.
+- [x] Entregar archivo de contraseña de firma Debug y distinguirlo de la contraseña personal de respaldos.
+- [x] Entregar manual de configuración de proveedores, capacidades, herramientas y agentes (13 páginas revisadas).
+- [x] Entregar catálogo de herramientas con soluciones, requisitos y límites reales (6 páginas revisadas).
+- [x] Cerrar el guardado sin verificación en altas manuales de modelos, ElevenLabs y Tavily; 184 pruebas y bloqueo de tres formularios en Chromium.
+- [x] Compilar APK build.8 con la firma conservada; certificado idéntico a build.7, Android 11+, SQLCipher ARM64/ARMv7.
 - [ ] Cierre total del alcance maestro: pendientes funcionales explícitos en el inventario; no equivale a generar una APK.
 
 ## Solicitud actual — cierre completo y experiencia premium
@@ -93,7 +93,7 @@
 - [ ] CAD/modelado/edición 3D.
 - [x] Voz WebRTC OpenAI programada: token efímero, interrupción, silencio, transcripciones y guardado; contratos unitarios, sin sesión real comprobada.
 - [ ] Herramientas durante voz y voz Azure en tiempo real: implementación pendiente.
-- [ ] Firma compatible con las APK anteriores: el certificado actual es distinto; requiere la clave original para actualizar sin desinstalar.
+- [x] Firma fija conservada y build.8 compatible en certificado con build.7; no se recuperó la firma de build.4. Actualización física pendiente.
 - [ ] Validación nativa y proveedores reales: no hay dispositivo/servidor/cuentas/claves autorizados disponibles.
 
 ## Fase 1 (completada)
