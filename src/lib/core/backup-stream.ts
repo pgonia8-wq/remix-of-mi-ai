@@ -123,7 +123,7 @@ export async function restoreBackupStream(opts: { lines: () => AsyncIterable<str
   }
   // Inner integrity of every restored file, streamed from storage (bounded memory), before any promotion/commit.
   for (const [k, t] of temps.entries()) {
-    const m = metas[k];
+    const m = metas[k]!;
     const dek = await opts.keys.unwrapDek(m.key_id, m.wrapped_dek, m.id, m.project_id);
     try { await verifyAsset(await opts.fs.source(t.tmp), { assetId: m.id, projectId: m.project_id }, dek); } finally { dek.fill(0); }
   }
