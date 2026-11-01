@@ -53,7 +53,9 @@ export async function startNode(opts) {
   if (!state.keys) state.keys = await generateKeys();
   // A powered-off node never claims a job is still running.
   for (const j of Object.values(state.jobs)) if (j.status === "running") { j.status = "lost"; j.endedAt = Date.now(); }
-  const save = async () => { const tmp = statePath + ".tmp"; await fsp.writeFile(tmp, JSON.stringify(state), { mode: 0o600 }); await fsp.rename(tmp, statePath); };
+  // Serialized atomic writes: concurrent requests never interleave temp files.
+  let saving = Promise.resolve();
+  const save = () => (saving = saving.catch(() => {}).then(async () => { const tmp = `${statePath}.${randomUUID()}.tmp`; await fsp.writeFile(tmp, JSON.stringify(state), { mode: 0o600 }); await fsp.rename(tmp, statePath); }));
   await save();
   const fp = await fingerprint(state.keys.publicRaw);
   const toolchains = detectToolchains();
