@@ -1,5 +1,11 @@
 # MI AI — Informe de pruebas
 
+## 1-nov-2026 — Auditoría maestra y comienzo de corrección de compatibilidad (posterior a build.8)
+- Documentos: siete originales recuperados íntegramente; TXT único contiene las 3.581 líneas de las fuentes. Auditoría estática: 166 brechas agrupadas y 20 riesgos técnicos con referencias; no certificación absoluta ni prueba de explotación/concurrencia.
+- Programado: el router descarta adaptadores sin ejecutor, aplica restricciones declaradas de entrada/parámetros y contexto conocido. El ejecutor revalida modelo activo/proveedor habilitado y formatos/límites antes de recuperar claves o crear trabajos; no inventa límites desconocidos ni resuelve aún presupuestos/restricciones por deployment.
+- Automatizadas: 194/194 en 22 archivos, incluidas 10 regresiones de compatibilidad; 85/85 seleccionadas antes. No llamadas reales a proveedores ni nuevas pruebas Android.
+- APK: no recompilada; build.8 no incluye esta corrección. Los motores omitidos del Prompt Maestro y las validaciones externas/nativas siguen pendientes; la continuación empezó por este punto concreto.
+
 ## Build.8 — 1-nov-2026: documentación y verificación de altas
 - **Compilación:** Gradle BUILD SUCCESSFUL en 1m 38s, 204 tareas; com.miai.app, versionCode 8, Android mínimo 30/objetivo 35, SQLCipher ARM64/ARMv7/x86_64.
 - **Firma comprobada:** certificado idéntico al APK build.7, SHA-256 48d18ad1491175c2bd8a248d59f2eed5be38fd8d08e7233d2df42fc4b5fa5acd. Archivo fijo del proyecto conservado tras reinicio. No recupera la firma de build.4.

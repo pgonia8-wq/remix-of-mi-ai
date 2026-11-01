@@ -1,11 +1,11 @@
 import type { CapabilitySpec } from "./capabilities";
 
 export type RequestConstraints = {
-  files?: { mime: string; size: number }[];
+  files?: { mime: string; size: number }[] | undefined;
   inputMime?: string | null;
   inputBytes?: number;
-  prompt?: string;
-  params?: Record<string, unknown>;
+  prompt?: string | undefined;
+  params?: Record<string, unknown> | undefined;
   contextTokens?: number;
 };
 
@@ -20,7 +20,7 @@ export function requestIssues(spec: CapabilitySpec | null, req: RequestConstrain
     if (!Number.isFinite(file.size) || file.size < 0) issues.push("Tamaño de archivo inválido.");
     else if (spec.maxInputBytes !== null && file.size > spec.maxInputBytes) issues.push(`El archivo supera el límite de ${spec.maxInputBytes} bytes.`);
   }
-  if (req.prompt !== undefined && spec.limits.maxChars !== undefined && req.prompt.length > spec.limits.maxChars) issues.push(`El texto supera el límite de ${spec.limits.maxChars} caracteres.`);
+  if (req.prompt !== undefined && spec.limits["maxChars"] !== undefined && req.prompt.length > spec.limits["maxChars"]) issues.push(`El texto supera el límite de ${spec.limits["maxChars"]} caracteres.`);
   for (const [name, value] of Object.entries(req.params ?? {})) {
     const param = spec.params[name];
     if (!param) continue;
