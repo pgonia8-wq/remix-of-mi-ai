@@ -1,5 +1,10 @@
 # MI AI — Roadmap
 
+## Entrega actual — cristal premium y múltiples dispositivos
+- [x] Aplicar el prompt visual conservando estructura, funciones y navegación; cristal visible, adaptación a móviles de gama media/alta y Poco C40.
+- [x] Verificar 27 pantallas y chat en cuatro tamaños; creación/recarga/chat/menú comprobados. Rendimiento físico pendiente de equipos.
+- [x] Compilar APK build.10 con firma fija y preparar APK + ZIP para entrega verificada.
+
 ## Entrega actual — suites avanzadas y APK
 - [x] Integración Demucs PC, EQ paramétrico, compresión multibanda y limitador de pico de muestra local; versiones cifradas.
 - [x] Transiciones FFmpeg, PiP/keyframes de posición, audio/subtítulos y edición cifrada reabrible; render real comprobado.

@@ -10,6 +10,7 @@
 <!-- LOVABLE:END -->
 
 # Architecture rules
+- Visual glass is defined centrally in src/styles.css with standard backdrop-filter only, static surfaces, no nested blur and opaque fallbacks. Why: consistent rendering in production Chromium and bounded compositing on different Android devices.
 - The product is a native Android app (Capacitor); the Lovable web preview is dev-only. Why: user requirement, the APK is the deliverable.
 - All data access goes through `Repo` (src/lib/db/repo.ts) over the `SqlDb` interface; every project-scoped method requires `projectId` and filters by it. Why: project isolation is a hard requirement and is unit-tested.
 - Native storage = SQLCipher via @capacitor-community/sqlite; preview/tests = sql.js with the same SQL. Never use IndexedDB/localStorage as product storage.

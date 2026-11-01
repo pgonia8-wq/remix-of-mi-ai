@@ -70,6 +70,6 @@ export function NeedProject() {
   );
 }
 
-export const inputCls = "w-full rounded-lg border bg-input/30 px-3 py-2 text-sm outline-none focus:border-primary";
+export const inputCls = "glass-input w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-primary";
 export const btnCls = "inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-soft hover:bg-primary/90 active:bg-primary/80 disabled:opacity-50";
 export const btnGhost = "inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm text-foreground disabled:opacity-50";
