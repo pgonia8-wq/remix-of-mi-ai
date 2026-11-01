@@ -120,14 +120,17 @@ function Backup() {
     if (!f) return;
     setBusy("Verificando la copia…");
     try {
-      const text = await f.text();
-      const { isBackupV3, restoreBackupStream, linesOf } = await import("@/lib/core/backup-stream");
-      if (isBackupV3(text.slice(0, text.indexOf("\n")))) {
+      const { isBackupV3, restoreBackupStream, linesOfBlob } = await import("@/lib/core/backup-stream");
+      const first = await f.slice(0, 4096).text();
+      if (isBackupV3(first.slice(0, first.indexOf("\n")))) {
         setBusy("Verificando cada parte de la copia…");
         const core = await getCore();
-        await restoreBackupStream({ lines: () => linesOf(text), password: pw, repo: core.repo, keys: core.keys, fs: core.files });
+        await restoreBackupStream({ lines: () => linesOfBlob(f), password: pw, repo: core.repo, keys: core.keys, fs: core.files });
         await mutate(async () => undefined);
-      } else if (JSON.parse(text)?.format === "miai-export") {
+      } else if (await f.text().then((text) => JSON.parse(text)?.format === "miai-export" ? text : null).then((t) => (textCache = t))) {
+        const text = textCache!;
+        void text;
+      } else if (false?.format === "miai-export") {
         const dump = JSON.parse(await openWithPassword(pw, text)); // v1 compatibility
         await mutate((r) => r.restoreAll(dump));
       } else {
