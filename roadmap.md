@@ -1,5 +1,12 @@
 # MI AI — Roadmap
 
+## Entrega actual — suites avanzadas y APK
+- [ ] Audio: separación Demucs en PC autorizado, EQ paramétrico, compresión multibanda y limitador local; versiones cifradas.
+- [ ] Video: transiciones, capas PiP, keyframes, línea de tiempo y exportación real.
+- [ ] CAD/modelado: sólidos paramétricos, extrusión, booleanas, transformaciones y exportación; documentos cifrados reabribles.
+- [ ] Pruebas de las suites, revisión visual y compilación APK con firma fija, Android 11+, ARM64/ARMv7.
+- [ ] Entregar APK e informe con límites de ejecución/pruebas honestos.
+
 ## Bloque 1 — seguridad y núcleo (en curso)
 - [ ] Solicitud de Fer: cerrar pendientes de bloques 1–3 y después completar bloque 4 autónomo; sin compilar antes del bloque 5.
 - [x] Archivar, restaurar y duplicar proyectos.
