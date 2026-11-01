@@ -25,9 +25,11 @@ it("sends project context only when minting a token, sends only ephemeral token 
   const model = { capabilities: ["speech.realtime"], provider_kind: "openai", provider_id: "provider", remote_id: "voice-model" } as ModelWithCaps;
   const active = await startRealtime(core, "project-a", model, "marin", { state() {}, transcript() {}, error() {} });
   expect(core.repo.buildContext).toHaveBeenCalledWith("project-a", "");
-  expect(JSON.parse(requests[0].body).session.instructions).toContain("private project A");
-  expect(requests[1].auth).toBe("Bearer ephemeral-unit-test");
-  expect(requests[1].body).toBe("offer-sdp");
+  const mint = requests[0], negotiation = requests[1];
+  if (!mint || !negotiation) throw new Error("Missing voice requests");
+  expect(JSON.parse(mint.body).session.instructions).toContain("private project A");
+  expect(negotiation.auth).toBe("Bearer ephemeral-unit-test");
+  expect(negotiation.body).toBe("offer-sdp");
   active.mute(true); expect(track.enabled).toBe(false);
   active.interrupt(); expect(sent.map((s) => JSON.parse(s).type)).toEqual(["response.cancel", "output_audio_buffer.clear"]);
   active.stop(); expect(track.stop).toHaveBeenCalledTimes(1); expect(close).toHaveBeenCalledTimes(1);

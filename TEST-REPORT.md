@@ -1,5 +1,18 @@
 # MI AI — Informe de pruebas
 
+## Build.7 — 1-nov-2026: interfaz y editores, NO cierre 100%
+- **Compilación realizada:** Gradle BUILD SUCCESSFUL, 37 s, 204 tareas. APK Debug com.miai.app 0.1.0-build.7, versionCode 7. Android 11+, SQLCipher ARM64/ARMv7/x86_64. Media3 plugin incluido en clases Java compiladas; firma Debug conserva certificado build.5/build.6.
+- **SHA256:** efcbead3489d90e96b2d876e9c13b31e174c09b649142c0f48cd2c191298ab8f.
+- **Programado:** menú lateral, chat a pantalla completa, markdown/código, copiar/valorar/editar/regenerar, archivos cifrados por proyecto; imágenes para OpenAI/Azure/Anthropic/Gemini. Audio PCM: recorte/fundidos/normalización/mezcla/WAV. Video Android Media3: recorte/unión/rotación/720p/subtítulos; SRT y traducción mediante chat. Voz WebRTC OpenAI con token efímero, interrupción y transcripciones; no ejecuta herramientas.
+- **Pruebas automáticas:** 180/180 PASS, 20 archivos, ejecución limitada a dos workers. Una ejecución concurrente con compilación agotó 5 s en persistencia; repetición completa sin carga concurrente pasó. Contratos controlados no son verificación real de proveedores.
+- **Web comprobada:** Chromium 1280×1800 y 360×626: menú, chat, adjunto TXT enviado efectivamente en solicitud controlada, respuesta markdown, copiar al portapapeles, valoración y adjunto conservados tras recarga. Sin errores JavaScript ni desbordamiento. Audio WAV real de 2 s recortado a 1 s y guardado cifrado en Biblioteca.
+- **Corrección observada:** captura inmediata del FileList antes de limpiar el selector, evitando perder adjuntos por actualizaciones React diferidas; regresión añadida.
+- **Emulador Android:** no ejecutado; no se instaló ni abrió esta APK. Video Media3, Keystore/SQLCipher, WebRTC/micrófono/SSH/avisos pendientes nativos.
+- **Poco C40:** build.7 no probado. La confirmación anterior del usuario corresponde a build.3, no valida estos módulos.
+- **Pendientes de implementación:** autonomía con app cerrada, agente PC/conectores cloud/Termius y Git completo; predicciones/herramientas profesionales conectadas; extensión musical/stems/masterización avanzada; capas/transiciones/video largo y CAD/edición 3D; herramientas durante voz/Azure realtime. No son solo bloqueos por credenciales.
+- **Firma:** compatible con build.5/build.6, distinta de build.4 y no demostrada compatible con build.3. No desinstalar para resolver conflictos: primero copia cifrada; conservar clave original para actualización sin pérdida.
+- **Proveedores reales:** nuevas operaciones no verificadas con credenciales. No se declara producto completo ni seguridad auditada al 100%.
+
 ## Compilaciones build.5 y avance build.6 — 31-oct-2026
 - **No es una entrega 100%:** el alcance maestro conserva módulos pendientes en el inventario; las pantallas de medios no sustituyen edición avanzada, ejecución autónoma, PC ni CAD.
 - **Build.5 compilada realmente:** Gradle `assembleDebug`, BUILD SUCCESSFUL, 204 tareas. Incluye las ampliaciones de Fases 6–7, JSch/MiaiRemote y nuevos avisos Android de programación (alarmas inexactas, recepción tras reinicio, permiso de notificaciones). Los avisos no ejecutan solicitudes ni acciones automáticamente; requieren abrir y autorizar.
