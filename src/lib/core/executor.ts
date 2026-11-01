@@ -10,6 +10,7 @@ import { TEST_PNG_B64 } from "./adapters/vision";
 import { testWav } from "./adapters/audio";
 import { b64ToBytes } from "./adapters/types";
 import { requestIssues } from "./request-compatibility";
+import { budgetGate, recordUsage, usageFor } from "./costs";
 
 export type ExecResult = { jobId: string; pending?: boolean; text?: string; assets: Asset[]; vectors?: number[][]; results?: import("./adapters/types").SearchResult[] };
 
@@ -36,6 +37,7 @@ export async function execute(deps: { repo: Repo; jobs: JobManager; assets: Asse
   const currentAdapter = getAdapter(current.adapter_id ?? (current.provider_kind === "azure" ? "azure_openai" : current.provider_kind));
   if (!currentAdapter.supports(req.capability)) throw new ProviderError("parameters", `El adaptador ${currentAdapter.label} no implementa «${req.capability}». No se accedió a credenciales ni se creó un trabajo.`);
   if (!model.capabilities.includes(req.capability)) throw new ProviderError("parameters", `El modelo «${model.name}» no admite «${req.capability}». No se ejecutó ninguna solicitud.`);
+  if (!req.existingJobId) await budgetGate(deps.repo, projectId, model.remote_id, usageFor(req.capability, req.prompt, req.params));
   const { creds, adapter: adapterId } = await credentialsFor(deps.repo, model.provider_id);
   const adapter = getAdapter(adapterId);
   if (!adapter.supports(req.capability)) throw new ProviderError("parameters", `El adaptador ${adapter.label} no implementa «${req.capability}». No se ejecutó ninguna solicitud.`);
@@ -53,6 +55,7 @@ export async function execute(deps: { repo: Repo; jobs: JobManager; assets: Asse
     else await deps.jobs.transition(projectId, job.id, "failed", { error: msg });
     throw e;
   }
+  await recordUsage(deps.repo, projectId, { providerId: model.provider_id, model: model.remote_id, operation: req.capability, usage: usageFor(req.capability, req.prompt, req.params, { text: result.kind === "text" ? result.text : undefined, files: result.kind === "files" ? result.files.length : undefined }) }).catch(() => undefined);
   await deps.jobs.transition(projectId, job.id, "processing", { phase: "accepted", ...(result.kind === "remote" ? { remote_id: result.remoteId } : {}) });
   if (result.kind === "remote") return { jobId: job.id, pending: true, assets: [] };
   const saved: Asset[] = [];
