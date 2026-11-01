@@ -33,6 +33,8 @@ export async function execute(deps: { repo: Repo; jobs: JobManager; assets: Asse
   if (!current || current.status !== "active" || !current.provider_enabled || !current.capabilities.includes(req.capability) || current.provider_id !== model.provider_id || current.remote_id !== model.remote_id) throw new ProviderError("parameters", "El modelo ya no está disponible para esta operación. Selecciónalo nuevamente; no se envió ninguna solicitud.");
   const issues = requestIssues(await deps.repo.registry.getCapability(req.capability), { prompt: req.prompt, params: req.params, files: req.files?.map((f) => ({ mime: f.mime, size: f.bytes.length })) });
   if (issues.length) throw new ProviderError("parameters", issues.join(" "));
+  const currentAdapter = getAdapter(current.adapter_id ?? (current.provider_kind === "azure" ? "azure_openai" : current.provider_kind));
+  if (!currentAdapter.supports(req.capability)) throw new ProviderError("parameters", `El adaptador ${currentAdapter.label} no implementa «${req.capability}». No se accedió a credenciales ni se creó un trabajo.`);
   if (!model.capabilities.includes(req.capability)) throw new ProviderError("parameters", `El modelo «${model.name}» no admite «${req.capability}». No se ejecutó ninguna solicitud.`);
   const { creds, adapter: adapterId } = await credentialsFor(deps.repo, model.provider_id);
   const adapter = getAdapter(adapterId);

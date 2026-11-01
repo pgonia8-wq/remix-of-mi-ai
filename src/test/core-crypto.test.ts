@@ -141,7 +141,32 @@ describe("formato cifrado de activos (AES-256-GCM por bloques)", () => {
     let completed = false;
     try { for await (const p of decryptAsset(memorySource(bad), ctx, dek)) got.push(p); completed = true; } catch (e) { expect(e).toBeInstanceOf(AssetIntegrityError); }
     expect(completed).toBe(false);
+    expect(got).toHaveLength(0);
     await expect(readAll(memorySource(bad), ctx, dek)).rejects.toBeInstanceOf(AssetIntegrityError);
+  });
+
+  it("no emite plaintext si solo está alterado el registro final", async () => {
+    const { file, dek } = await enc(rand(BS * 3));
+    const bad = file.slice();
+    const last = bad.length - 1;
+    bad[last] = (bad[last] ?? 0) ^ 1;
+    const emitted: Uint8Array[] = [];
+    await expect((async () => { for await (const block of decryptAsset(memorySource(bad), ctx, dek)) emitted.push(block); })()).rejects.toBeInstanceOf(AssetIntegrityError);
+    expect(emitted).toHaveLength(0);
+  });
+
+  it("rechaza una fuente que cambia entre verificación y entrega", async () => {
+    const { file, dek } = await enc(rand(BS * 2));
+    const source = memorySource(file);
+    let headerReads = 0;
+    const changing = { size: source.size, async read(offset: number, length: number) {
+      const bytes = (await source.read(offset, length)).slice();
+      if (offset === 0 && ++headerReads === 2) bytes[0] = (bytes[0] ?? 0) ^ 1;
+      return bytes;
+    } };
+    const emitted: Uint8Array[] = [];
+    await expect((async () => { for await (const block of decryptAsset(changing, ctx, dek)) emitted.push(block); })()).rejects.toBeInstanceOf(AssetIntegrityError);
+    expect(emitted).toHaveLength(0);
   });
 
   it("interrupción durante la escritura: un archivo parcial nunca verifica", async () => {

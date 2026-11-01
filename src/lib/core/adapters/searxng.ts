@@ -4,7 +4,7 @@ import { ProviderError } from "../../providers";
 import { call } from "./http";
 import { sync, type ProviderAdapter, type SearchResult } from "./types";
 
-export function searxngUrl(endpoint: string | null, query: string, deep = false) {
+export function searxngUrl(endpoint: string | null) {
   let url: URL;
   try { url = new URL(endpoint?.trim() ?? ""); }
   catch { throw new ProviderError("endpoint", "Introduce la URL HTTPS de una instancia SearXNG."); }
@@ -12,10 +12,6 @@ export function searxngUrl(endpoint: string | null, query: string, deep = false)
     throw new ProviderError("endpoint", "SearXNG requiere HTTPS sin credenciales ni parámetros en la URL.");
   }
   url.pathname = `${url.pathname.replace(/\/+$/, "").replace(/\/search$/, "")}/search`;
-  url.searchParams.set("q", query);
-  url.searchParams.set("format", "json");
-  url.searchParams.set("categories", "general");
-  if (deep) url.searchParams.set("pageno", "1");
   return url.toString();
 }
 
@@ -47,8 +43,10 @@ export const searxngAdapter: ProviderAdapter = {
     if (!this.supports(request.capability)) throw new ProviderError("parameters", "SearXNG solo realiza búsquedas web.");
     const query = request.prompt?.trim();
     if (!query) throw new ProviderError("parameters", "Escribe qué quieres buscar.");
-    const response = await call(searxngUrl(credentials.endpoint, query, !!request.params?.["deep"]), {
-      headers: { accept: "application/json" }, credentials: "omit", redirect: "error", signal: request.signal ?? null,
+    const response = await call(searxngUrl(credentials.endpoint), {
+      method: "POST", headers: { accept: "application/json", "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ q: query, format: "json", categories: "general" }),
+      credentials: "omit", redirect: "error", signal: request.signal ?? null,
     }, null, 20_000);
     let data: unknown;
     try { data = await response.json(); }
