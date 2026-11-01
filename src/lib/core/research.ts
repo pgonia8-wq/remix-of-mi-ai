@@ -14,7 +14,10 @@ export function isSafeSourceUrl(raw: string) {
   if (u.protocol !== "https:" || u.username || u.password) return false;
   const h = u.hostname.toLowerCase();
   if (h === "localhost" || h.endsWith(".local") || h.endsWith(".internal") || h === "[::1]") return false;
-  if (/^(10\.|127\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(h) || /^\[(fc|fd|fe80)/i.test(h)) return false;
+  if (/^(10\.|127\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|198\.1[89]\.)/.test(h)) return false;
+  // Any IPv6 literal (incl. ::ffff:mapped, ::, ULA, link-local) and integer/hex/octal IPv4 encodings are refused.
+  if (h.startsWith("[") || /^(0x[0-9a-f]+|\d+)$/i.test(h) || /^[\d.]+$/.test(h) && h.split(".").some((p) => p.length > 1 && p.startsWith("0"))) return false;
+  if (!h.includes(".")) return false;
   return true;
 }
 
@@ -31,6 +34,7 @@ export async function readSource(s: SearchResult, fetcher: typeof fetch = fetch,
   const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), timeoutMs);
   try {
     const res = await fetcher(s.url, { credentials: "omit", redirect: "error", signal: ctl.signal, headers: { accept: "text/html,text/plain" } });
+    if (res.url && res.url !== s.url && !isSafeSourceUrl(res.url)) return { ...s, read: false, excerpt: s.snippet };
     const type = res.headers.get("content-type") ?? "";
     if (!res.ok || !/text\/(html|plain)/.test(type)) return { ...s, read: false, excerpt: s.snippet };
     const body = (await res.text()).slice(0, 1_500_000);
