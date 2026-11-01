@@ -37,6 +37,7 @@ function Projects() {
   const [budget, setBudget] = useState("");
   const [busy, setBusy] = useState(false);
   const { data: status } = useRepoQuery(["budget", panel?.projectId ?? ""], (r) => r.budgetStatus(panel!.projectId!), panel?.mode === "budget");
+  const { data: costs = [] } = useRepoQuery(["costs", panel?.projectId ?? ""], (r) => r.listCosts(panel!.projectId!, 10), panel?.mode === "budget");
   const visible = projects.filter((p) => archivedIds.includes(p.id) === showArchived);
 
   async function create() {
@@ -98,6 +99,7 @@ function Projects() {
             <>
               <h2 className="font-semibold">Presupuesto mensual — {panelProject?.name}</h2>
               {status && <p className="text-xs text-muted-foreground">Gastado este mes: US$ {status.spentUsd.toFixed(2)}{status.includesEstimates ? " (incluye estimados)" : ""}. Aviso al 80% y bloqueo al 100%, con opción de confirmar.</p>}
+              {costs.length > 0 && <ul className="space-y-0.5 text-xs text-muted-foreground">{costs.map((c) => <li key={c.id}>{new Date(c.created_at).toLocaleDateString()} · {c.operation} · {c.model ?? "—"} · {c.estimated === 2 ? "sin precio" : `US$ ${c.amount_usd.toFixed(4)}${c.estimated ? " (estimado)" : ""}`}</li>)}</ul>}
               <input className={inputCls} inputMode="decimal" placeholder="Límite en US$ (vacío = sin límite)" value={budget} onChange={(e) => setBudget(e.target.value)} />
               <div className="flex gap-2"><button className={btnCls + " flex-1"} onClick={saveBudget}>Guardar</button><button className="flex-1 text-sm underline" onClick={() => setPanel(null)}>Cancelar</button></div>
             </>

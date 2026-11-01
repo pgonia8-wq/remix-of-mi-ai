@@ -71,6 +71,11 @@ export class KeyRing {
   async current(): Promise<number> {
     const [r] = await this.db.all<{ id: number }>(`SELECT id FROM key_versions WHERE status='active' ORDER BY id DESC LIMIT 1`);
     if (r) return r.id;
+    // Crash between "retire old" and "activate new": finish the pending rotation instead of recreating version 1.
+    const [rot] = await this.db.all<{ id: number }>(`SELECT id FROM key_versions WHERE status='rotating' ORDER BY id DESC LIMIT 1`);
+    if (rot) { await this.db.run(`UPDATE key_versions SET status='active' WHERE id=?`, [rot.id]); return rot.id; }
+    const [any] = await this.db.all<{ id: number }>(`SELECT id FROM key_versions ORDER BY id DESC LIMIT 1`);
+    if (any) throw new Error("No hay una llave maestra activa; se detuvo para no crear una nueva sobre datos existentes.");
     const info = await this.backend.ensure(1);
     await this.db.run(`INSERT OR IGNORE INTO key_versions (id, status, protection, created_at) VALUES (1,'active',?,?)`, [info.protection, Date.now()]);
     return 1;
@@ -103,6 +108,14 @@ export class KeyRing {
       await this.db.run(`INSERT INTO key_versions (id, status, protection, created_at) VALUES (?,?,?,?)`, [next, "rotating", info.protection, Date.now()]);
     }
     return this.finishRotation(next);
+  }
+  /** Called at startup: a rotation interrupted by a crash is completed, never left half-applied. */
+  async resumeRotation() {
+    const [pending] = await this.db.all<{ id: number }>(`SELECT id FROM key_versions WHERE status='rotating' ORDER BY id DESC LIMIT 1`);
+    if (pending) return this.finishRotation(pending.id);
+    const cur = await this.current();
+    const [left] = await this.db.all<{ c: number }>(`SELECT COUNT(*) AS c FROM assets WHERE key_id<>?`, [cur]);
+    return left && left.c > 0 ? this.finishRotation(cur) : null;
   }
   async finishRotation(next: number) {
     const rows = await this.db.all<{ id: string; project_id: string; key_id: number; wrapped_dek: string }>(`SELECT id, project_id, key_id, wrapped_dek FROM assets WHERE key_id<>?`, [next]);

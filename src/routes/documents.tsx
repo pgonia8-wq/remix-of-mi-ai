@@ -11,6 +11,7 @@ import { DOC_ACCEPT, docKind, extractText } from "@/lib/docs/extract";
 import { exportDoc, EXPORT_MIME, type ExportFormat } from "@/lib/docs/export";
 import { saveExport } from "@/lib/save-export";
 import { savePrivateFile } from "@/lib/files";
+import { compareTexts, comparisonMarkdown, type Comparison } from "@/lib/docs/compare";
 import { NeedProject, inputCls } from "@/components/AppShell";
 import { ModelPicker } from "@/components/ModelPicker";
 import { Markdown } from "@/components/Markdown";
@@ -39,15 +40,15 @@ const ACTIONS = [
 
 function Documents() {
   const pid = useActiveProjectId();
-  const [tab, setTab] = useState<"analyze" | "create">("analyze");
+  const [tab, setTab] = useState<"analyze" | "create" | "compare">("analyze");
   if (!pid) return <NeedProject />;
   return (
     <div className="space-y-4 p-4">
       <h1 className="text-2xl font-bold">Documentos</h1>
       <div className="flex gap-1">
-        {(["analyze", "create"] as const).map((t) => <button key={t} onClick={() => setTab(t)} className={`flex-1 rounded-lg border px-2 py-1.5 text-xs ${tab === t ? "border-primary bg-primary text-primary-foreground" : ""}`}>{t === "analyze" ? "Analizar" : "Crear"}</button>)}
+        {(["analyze", "create", "compare"] as const).map((t) => <button key={t} onClick={() => setTab(t)} className={`flex-1 rounded-lg border px-2 py-1.5 text-xs ${tab === t ? "border-primary bg-primary text-primary-foreground" : ""}`}>{t === "analyze" ? "Analizar" : t === "create" ? "Crear" : "Comparar"}</button>)}
       </div>
-      {tab === "analyze" ? <Analyze pid={pid} /> : <Create pid={pid} />}
+      {tab === "analyze" ? <Analyze pid={pid} /> : tab === "create" ? <Create pid={pid} /> : <Compare pid={pid} />}
     </div>
   );
 }
@@ -69,7 +70,13 @@ function Analyze({ pid }: { pid: string }) {
       setBusy(`Leyendo ${f.name}…`);
       try {
         const bytes = new Uint8Array(await f.arrayBuffer());
-        const ex = await extractText(bytes, f.name, f.type);
+        let ex = await extractText(bytes, f.name, f.type);
+        if (ex.warning === "scanned") {
+          // Scanned PDF: recognize the pages on the phone with OCR.
+          const { ocrPdf } = await import("@/lib/docs/ocr");
+          const r = await ocrPdf(bytes, "spa+eng", (s) => setBusy(`${f.name}: ${s}`));
+          ex = { text: r.text, ...(ex.pages ? { pages: ex.pages } : {}), ...(r.truncated ? { warning: "OCR aplicado a las primeras 30 páginas." } : r.confidence < 60 ? { warning: `Texto leído con OCR (confianza ${r.confidence}%). Revisa los datos importantes.` } : {}) };
+        }
         if (ex.warning) toast.warning(ex.warning);
         const filePath = await savePrivateFile(pid, f);
         const id = await mutate((c) => c.repo.addDoc(pid, { name: f.name, mime: f.type || "application/octet-stream", size: f.size, text: ex.text || null, filePath }));
@@ -92,9 +99,9 @@ function Analyze({ pid }: { pid: string }) {
 
   return (
     <div className="space-y-3">
-      <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed p-4 text-sm"><Upload className="h-4 w-4" /> Subir PDF, Word, Excel, CSV o texto
+      <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed p-4 text-sm"><Upload className="h-4 w-4" /> Subir PDF, Word, Excel, CSV, texto o foto
         <input type="file" multiple accept={DOC_ACCEPT} className="hidden" onChange={(e) => upload(e.target.files)} /></label>
-      <p className="text-[10px] text-muted-foreground">El texto se extrae en tu teléfono. Solo se envía al modelo cuando pulsas una acción.</p>
+      <p className="text-[10px] text-muted-foreground">El texto se extrae en tu teléfono (las fotos y PDF escaneados se leen con OCR local; la primera vez se descarga el paquete de idioma). Solo se envía al modelo cuando pulsas una acción.</p>
       <div className="space-y-1">
         {docs.map((d) => (
           <div key={d.id} className={`flex items-center gap-2 rounded-xl border p-2 text-sm ${sel === d.id ? "border-primary bg-primary/10" : "bg-card"}`}>
@@ -132,7 +139,7 @@ function Result({ text, title }: { text: string; title: string }) {
     <section className="space-y-2 rounded-xl border bg-card p-3">
       <Markdown text={text} />
       <p className="text-[10px] text-muted-foreground">Guardado cifrado en la Biblioteca. Exportar crea una copia sin cifrar.</p>
-      <div className="grid grid-cols-4 gap-1">{(["pdf", "docx", "xlsx", "md"] as const).map((f) => <Button key={f} size="sm" variant="outline" onClick={() => exp(f)}>{f.toUpperCase()}</Button>)}</div>
+      <div className="grid grid-cols-5 gap-1">{(["pdf", "docx", "xlsx", "pptx", "md"] as const).map((f) => <Button key={f} size="sm" variant="outline" onClick={() => exp(f)}>{f.toUpperCase()}</Button>)}</div>
     </section>
   );
 }
@@ -170,6 +177,32 @@ function Create({ pid }: { pid: string }) {
         <Button className="w-full" disabled={busy} onClick={run}><Sparkles />{busy ? "Escribiendo…" : "Crear documento"}</Button>
       </section>
       {out && <Result text={out} title={`${t.label} ${new Date().toISOString().slice(0, 10)}`} />}
+    </div>
+  );
+}
+
+function Compare({ pid }: { pid: string }) {
+  const { data: docs = [] } = useCoreQuery(["docs", pid], (c) => c.repo.listDocs(pid));
+  const withText = docs.filter((d) => d.text_content);
+  const [a, setA] = useState(""), [b, setB] = useState(""), [gran, setGran] = useState<"lines" | "words">("lines");
+  const [res, setRes] = useState<Comparison | null>(null);
+  const da = withText.find((d) => d.id === a), db = withText.find((d) => d.id === b);
+  return (
+    <div className="space-y-3">
+      <section className="space-y-2 rounded-xl border bg-card p-3">
+        <p className="text-xs text-muted-foreground">Compara dos documentos en el teléfono, sin enviar nada a un modelo.</p>
+        <select aria-label="Documento original" className={inputCls} value={a} onChange={(e) => setA(e.target.value)}><option value="">Documento original</option>{withText.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select>
+        <select aria-label="Documento nuevo" className={inputCls} value={b} onChange={(e) => setB(e.target.value)}><option value="">Documento nuevo</option>{withText.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select>
+        <select aria-label="Detalle de comparación" className={inputCls} value={gran} onChange={(e) => setGran(e.target.value as "lines" | "words")}><option value="lines">Por líneas</option><option value="words">Por palabras</option></select>
+        <Button className="w-full" disabled={!da || !db || a === b} onClick={() => setRes(compareTexts(da!.text_content!.slice(0, 400_000), db!.text_content!.slice(0, 400_000), gran))}>Comparar</Button>
+      </section>
+      {res && da && db && (
+        <section className="space-y-2 rounded-xl border bg-card p-3">
+          <p className="text-sm">Similitud <b>{res.similarity}%</b> · <span className="text-primary">+{res.added}</span> · <span className="text-destructive">−{res.removed}</span></p>
+          <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap text-xs">{res.parts.map((p, i) => <span key={i} className={p.kind === "added" ? "bg-primary/20" : p.kind === "removed" ? "bg-destructive/20 line-through" : "text-muted-foreground"}>{p.text}</span>)}</pre>
+          <Result text={comparisonMarkdown(da.name, db.name, res)} title={`Comparación ${da.name}`} />
+        </section>
+      )}
     </div>
   );
 }

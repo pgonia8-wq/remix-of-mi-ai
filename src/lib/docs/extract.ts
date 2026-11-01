@@ -1,12 +1,13 @@
 // On-device text extraction (no upload): PDF, DOCX, XLSX/XLS/CSV, plain text. Libraries load lazily, client-only.
 export type Extracted = { text: string; pages?: number; sheets?: string[]; warning?: string };
 
-export const DOC_ACCEPT = ".pdf,.docx,.xlsx,.xls,.csv,.txt,.md,.json,.html,.xml,.log,.yaml,.yml";
+export const DOC_ACCEPT = ".png,.jpg,.jpeg,.webp,.pdf,.docx,.xlsx,.xls,.csv,.txt,.md,.json,.html,.xml,.log,.yaml,.yml";
 export const MAX_DOC_BYTES = 50 * 1024 * 1024;
 export const MAX_TEXT_CHARS = 2_000_000;
 
-export function docKind(name: string, mime: string): "pdf" | "docx" | "sheet" | "text" | "unsupported" {
+export function docKind(name: string, mime: string): "pdf" | "docx" | "sheet" | "text" | "image" | "unsupported" {
   const n = name.toLowerCase();
+  if (mime.startsWith("image/") || /\.(png|jpe?g|webp|bmp)$/.test(n)) return "image";
   if (mime === "application/pdf" || n.endsWith(".pdf")) return "pdf";
   if (n.endsWith(".docx") || mime.includes("wordprocessingml")) return "docx";
   if (/\.(xlsx|xls|csv)$/.test(n) || mime.includes("spreadsheetml") || mime === "text/csv") return "sheet";
@@ -35,7 +36,7 @@ export async function extractText(bytes: Uint8Array, name: string, mime: string)
     }
     const text = clip(out.join("\n\n"));
     await doc.destroy();
-    return { text, pages: doc.numPages, ...(text.replace(/--- Página \d+ ---|\s/g, "").length < 20 ? { warning: "El PDF parece escaneado (sin texto). Usa «Analizar» con una foto de la página." } : {}) };
+    return { text, pages: doc.numPages, ...(text.replace(/--- Página \d+ ---|\s/g, "").length < 20 ? { warning: "scanned" } : {}) };
   }
   if (kind === "docx") {
     const mammoth = (await import("mammoth/mammoth.browser")).default;
@@ -47,6 +48,11 @@ export async function extractText(bytes: Uint8Array, name: string, mime: string)
     const wb = XLSX.read(bytes, { type: "array" });
     const parts = wb.SheetNames.map((s) => `### Hoja: ${s}\n${XLSX.utils.sheet_to_csv(wb.Sheets[s]!)}`);
     return { text: clip(parts.join("\n\n")), sheets: wb.SheetNames };
+  }
+  if (kind === "image") {
+    const { ocrImage } = await import("./ocr");
+    const r = await ocrImage(bytes, mime || "image/png");
+    return { text: clip(r.text), pages: 1, ...(r.confidence < 60 ? { warning: `Texto leído con OCR (confianza ${r.confidence}%). Revisa los datos importantes.` } : {}) };
   }
   throw new Error("Formato no admitido. Usa PDF, Word (.docx), Excel (.xlsx/.xls), CSV o texto.");
 }

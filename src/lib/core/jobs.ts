@@ -69,8 +69,11 @@ export class JobManager {
   async markSent(projectId: string, id: string) {
     const j = await this.get(projectId, id);
     if (!j) throw new JobError("Trabajo no pertenece al proyecto");
-    await this.transition(projectId, id, "submitting", { phase: "sent" });
-    await this.db.run(`UPDATE jobs SET attempts=attempts+1 WHERE id=? AND project_id=?`, [id, projectId]);
+    if (!TRANSITIONS[j.status].includes("submitting")) throw new JobError(`Transición no permitida: ${j.status} → submitting`);
+    // Compare-and-swap on (status, attempts): a concurrent second send cannot also pass.
+    await this.db.run(`UPDATE jobs SET status='submitting', phase='sent', attempts=attempts+1, updated_at=? WHERE id=? AND project_id=? AND status=? AND attempts=?`, [now(), id, projectId, j.status, j.attempts]);
+    const after = await this.get(projectId, id);
+    if (!after || after.attempts !== j.attempts + 1 || after.status !== "submitting") throw new JobError("Este trabajo ya se está enviando. No se envió de nuevo.");
     await this.db.run(`INSERT INTO job_attempts (id, project_id, job_id, n, started_at) VALUES (?,?,?,?,?)`, [uid(), projectId, id, j.attempts + 1, now()]);
   }
   async finishAttempt(projectId: string, id: string, outcome: string, error?: string) {

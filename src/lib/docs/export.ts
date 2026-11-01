@@ -1,16 +1,50 @@
 // Export generated Markdown to PDF, Word (.docx), Excel (.xlsx) or Markdown — entirely on the phone.
 import { parseMarkdown, tablesOf } from "./markdown";
 
-export type ExportFormat = "pdf" | "docx" | "xlsx" | "md";
+export type ExportFormat = "pdf" | "docx" | "xlsx" | "md" | "pptx";
 export const EXPORT_MIME: Record<ExportFormat, string> = {
   pdf: "application/pdf",
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   md: "text/markdown",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 };
+
+export type Slide = { title: string; bullets: string[]; table?: string[][] };
+/** One slide per H1/H2 section; bullets from paragraphs/list items (max 8 per slide, overflow continues). */
+export function slidesFromMarkdown(md: string, title: string): Slide[] {
+  const slides: Slide[] = [];
+  let cur: Slide = { title, bullets: [] };
+  const push = () => { if (cur.bullets.length || cur.table) slides.push(cur); };
+  for (const b of parseMarkdown(md)) {
+    if (b.t === "h" && b.level <= 2) { push(); cur = { title: b.text, bullets: [] }; }
+    else if (b.t === "h" || b.t === "p" || b.t === "li") {
+      if (cur.bullets.length >= 8) { push(); cur = { title: `${cur.title} (cont.)`, bullets: [] }; }
+      cur.bullets.push(b.text.length > 220 ? b.text.slice(0, 217) + "…" : b.text);
+    } else if (b.t === "table") { push(); cur = { title: cur.title, bullets: [], table: b.rows.slice(0, 12) }; push(); cur = { title: cur.title, bullets: [] }; }
+  }
+  push();
+  return slides.length ? slides : [{ title, bullets: [md.slice(0, 200)] }];
+}
 
 export async function exportDoc(md: string, format: ExportFormat, title: string): Promise<Uint8Array> {
   if (format === "md") return new TextEncoder().encode(md);
+  if (format === "pptx") {
+    const PptxGenJS = (await import("pptxgenjs")).default;
+    const pres = new PptxGenJS();
+    pres.layout = "LAYOUT_WIDE"; pres.title = title;
+    const cover = pres.addSlide();
+    cover.background = { color: "111827" };
+    cover.addText(title, { x: 0.6, y: 2.6, w: 12, h: 1.4, fontSize: 40, bold: true, color: "FFFFFF", fontFace: "Arial" });
+    for (const s of slidesFromMarkdown(md, title)) {
+      const sl = pres.addSlide();
+      sl.addText(s.title, { x: 0.5, y: 0.3, w: 12.3, h: 0.9, fontSize: 28, bold: true, color: "111827", fontFace: "Arial" });
+      if (s.table) sl.addTable(s.table.map((r, i) => r.map((c) => ({ text: c, options: { bold: i === 0, fontSize: 12 } }))), { x: 0.5, y: 1.4, w: 12.3, border: { type: "solid", color: "CCCCCC", pt: 0.5 } });
+      else sl.addText(s.bullets.map((t) => ({ text: t, options: { bullet: true, breakLine: true } })), { x: 0.6, y: 1.4, w: 12, h: 5.6, fontSize: 18, color: "1F2937", valign: "top", fontFace: "Arial" });
+    }
+    const out = await pres.write({ outputType: "uint8array" });
+    return out as Uint8Array;
+  }
   const blocks = parseMarkdown(md);
   if (format === "pdf") {
     const { jsPDF } = await import("jspdf");

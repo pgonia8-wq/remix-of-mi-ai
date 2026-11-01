@@ -27,7 +27,11 @@ export function argonParams(deviceMemGB: number | null): { memKiB: number; itera
 
 export async function deriveBackupKey(password: string, kdf: Kdf): Promise<CryptoKey> {
   const salt = unb64(kdf.salt);
-  if (salt.length < 16) throw new Error("Sal insuficiente");
+  if (salt.length < 16 || salt.length > 64) throw new Error("Sal fuera de límites");
+  // Hostile files must not force unbounded work: strict upper bounds for every KDF field.
+  if (kdf.alg === "argon2id" && (kdf.v !== 19 || !Number.isInteger(kdf.parallelism) || kdf.parallelism < 1 || kdf.parallelism > 4)) throw new Error("Parámetros Argon2id no admitidos");
+  if (kdf.alg === "pbkdf2-sha256" && (!Number.isInteger(kdf.iterations) || kdf.iterations > 5_000_000)) throw new Error("Iteraciones PBKDF2 fuera de límites");
+  if (kdf.alg !== "argon2id" && kdf.alg !== "pbkdf2-sha256") throw new Error("KDF no admitida");
   let raw: Uint8Array;
   if (kdf.alg === "argon2id") {
     if (kdf.memKiB < ARGON_LIMITS.minMemKiB || kdf.memKiB > ARGON_LIMITS.maxMemKiB || kdf.iterations < ARGON_LIMITS.minIterations || kdf.iterations > ARGON_LIMITS.maxIterations) throw new Error("Parámetros Argon2id fuera de límites seguros");
@@ -95,6 +99,13 @@ export async function openBackup(text: string, password: string): Promise<Payloa
  * verify every asset, then restore rows. Idempotent (INSERT OR REPLACE / overwrite): an interrupted restore can be
  * re-run with the same untouched backup file. API keys are not included and must be re-entered and re-tested.
  */
+/** Paths are never taken from the file: they are regenerated from validated IDs (confined to assets/<project>/). */
+export function safeAssetPath(a: { id: unknown; project_id: unknown }) {
+  const ok = (v: unknown): v is string => typeof v === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(v);
+  if (!ok(a.id) || !ok(a.project_id)) throw new Error("Respaldo con identificadores de archivo no válidos");
+  return `assets/${a.project_id}/${a.id}.miai`;
+}
+
 export async function restoreBackup(opts: { payload: Payload; repo: Repo; db: SqlDb; keys: KeyRing; fs: BlobBackend }): Promise<{ assets: number }> {
   const { payload } = opts;
   const assets = (payload.dump.tables["assets"] ?? []) as Asset[];
@@ -105,6 +116,7 @@ export async function restoreBackup(opts: { payload: Payload; repo: Repo; db: Sq
     const { keyId, wrapped } = await opts.keys.wrapDek(dek, a.id, a.project_id);
     dek.fill(0);
     a.key_id = keyId; a.wrapped_dek = wrapped; a.enc_state = "encrypted";
+    a.path = safeAssetPath(a);
     const tmp = `${a.path}.restore`;
     await opts.fs.remove(tmp).catch(() => undefined);
     await opts.fs.create(tmp);

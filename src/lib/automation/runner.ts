@@ -18,7 +18,7 @@ export function branchCursor(steps: Step[], cursor: number, passed: boolean) {
   if (target) { const i = steps.findIndex((x) => x.id === target || x.id.startsWith(`${target}:`)); if (i < 0) throw new Error("Destino inexistente"); return i; }
   return cursor + 1;
 }
-export async function advance(core: Core, projectId: string, id: string, approved = false, retryConfirmed = false): Promise<Run> {
+export async function advance(core: Core, projectId: string, id: string, approved = false, retryConfirmed = false, signal?: AbortSignal): Promise<Run> {
   const key = `${projectId}:${id}`;
   if (locks.has(key)) throw new Error("Este flujo ya está ejecutándose.");
   locks.add(key);
@@ -79,7 +79,7 @@ export async function advance(core: Core, projectId: string, id: string, approve
           // Persist consumption before the call; uncertain failures must not restore budget.
           await repo.sql.run("UPDATE workflow_runs SET calls=calls+1 WHERE project_id=? AND id=?", [projectId, id]);
           await runs.event(repo, projectId, id, s, "request", `${s.tool} · ${d.model.name}`);
-          const result = await execute(core, projectId, d.model, { capability: s.tool, prompt: `${instructions}${memory}\n\n${prompt}`, saveText: true });
+          const result = await execute(core, projectId, d.model, { capability: s.tool, prompt: `${instructions}${memory}\n\n${prompt}`, saveText: true, ...(signal ? { signal } : {}) });
           if (result.pending) throw new Error("El trabajo remoto requiere revisión de su resultado antes del siguiente paso.");
           jobId = result.jobId;
           text = result.text ?? (result.results ? result.results.map((x) => `${x.title}\n${x.url}\n${x.snippet}`).join("\n\n") : "");

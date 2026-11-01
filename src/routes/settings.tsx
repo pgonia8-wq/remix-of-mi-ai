@@ -8,7 +8,7 @@ import { getRepo, isNative } from "@/lib/app-db";
 import { openWithPassword } from "@/lib/crypto";
 import { Link } from "@tanstack/react-router";
 import { getCore } from "@/lib/core";
-import { createBackup, openBackup, restoreBackup, passwordStrength } from "@/lib/core/backup";
+import { openBackup, restoreBackup, passwordStrength } from "@/lib/core/backup";
 import { useMutate, useRepoQuery } from "@/lib/use-app";
 import { btnCls, btnGhost, inputCls } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -75,6 +75,7 @@ function Settings() {
           </div>
         ))}
       </section>
+      <Prices />
       <Backup />
       <p className="text-xs text-muted-foreground">
         {isNative()
@@ -97,15 +98,19 @@ function Backup() {
       const core = await getCore();
       const nav = navigator as Navigator & { deviceMemory?: number };
       const mem = core.device.totalMemMB ? core.device.totalMemMB / 1024 : nav.deviceMemory ?? null;
-      const sealed = await createBackup({ repo: core.repo, keys: core.keys, fs: core.files, password: pw, deviceMemGB: mem });
+      const { createBackupStream } = await import("@/lib/core/backup-stream");
       const name = `miai-${new Date().toISOString().slice(0, 10)}.miai`;
+      const stream = createBackupStream({ repo: core.repo, keys: core.keys, fs: core.files, password: pw, deviceMemGB: mem });
       if (isNative()) {
         const { Filesystem, Directory, Encoding } = await import("@capacitor/filesystem");
-        await Filesystem.writeFile({ path: name, data: sealed, directory: Directory.Documents, encoding: Encoding.UTF8 });
+        await Filesystem.writeFile({ path: name, data: "", directory: Directory.Documents, encoding: Encoding.UTF8 });
+        for await (const line of stream) await Filesystem.appendFile({ path: name, data: line, directory: Directory.Documents, encoding: Encoding.UTF8 });
         toast.success(`Guardado en Documentos/${name}`);
       } else {
+        const parts: string[] = [];
+        for await (const line of stream) parts.push(line);
         const a = document.createElement("a");
-        a.href = URL.createObjectURL(new Blob([sealed], { type: "application/octet-stream" }));
+        a.href = URL.createObjectURL(new Blob(parts, { type: "application/octet-stream" }));
         a.download = name;
         a.click();
       }
@@ -116,8 +121,13 @@ function Backup() {
     setBusy("Verificando la copia…");
     try {
       const text = await f.text();
-      const format = JSON.parse(text)?.format;
-      if (format === "miai-export") {
+      const { isBackupV3, restoreBackupStream, linesOf } = await import("@/lib/core/backup-stream");
+      if (isBackupV3(text.slice(0, text.indexOf("\n")))) {
+        setBusy("Verificando cada parte de la copia…");
+        const core = await getCore();
+        await restoreBackupStream({ lines: () => linesOf(text), password: pw, repo: core.repo, keys: core.keys, fs: core.files });
+        await mutate(async () => undefined);
+      } else if (JSON.parse(text)?.format === "miai-export") {
         const dump = JSON.parse(await openWithPassword(pw, text)); // v1 compatibility
         await mutate((r) => r.restoreAll(dump));
       } else {
@@ -152,6 +162,41 @@ function Backup() {
         <Link to="/jobs" className="text-primary underline">Trabajos</Link>
         <Link to="/diagnostics" className="text-primary underline">Diagnóstico de seguridad y rendimiento</Link>
       </div>
+    </section>
+  );
+}
+
+function Prices() {
+  const { data: prices = [] } = useRepoQuery(["prices"], (r) => r.listModelPrices());
+  const mutate = useMutate();
+  const [f, setF] = useState({ model: "", input: "", output: "", image: "", second: "", call: "" });
+  const num = (v: string) => (v.trim() ? Number(v) : null);
+  async function save() {
+    try {
+      await mutate((r) => r.setModelPrice({ model: f.model.trim(), input_per_mtok: num(f.input), output_per_mtok: num(f.output), per_image: num(f.image), per_second: num(f.second), per_call: num(f.call) }));
+      setF({ model: "", input: "", output: "", image: "", second: "", call: "" }); toast.success("Tarifa guardada");
+    } catch (e) { toast.error((e as Error).message); }
+  }
+  return (
+    <section className="space-y-2 rounded-xl border bg-card p-3">
+      <h2 className="font-semibold">Tarifas para calcular el gasto</h2>
+      <p className="text-xs text-muted-foreground">Los proveedores casi nunca informan el precio de cada llamada. Escribe la tarifa de tu contrato (en US$) por modelo o deployment y el gasto se calculará como estimado. Sin tarifa, la llamada se registra como «sin precio».</p>
+      <ul className="space-y-1 text-xs">
+        {prices.map((p) => (
+          <li key={p.model} className="flex items-center gap-2"><span className="flex-1 truncate font-medium">{p.model}</span>
+            <span className="text-muted-foreground">{[p.input_per_mtok !== null && `entrada ${p.input_per_mtok}/M`, p.output_per_mtok !== null && `salida ${p.output_per_mtok}/M`, p.per_image !== null && `${p.per_image}/imagen`, p.per_second !== null && `${p.per_second}/s`, p.per_call !== null && `${p.per_call}/llamada`].filter(Boolean).join(" · ")}</span>
+            <button aria-label={`Quitar tarifa ${p.model}`} onClick={() => mutate((r) => r.deleteModelPrice(p.model))}><Trash2 className="h-3 w-3" /></button></li>
+        ))}
+      </ul>
+      <input className={inputCls} placeholder="Modelo o deployment (exacto)" value={f.model} onChange={(e) => setF({ ...f, model: e.target.value })} />
+      <div className="grid grid-cols-2 gap-2">
+        <input className={inputCls} inputMode="decimal" placeholder="Entrada por millón de tokens" value={f.input} onChange={(e) => setF({ ...f, input: e.target.value })} />
+        <input className={inputCls} inputMode="decimal" placeholder="Salida por millón de tokens" value={f.output} onChange={(e) => setF({ ...f, output: e.target.value })} />
+        <input className={inputCls} inputMode="decimal" placeholder="Por imagen" value={f.image} onChange={(e) => setF({ ...f, image: e.target.value })} />
+        <input className={inputCls} inputMode="decimal" placeholder="Por segundo (video/música)" value={f.second} onChange={(e) => setF({ ...f, second: e.target.value })} />
+        <input className={inputCls} inputMode="decimal" placeholder="Por llamada" value={f.call} onChange={(e) => setF({ ...f, call: e.target.value })} />
+      </div>
+      <button className={btnCls + " w-full"} disabled={!f.model.trim()} onClick={save}><Plus className="h-4 w-4" /> Guardar tarifa</button>
     </section>
   );
 }

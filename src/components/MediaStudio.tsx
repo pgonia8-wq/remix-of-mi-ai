@@ -83,7 +83,7 @@ function MediaPreview({ asset, onClose }: { asset: Asset; onClose: () => void })
     {error && <p className="text-destructive">{error}</p>}
     {url && asset.kind === "audio" && <audio controls src={url} className="w-full" />}
     {url && asset.kind === "video" && <video controls src={url} className="max-h-96 w-full" />}
-    {bytes && asset.kind === "model3d" && <Model3DViewer bytes={bytes} />}
+    {bytes && asset.kind === "model3d" && <Model3DViewer bytes={bytes} name={asset.name ?? "modelo"} />}
     <p className="text-xs text-muted-foreground">{asset.params ? String((JSON.parse(asset.params) as Record<string, unknown>)["license"] ?? "Licencia no verificada") : "Licencia no verificada"}</p>
     <Button variant="outline" disabled={!bytes} onClick={() => { if (bytes && confirm("¿Exportar una copia sin cifrar?")) saveExport(bytes, asset.name ?? "resultado", asset.mime).catch(() => toast.error("No se pudo exportar.")); }}>Exportar</Button>
   </section>;

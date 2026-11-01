@@ -4,10 +4,24 @@
 - [x] Archivar, restaurar y duplicar proyectos.
 - [x] Exportar/importar un solo proyecto cifrado (siempre como proyecto nuevo; contraseña errónea no crea nada).
 - [x] Presupuesto mensual por proyecto y registro de costos (aviso 80%, bloqueo 100%, marca de estimados).
-- [ ] Conectar el registro de costos y el bloqueo de presupuesto a cada llamada de proveedor, con confirmación manual.
-- [ ] Respaldos por partes (memoria acotada) con verificación previa.
-- [ ] Restauración y rotación de llaves reanudables (journal).
-- [ ] Riesgos R01–R20 reproducibles.
+- [x] Costos y bloqueo de presupuesto en cada llamada (chat y ejecutor), tarifas editables, confirmación por llamada.
+- [x] Respaldos v3 por partes con verificación completa previa; v2 legible.
+- [x] Restauración con journal (revierte al iniciar) y rotación de llaves reanudada al iniciar.
+- [x] Riesgos corregidos: R01–R06, R08, R10, R12–R17, R19. Abiertos: R07/R09 (coordinación limpieza-escritura), R11 (fallos tras aceptación), R18 (memoria cripto), R20 (límites por deployment).
+
+## Bloque 2 — medios y documentos
+- [x] OCR local (fotos y PDF escaneados, 30 págs); paquete de idioma se descarga una vez.
+- [x] Relleno por zona con máscara (OpenAI/Azure images/edits) y lote de herramientas locales.
+- [x] Video: pistas de audio de fondo mezcladas localmente + segunda secuencia Media3 (sin compilar aún).
+- [x] Mezcla de audio con remuestreo; música solo con proveedores que lo declaren.
+- [x] Exportar a PowerPoint y comparar documentos.
+- [x] Visor 3D con medidas, malla y exportación STL/OBJ.
+
+## Bloque 3 — investigación y datos
+- [x] Investigación en 2 rondas con lectura de fuentes https públicas (si la página bloquea, queda el resumen) y citas verificadas.
+- [x] Tablas dinámicas, gráfico, limpieza, correlación y exportación CSV/Excel.
+- [x] Préstamos/amortización, VAN/TIR, unidades, informe del proyecto.
+- [ ] Verificación real: Android (Media3 con audio, OCR offline, lectura de fuentes desde la APK), claves y SearXNG reales.
 
 ## Solicitud actual — corregir auditoría, Azure multimarca y búsqueda abierta
 - [x] Añadir SearXNG como búsqueda abierta prioritaria (instancia HTTPS/JSON explícita, sin claves); verificación/guardado/recarga comprobados con respuesta controlada. Instancia real pendiente.

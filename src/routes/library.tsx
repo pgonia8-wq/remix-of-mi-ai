@@ -13,6 +13,7 @@ import { isNative } from "@/lib/app-db";
 import { NeedProject, inputCls } from "@/components/AppShell";
 import { AudioStudio } from "@/components/AudioStudio";
 import { Button } from "@/components/ui/button";
+import { MaskPainter } from "@/components/MaskPainter";
 
 export const Route = createFileRoute("/library")({
   head: () => ({
@@ -42,6 +43,7 @@ function Library() {
   const [search, setSearch] = useState("");
   const [tag, setTag] = useState("");
   const [open, setOpen] = useState<Asset | null>(null);
+  const [batch, setBatch] = useState(false);
   const { data: assets = [] } = useCoreQuery(["assets", pid, kind, search, tag], (c) => c.assets.list(pid!, { ...(kind ? { kind } : {}), ...(search ? { search } : {}), ...(tag ? { tag } : {}) }), !!pid);
   const { data: tags = [] } = useCoreQuery(["tags", pid], (c) => c.assets.tags(pid!), !!pid);
   const mutate = useCoreMutate();
@@ -62,6 +64,7 @@ function Library() {
       {tags.length > 0 && (
         <div className="flex flex-wrap gap-1">{["", ...tags].map((t) => <button key={t} onClick={() => setTag(t)} className={`rounded-full border px-2 py-0.5 text-xs ${tag === t ? "border-primary bg-primary text-primary-foreground" : ""}`}>{t || "todas"}</button>)}</div>
       )}
+      {batch ? <BatchTools images={assets.filter((a) => a.kind === "image")} onDone={() => setBatch(false)} /> : <button className="text-xs text-primary underline" onClick={() => setBatch(true)}>Procesar varias imágenes a la vez</button>}
       <div className="grid grid-cols-2 gap-2">
         {assets.map((a) => <Thumb key={a.id} a={a} onOpen={() => setOpen(a)} />)}
       </div>
@@ -120,6 +123,8 @@ function AssetDetail({ a, onClose, onOpen }: { a: Asset; onClose: () => void; on
   const { data: tags = [] } = useCoreQuery(["tags", a.id], (c) => c.assets.tags(a.project_id, a.id));
   const [newTag, setNewTag] = useState("");
   const [edit, setEdit] = useState("");
+  const [maskMode, setMaskMode] = useState(false);
+  const [mask, setMask] = useState<Uint8Array | null>(null);
   const [busy, setBusy] = useState(false);
   const [question, setQuestion] = useState("");
   const { data: family = [] } = useCoreQuery(["versions", a.id], (c) => c.assets.versions(a.project_id, a.id));
@@ -181,9 +186,9 @@ function AssetDetail({ a, onClose, onOpen }: { a: Asset; onClose: () => void; on
       const d = route(await c.repo.registry.listModels(), { capability, mode: "auto" });
       if (!d.ok) { toast.error(d.reason); return; }
       const bytes = await c.assets.read(a.project_id, a.id);
-      const r = await execute(c, a.project_id, d.model, { capability, ...(capability === "image.edit" ? { prompt: edit } : {}), files: [{ bytes, mime: a.mime, name: `entrada.${a.format ?? "png"}` }], parentAssetId: a.id });
+      const r = await execute(c, a.project_id, d.model, { capability, ...(capability === "image.edit" ? { prompt: edit } : {}), files: [{ bytes, mime: a.mime, name: `entrada.${a.format ?? "png"}` }, ...(capability === "image.edit" && mask ? [{ bytes: mask, mime: "image/png", name: "mask.png" }] : [])], parentAssetId: a.id });
       toast.success(`Nueva versión con ${d.model.name}`);
-      setEdit("");
+      setEdit(""); setMask(null); setMaskMode(false);
       await mutate(async () => undefined);
       if (r.assets[0]) onOpen(r.assets[0]);
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
@@ -194,7 +199,7 @@ function AssetDetail({ a, onClose, onOpen }: { a: Asset; onClose: () => void; on
       <div className="mx-auto max-w-2xl space-y-3">
         <div className="flex items-center gap-2"><h2 className="flex-1 truncate font-semibold">{a.name ?? a.prompt ?? "Activo"}</h2><Button variant="ghost" size="icon" aria-label="Cerrar" onClick={onClose}><X /></Button></div>
         {err && <p className="rounded-md bg-destructive/15 p-2 text-sm text-destructive">No se entrega el archivo: {err}</p>}
-        {url && a.kind === "image" && <img src={url} alt={a.prompt ?? "imagen"} className="w-full rounded-xl border" />}
+        {url && a.kind === "image" && (maskMode ? <MaskPainter src={url} onMask={setMask} disabled={busy} /> : <img src={url} alt={a.prompt ?? "imagen"} className="w-full rounded-xl border" />)}
         {url && a.kind === "audio" && <audio controls src={url} className="w-full" />}
         {url && a.kind === "video" && <video controls src={url} className="w-full rounded-xl" />}
         {a.kind === "text" && <p className="whitespace-pre-wrap rounded-xl border bg-card p-3 text-sm">{textBody ?? "…"}</p>}
@@ -235,8 +240,12 @@ function AssetDetail({ a, onClose, onOpen }: { a: Asset; onClose: () => void; on
           </div>
         )}
         {a.kind === "image" && (
-          <div className="flex gap-2"><input className={inputCls} placeholder="Editar con instrucciones (crea versión nueva)" value={edit} onChange={(e) => setEdit(e.target.value)} />
-            <Button disabled={busy} onClick={() => runEdit()}><Wand2 />{busy ? "…" : ""}</Button></div>
+          <div className="space-y-1">
+            <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={maskMode} onChange={(e) => { setMaskMode(e.target.checked); setMask(null); }} />Cambiar solo una zona (pinta sobre la imagen)</label>
+            {maskMode && <p className="text-[10px] text-muted-foreground">{mask ? "Zona marcada. Describe qué poner en ella." : "Pinta la zona que quieres cambiar."} Funciona con modelos de edición que aceptan máscara (por ejemplo GPT-image en OpenAI o Azure).</p>}
+            <div className="flex gap-2"><input className={inputCls} placeholder={maskMode ? "Qué poner en la zona pintada" : "Editar con instrucciones (crea versión nueva)"} value={edit} onChange={(e) => setEdit(e.target.value)} />
+              <Button disabled={busy || (maskMode && !mask)} onClick={() => runEdit()}><Wand2 />{busy ? "…" : ""}</Button></div>
+          </div>
         )}
         <div className="grid grid-cols-3 gap-2">
           <Button variant="outline" onClick={exportFile}><Download /> Exportar</Button>
@@ -311,6 +320,40 @@ function Create({ projectId }: { projectId: string }) {
       <Button className="w-full" disabled={busy || !decision.ok} onClick={run}><Sparkles />{busy ? "Procesando…" : cap === "vision" ? "Analizar" : "Generar"}</Button>
       {answer !== null && <p className="whitespace-pre-wrap rounded-lg border bg-background p-2 text-sm">{answer}</p>}
       </>}
+    </section>
+  );
+}
+
+function BatchTools({ images, onDone }: { images: Asset[]; onDone: () => void }) {
+  const mutate = useCoreMutate();
+  const [sel, setSel] = useState<string[]>([]);
+  const [op, setOp] = useState(0);
+  const [progress, setProgress] = useState<string | null>(null);
+  async function run() {
+    const o = TOOLS[op]!; let ok = 0, fail = 0;
+    const c = await getCore();
+    for (const [i, id] of sel.entries()) {
+      const a = images.find((x) => x.id === id); if (!a) continue;
+      setProgress(`${i + 1} de ${sel.length}…`);
+      try {
+        const out = await applyOp(await c.assets.read(a.project_id, a.id), a.mime, o);
+        const base = (a.name ?? "imagen").replace(/\.[a-z0-9]+$/i, "");
+        await c.assets.put(a.project_id, (async function* () { yield out.bytes; })(), { kind: "image", mime: out.mime, name: `${base}.${extFor(out.mime)}`, capability: "image.local", prompt: describeOp(o), params: { ...o, width: out.width, height: out.height, batch: true }, parentId: a.id });
+        ok++;
+      } catch { fail++; }
+    }
+    setProgress(null); await mutate(async () => undefined);
+    toast[fail ? "warning" : "success"](`${describeOp(o)}: ${ok} listas${fail ? `, ${fail} con error` : ""}. Los originales se conservan.`);
+    onDone();
+  }
+  return (
+    <section className="space-y-2 rounded-xl border bg-card p-3">
+      <div className="flex items-center gap-2"><h2 className="flex-1 font-semibold">Procesar en lote</h2><Button size="sm" variant="ghost" onClick={onDone}>Cerrar</Button></div>
+      <select aria-label="Operación en lote" className={inputCls} value={op} onChange={(e) => setOp(Number(e.target.value))}>{TOOLS.map((o, i) => <option key={i} value={i}>{describeOp(o)}</option>)}</select>
+      <div className="flex gap-2 text-xs"><button className="underline" onClick={() => setSel(images.map((i) => i.id))}>Todas</button><button className="underline" onClick={() => setSel([])}>Ninguna</button><span className="text-muted-foreground">{sel.length} elegidas</span></div>
+      <ul className="max-h-48 space-y-1 overflow-auto text-xs">{images.map((a) => <li key={a.id}><label className="flex items-center gap-2"><input type="checkbox" checked={sel.includes(a.id)} onChange={(e) => setSel(e.target.checked ? [...sel, a.id] : sel.filter((x) => x !== a.id))} />{a.name ?? a.id.slice(0, 8)}</label></li>)}</ul>
+      <Button className="w-full" disabled={!sel.length || !!progress} onClick={run}>{progress ?? `Aplicar a ${sel.length}`}</Button>
+      <p className="text-[10px] text-muted-foreground">Se hace en el teléfono, sin costo. Cada resultado es una versión nueva cifrada.</p>
     </section>
   );
 }

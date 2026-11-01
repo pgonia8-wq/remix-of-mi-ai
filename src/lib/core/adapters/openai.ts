@@ -34,7 +34,8 @@ export function editForm(r: RunRequest, withModel: boolean) {
   const f = new FormData();
   if (withModel) f.append("model", r.model);
   f.append("prompt", r.prompt ?? "");
-  for (const file of r.files ?? []) f.append("image[]", new Blob([file.bytes as BlobPart], { type: file.mime }), file.name);
+  // A file named "mask.png" is the inpainting mask (transparent = area to repaint), sent in the API's mask field.
+  for (const file of r.files ?? []) f.append(file.name === "mask.png" ? "mask" : "image[]", new Blob([file.bytes as BlobPart], { type: file.mime }), file.name);
   if (r.params?.["size"]) f.append("size", String(r.params["size"]));
   if (r.params?.["background"]) f.append("background", String(r.params["background"]));
   if (r.params?.["output_format"]) f.append("output_format", String(r.params["output_format"]));
