@@ -18,6 +18,7 @@ export const Route = createFileRoute("/tools")({
 const ITEMS = [
   { to: "/audio-editor", icon: SlidersHorizontal, label: "Editor de audio", desc: "" },
   { to: "/video-editor", icon: Video, label: "Editor de video", desc: "" },
+  { to: "/voice", icon: Music, label: "Conversación por voz", desc: "" },
   { to: "/music", icon: Music, label: "Música y sonido", desc: "" },
   { to: "/video", icon: Video, label: "Video", desc: "" },
   { to: "/models3d", icon: Box, label: "Modelos 3D", desc: "" },
