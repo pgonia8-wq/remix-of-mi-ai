@@ -1,5 +1,15 @@
 # MI AI — Informe de pruebas
 
+## Build.8 — 1-nov-2026: documentación y verificación de altas
+- **Compilación:** Gradle BUILD SUCCESSFUL en 1m 38s, 204 tareas; com.miai.app, versionCode 8, Android mínimo 30/objetivo 35, SQLCipher ARM64/ARMv7/x86_64.
+- **Firma comprobada:** certificado idéntico al APK build.7, SHA-256 48d18ad1491175c2bd8a248d59f2eed5be38fd8d08e7233d2df42fc4b5fa5acd. Archivo fijo del proyecto conservado tras reinicio. No recupera la firma de build.4.
+- **SHA-256 APK:** fc92cad68837478ab956e91204e0356885dccd98fe3f96ac9be8a1dbdb7ac49d.
+- **Pruebas automatizadas:** 184/184, 21 archivos; verificación vinculada a borrador exacto, rechazo de salida vacía, invalidación al cambiar clave/modelo/capacidad y mensaje sin eco de secretos.
+- **Web:** Chromium comprobó Guardar bloqueado sin prueba para altas manuales, ElevenLabs y Tavily; sin errores JavaScript. No se usaron claves reales ni se simularon éxitos en la app.
+- **Documentos:** manual de 13 páginas y catálogo de 6, todas renderizadas y revisadas sin recortes ni superposición. Archivo con contraseña estándar Debug, distinta de respaldos y API Keys.
+- **Emulador/físico:** esta APK no se instaló/abrió aquí; cifrado, voz, SSH, alarmas y Media3 pendientes de ejecución Android. No hay cuentas/claves autorizadas para verificar operaciones externas nuevas.
+- **Alcance:** persisten módulos ausentes del inventario (autonomía/PC/cloud/Git completo, profesional conectado/predicción, stems/mastering/extensión, video avanzado/CAD, Azure realtime/herramientas de voz). Alta manual solo admite capacidades con prueba mínima implementada; las demás requieren integración de verificación especializada. No se declara cierre 100%.
+
 ## Build.7 — 1-nov-2026: interfaz y editores, NO cierre 100%
 - **Compilación realizada:** Gradle BUILD SUCCESSFUL, 37 s, 204 tareas. APK Debug com.miai.app 0.1.0-build.7, versionCode 7. Android 11+, SQLCipher ARM64/ARMv7/x86_64. Media3 plugin incluido en clases Java compiladas; firma Debug conserva certificado build.5/build.6.
 - **SHA256:** efcbead3489d90e96b2d876e9c13b31e174c09b649142c0f48cd2c191298ab8f.
