@@ -126,12 +126,38 @@ function buildRequest(p: ProviderCall, messages: ChatMsg[]): { url: string; init
   };
 }
 
+/** MI AI imposes no message quota. A provider 429 (rate limit) is retried a bounded number of times, honoring its wait hint. */
+export const RATE_LIMIT_RETRIES = 3;
+const MAX_RATE_LIMIT_WAIT_MS = 60_000;
+export function rateLimitWaitMs(res: Response, body: string, attempt: number): number {
+  const header = res.headers.get("retry-after-ms") ?? null;
+  if (header && Number.isFinite(Number(header))) return Number(header);
+  const ra = res.headers.get("retry-after");
+  if (ra && Number.isFinite(Number(ra))) return Number(ra) * 1000;
+  const m = /retry after (\d+(?:\.\d+)?)\s*(second|sec|s|millisecond|ms)/i.exec(body);
+  if (m) return Number(m[1]) * (/^m/i.test(m[2]!) ? 1 : 1000);
+  return 2000 * 2 ** attempt;
+}
+const sleep = (ms: number, signal?: AbortSignal) => new Promise<void>((resolve, reject) => {
+  if (signal?.aborted) { reject(new DOMException("Aborted", "AbortError")); return; }
+  const t = setTimeout(() => { signal?.removeEventListener("abort", onAbort); resolve(); }, ms);
+  const onAbort = () => { clearTimeout(t); reject(new DOMException("Aborted", "AbortError")); };
+  signal?.addEventListener("abort", onAbort, { once: true });
+});
+
 /** Streams text deltas. API key is only placed in request headers — never logged. */
 export async function streamChat(p: ProviderCall, messages: ChatMsg[], onDelta: (t: string) => void, signal?: AbortSignal) {
   const { url, init, parse } = buildRequest(p, messages);
-  const res = await fetch(url, { ...init, signal: signal ?? null });
-  if (!res.ok || !res.body) {
-    throw responseError(res.status, await res.text().catch(() => ""), p.apiKey);
+  let res: Response;
+  for (let attempt = 0; ; attempt++) {
+    res = await fetch(url, { ...init, signal: signal ?? null });
+    if (res.ok && res.body) break;
+    const body = await res.text().catch(() => "");
+    if (res.status === 429 && attempt < RATE_LIMIT_RETRIES) {
+      const wait = rateLimitWaitMs(res, body, attempt);
+      if (wait <= MAX_RATE_LIMIT_WAIT_MS) { await sleep(Math.max(0, wait), signal); continue; }
+    }
+    throw responseError(res.status, body, p.apiKey);
   }
   const reader = res.body.getReader();
   const dec = new TextDecoder();
