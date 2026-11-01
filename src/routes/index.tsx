@@ -151,7 +151,12 @@ function Projects() {
               className="text-muted-foreground"
               onClick={async () => {
                 if (!confirm(`¿Eliminar "${p.name}" y todo su contenido?`)) return;
-                await mutate((r) => r.deleteProject(p.id));
+                await mutate(async (r) => {
+                  // Close this project's tunnels (native SSH/VPN too) before its rows disappear.
+                  const { tunnels } = await import("@/lib/nodes/tunnels");
+                  for (const t of await tunnels.list(r, p.id)) if (t.status === "open") await tunnels.close(r, p.id, t.id, "proyecto eliminado").catch(() => undefined);
+                  await r.deleteProject(p.id);
+                });
                 if (active === p.id) setActiveProject(null);
               }}
             >

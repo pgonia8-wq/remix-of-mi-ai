@@ -12,7 +12,8 @@ import { availabilityReport } from "@/lib/automation/tools";
 import { dueReviews } from "@/lib/automation/triggers";
 import { nodes, pairNode, heartbeat, type NodeInfo } from "@/lib/nodes/client";
 import { folders, pcFiles } from "@/lib/nodes/storage";
-import { tunnels, TUNNEL_KINDS } from "@/lib/nodes/tunnels";
+import { tunnels, tunnelKind, TUNNEL_INFO, tunnelCredentials } from "@/lib/nodes/tunnels";
+import { connections } from "@/lib/connections";
 
 export const Route = createFileRoute("/autonomy")({ head: () => ({ meta: [
   { title: "Sistema autónomo — MI AI" }, { name: "description", content: "Equipos de agentes, AI Builder, aprobaciones, PC Node, carpetas privadas y túneles." },
@@ -173,20 +174,37 @@ function Folders({ pid, act, busy }: { pid: string; act: Act; busy: boolean }) {
 function Tunnels({ pid, act, busy }: { pid: string; act: Act; busy: boolean }) {
   const { data: list = [] } = useCoreQuery(["tunnels", pid], (c) => tunnels.list(c.repo, pid));
   const { data: nodeList = [] } = useCoreQuery(["pc-nodes"], (c) => nodes.list(c.repo));
-  const [node, setNode] = useState(""), [target, setTarget] = useState("127.0.0.1:5173"), [mins, setMins] = useState(30);
+  const { data: sshList = [] } = useCoreQuery(["connections", pid], (c) => connections.list(c.repo, pid));
+  const [kind, setKind] = useState<keyof typeof TUNNEL_INFO>("pc.dev");
+  const [node, setNode] = useState(""), [conn, setConn] = useState(""), [target, setTarget] = useState("127.0.0.1:5173"), [mins, setMins] = useState(30);
+  const [remotePort, setRemotePort] = useState(8022), [allow, setAllow] = useState("127.0.0.1:5432"), [subnets, setSubnets] = useState("192.168.1.0/24");
+  const info = tunnelKind(kind), viaPc = info.via === "pc";
+  const ready = info.available && (viaPc ? !!node : !!conn);
+  const describe = kind === "vpn" ? `VPN de ${mins} min solo hacia ${subnets}` : kind === "ssh.socks5" ? `SOCKS5 de ${mins} min solo hacia ${allow}` : kind === "pc.socks5" ? `SOCKS5 de ${mins} min en la PC` : kind === "ssh.reverse" ? `reenvío inverso de ${mins} min: puerto ${remotePort} del servidor → ${target}` : `túnel de ${mins} min hacia ${target}`;
+  const open = () => act((c) => tunnels.open(c.repo, pid, { kind, nodeId: node || undefined, connectionId: conn || undefined, target, ttlMs: mins * 60_000, agent: "persona", remotePort, allow: allow.split(",").map((x) => x.trim()), subnets: subnets.split(",").map((x) => x.trim()) }), "Túnel abierto");
   return <section className="space-y-4">
     <div className="space-y-2 rounded-md border p-3 text-sm">
-      <ul className="space-y-1">{Object.entries(TUNNEL_KINDS).map(([k, v]) => <li key={k}><b>{v.label}</b>: {v.available ? "disponible" : "no disponible"} — {v.note}</li>)}</ul>
-      <label className="block">PC<select className={inputCls} value={node} onChange={(e) => setNode(e.target.value)}><option value="">Elegir</option>{nodeList.filter((n) => !n.revoked).map((n) => <option key={n.id} value={n.id}>{n.name}</option>)}</select></label>
-      <div className="grid grid-cols-2 gap-2"><label className="block">Destino permitido en la PC<input className={inputCls} value={target} onChange={(e) => setTarget(e.target.value)} /></label><label className="block">Duración (min)<input className={inputCls} type="number" min={1} max={120} value={mins} onChange={(e) => setMins(Number(e.target.value))} /></label></div>
-      <Button disabled={busy || !node} onClick={() => { if (window.confirm(`¿Abrir un túnel de ${mins} min hacia ${target}? Solo tu teléfono podrá usarlo.`)) act((c) => tunnels.open(c.repo, pid, { nodeId: node, target, ttlMs: mins * 60_000, agent: "persona" }), "Túnel abierto"); }}><Cable />Abrir túnel</Button>
+      <label className="block">Tipo<select className={inputCls} value={kind} onChange={(e) => setKind(e.target.value as keyof typeof TUNNEL_INFO)}>{Object.entries(TUNNEL_INFO).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></label>
+      <p className="text-muted-foreground">{info.note}</p>
+      {viaPc
+        ? <label className="block">PC<select className={inputCls} value={node} onChange={(e) => setNode(e.target.value)}><option value="">Elegir</option>{nodeList.filter((n) => !n.revoked).map((n) => <option key={n.id} value={n.id}>{n.name}</option>)}</select></label>
+        : <label className="block">Servidor SSH (de Conexiones)<select className={inputCls} value={conn} onChange={(e) => setConn(e.target.value)}><option value="">Elegir</option>{sshList.filter((x) => x.kind === "ssh").map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></label>}
+      <div className="grid grid-cols-2 gap-2">
+        {(kind === "pc.dev" || kind === "ssh.local" || kind === "ssh.reverse") && <label className="block">{kind === "ssh.reverse" ? "Servicio en el teléfono/red" : kind === "ssh.local" ? "Servicio visto desde el servidor" : "Destino permitido en la PC"}<input className={inputCls} value={target} onChange={(e) => setTarget(e.target.value)} /></label>}
+        {kind === "ssh.reverse" && <label className="block">Puerto en el servidor (≥1024)<input className={inputCls} type="number" min={1024} max={65535} value={remotePort} onChange={(e) => setRemotePort(Number(e.target.value))} /></label>}
+        {kind === "ssh.socks5" && <label className="col-span-2 block">Destinos permitidos (host:puerto, separados por coma)<input className={inputCls} value={allow} onChange={(e) => setAllow(e.target.value)} /></label>}
+        {kind === "vpn" && <label className="col-span-2 block">Subredes compartidas por la PC (coma)<input className={inputCls} value={subnets} onChange={(e) => setSubnets(e.target.value)} /></label>}
+        <label className="block">Duración (min)<input className={inputCls} type="number" min={1} max={120} value={mins} onChange={(e) => setMins(Number(e.target.value))} /></label>
+      </div>
+      <Button disabled={busy || !ready} onClick={() => { if (window.confirm(`¿Abrir ${describe}? Se cerrará solo al vencer.`)) open(); }}><Cable />Abrir</Button>
     </div>
-    {list.map((t) => <article key={t.id} className="space-y-1 border-t py-3 text-sm">
-      <p className="font-medium">{t.target} → puerto {t.port ?? "—"} · {t.status}</p>
+    {list.map((t) => { const cred = tunnelCredentials(t.id); return <article key={t.id} className="space-y-1 border-t py-3 text-sm">
+      <p className="font-medium break-all">{TUNNEL_INFO[t.kind as keyof typeof TUNNEL_INFO]?.label ?? t.kind}: {t.target} → puerto {t.port ?? "—"} · {t.status}</p>
       <p className="text-muted-foreground">Por {t.agent} · {t.expires_at ? `vence ${new Date(t.expires_at).toLocaleTimeString()}` : ""}</p>
+      {cred && t.status === "open" && <p className="break-all">Usuario SOCKS: <code>{cred.user}</code> · Clave: <code>{cred.pass}</code> (solo durante esta sesión)</p>}
       <details><summary className="cursor-pointer">Registro</summary><pre className="whitespace-pre-wrap text-xs">{(JSON.parse(t.log) as { at: number; event: string }[]).map((l) => `${new Date(l.at).toLocaleTimeString()} ${l.event}`).join("\n")}</pre></details>
       {t.status === "open" && <Button size="sm" variant="outline" disabled={busy} onClick={() => act((c) => tunnels.close(c.repo, pid, t.id))}>Cerrar</Button>}
-    </article>)}
+    </article>; })}
   </section>;
 }
 function Tools({ pid }: { pid: string }) {

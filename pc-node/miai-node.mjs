@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // MI AI PC Node: authorized execution + private storage extension for the MI AI Android app.
 // Standalone (Node 20+, no dependencies). Runs on Windows, Linux and macOS. LAN only; no Internet needed.
-// Usage: node miai-node.mjs --share <folder> [--share <folder>] [--port 47820] [--allow-target 127.0.0.1:5173] [--state <dir>] [--isolation auto|docker|process]
+// Usage: node miai-node.mjs --share <folder> [--share <folder>] [--port 47820] [--allow-target 127.0.0.1:5173] [--vpn-subnet 192.168.1.0/24] [--state <dir>] [--isolation auto|docker|process]
 import http from "node:http";
 import net from "node:net";
 import dgram from "node:dgram";
@@ -11,6 +11,8 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { createHash, randomInt, randomUUID } from "node:crypto";
+import { startSocks, startVpn, parseCidr, ipToInt, inCidrs } from "./relay.mjs";
+import { randomBytes } from "node:crypto";
 import { generateKeys, fingerprint, pairProof, nodeProof, safeEqual, sessionKey, seal, open } from "./protocol.mjs";
 
 export const VERSION = "1.0.0";
@@ -22,11 +24,11 @@ const TOOLCHAINS = [
 ];
 
 function parseArgs(argv) {
-  const o = { share: [], port: 47820, allowTargets: [], state: path.join(os.homedir(), ".miai-node"), isolation: "auto", name: os.hostname(), discovery: true, host: "0.0.0.0" };
+  const o = { share: [], port: 47820, allowTargets: [], vpnSubnets: [], state: path.join(os.homedir(), ".miai-node"), isolation: "auto", name: os.hostname(), discovery: true, host: "0.0.0.0" };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i], v = argv[i + 1];
     if (a === "--share") { o.share.push(path.resolve(v)); i++; } else if (a === "--port") { o.port = Number(v); i++; }
-    else if (a === "--allow-target") { o.allowTargets.push(v); i++; } else if (a === "--state") { o.state = path.resolve(v); i++; }
+    else if (a === "--allow-target") { o.allowTargets.push(v); i++; } else if (a === "--vpn-subnet") { o.vpnSubnets.push(v); i++; } else if (a === "--state") { o.state = path.resolve(v); i++; }
     else if (a === "--isolation") { o.isolation = v; i++; } else if (a === "--name") { o.name = v; i++; }
     else if (a === "--host") { o.host = v; i++; } else if (a === "--no-discovery") o.discovery = false;
   }
@@ -53,6 +55,7 @@ export async function startNode(opts) {
   if (!state.keys) state.keys = await generateKeys();
   // A powered-off node never claims a job is still running.
   for (const j of Object.values(state.jobs)) if (j.status === "running") { j.status = "lost"; j.endedAt = Date.now(); }
+  for (const t of state.tunnels) if (t.status === "open") { t.status = "nodo reiniciado"; t.closedAt = Date.now(); }
   // Serialized atomic writes: concurrent requests never interleave temp files.
   let saving = Promise.resolve();
   const save = () => (saving = saving.catch(() => {}).then(async () => { const tmp = `${statePath}.${randomUUID()}.tmp`; await fsp.writeFile(tmp, JSON.stringify(state), { mode: 0o600 }); await fsp.rename(tmp, statePath); }));
@@ -175,14 +178,41 @@ export async function startNode(opts) {
     });
     await new Promise((res, rej) => { srv.once("error", rej); srv.listen(0, cfg.host, res); });
     const t = { id, deviceId, target, port: srv.address().port, expiresAt: Date.now() + ttl, openedAt: Date.now(), allowedIp: peerIp, status: "open" };
-    servers.set(id, { srv, log, timer: setTimeout(() => closeTunnel(id, "expirado"), ttl) });
+    servers.set(id, { close: () => srv.close(), log, timer: setTimeout(() => closeTunnel(id, "expirado"), ttl) });
     state.tunnels.push(t); await save(); audit({ kind: "tunnel.open", ...t });
     return t;
   };
-  const closeTunnel = async (id, why = "cerrado") => {
-    const s = servers.get(id); const t = state.tunnels.find((x) => x.id === id); if (!t) return false;
-    if (s) { clearTimeout(s.timer); s.srv.close(); servers.delete(id); }
+  const closeTunnel = async (id, why = "cerrado", deviceId) => {
+    const s = servers.get(id); const t = state.tunnels.find((x) => x.id === id); if (!t || (deviceId && t.deviceId !== deviceId)) return false;
+    if (s) { clearTimeout(s.timer); await s.close(); servers.delete(id); }
     t.status = why; t.closedAt = Date.now(); await save(); audit({ kind: "tunnel.close", id, why }); return true;
+  };
+
+  // ---------- SOCKS5 and split VPN: same rules (phone IP, allowlist, TTL, audit) ----------
+  const cidrs = cfg.vpnSubnets.map(parseCidr).filter(Boolean);
+  const allowDest = (h, port) => cfg.allowTargets.includes(`${h}:${port}`) || (ipToInt(h) !== null && inCidrs(h, cidrs));
+  const ttlOf = (ms) => Math.min(Math.max(Number(ms) || 600_000, 10_000), 2 * 3600_000);
+  const register = async (deviceId, peerIp, kind, target, handle, extra) => {
+    const id = randomUUID(), ttl = ttlOf(extra.ttlMs), log = handle.log;
+    const t = { id, deviceId, kind, target, port: handle.port, expiresAt: Date.now() + ttl, openedAt: Date.now(), allowedIp: peerIp, status: "open" };
+    servers.set(id, { close: handle.close, log, timer: setTimeout(() => closeTunnel(id, "expirado"), ttl) });
+    state.tunnels.push(t); await save(); audit({ kind: `${kind}.open`, ...t }); return t;
+  };
+  const openSocks = async (deviceId, peerIp, p) => {
+    if (!cfg.allowTargets.length && !cidrs.length) throw new Error("Este nodo no tiene destinos permitidos (--allow-target o --vpn-subnet)");
+    const log = [], user = randomBytes(9).toString("base64url"), pass = randomBytes(18).toString("base64url");
+    const h = await startSocks({ host: cfg.host, peerIp, user, pass, allow: allowDest, onLog: (e) => { log.push({ at: Date.now(), ...e }); if (log.length > 200) log.shift(); audit({ kind: "socks.event", ...e }); } });
+    const t = await register(deviceId, peerIp, "socks5", "lista permitida", { ...h, log }, p);
+    return { ...t, user, pass, allowed: [...cfg.allowTargets, ...cidrs.map((c) => c.text)] };
+  };
+  const openVpn = async (deviceId, peerIp, p) => {
+    if (!cidrs.length) throw new Error("Este nodo no comparte subredes para VPN (--vpn-subnet)");
+    const wanted = (Array.isArray(p.subnets) ? p.subnets : []).map(parseCidr);
+    if (!wanted.length || wanted.some((w) => !w || !cidrs.some((c) => c.text === w.text))) throw new Error("Subred no compartida por este nodo");
+    const log = [], key = randomBytes(32);
+    const h = await startVpn({ host: cfg.host, peerIp, key, cidrs: wanted, onLog: (e) => { log.push({ at: Date.now(), ...e }); if (log.length > 200) log.shift(); audit({ kind: "vpn.event", ...e }); } });
+    const t = await register(deviceId, peerIp, "vpn", wanted.map((w) => w.text).join(","), { ...h, log }, p);
+    return { ...t, key: key.toString("base64"), subnets: wanted.map((w) => w.text) };
   };
 
   const methods = {
@@ -228,7 +258,10 @@ export async function startNode(opts) {
     "job.list": async (d, p) => Object.values(state.jobs).filter((j) => j.deviceId === d && (!p.projectId || j.projectId === p.projectId)).map(({ output, ...j }) => j),
     "job.cancel": async (d, p) => { const j = state.jobs[p.jobId]; if (!j || j.deviceId !== d) throw new Error("Trabajo inexistente"); const ok = kill(p.jobId, "cancel"); await save(); return { cancelled: ok }; },
     "tunnel.open": async (d, p, ip) => openTunnel(d, ip, p),
-    "tunnel.close": async (d, p) => ({ closed: await closeTunnel(p.tunnelId) }),
+    "socks.open": async (d, p, ip) => openSocks(d, ip, p),
+    "vpn.open": async (d, p, ip) => openVpn(d, ip, p),
+    "vpn.subnets": async () => cidrs.map((c) => c.text),
+    "tunnel.close": async (d, p) => ({ closed: await closeTunnel(p.tunnelId, "cerrado", d) }),
     "tunnel.list": async (d) => state.tunnels.filter((t) => t.deviceId === d).map((t) => ({ ...t, log: servers.get(t.id)?.log ?? [] })),
     "device.revokeSelf": async (d) => { state.devices[d].revoked = true; keyCache.delete(d); for (const t of state.tunnels) if (t.deviceId === d && t.status === "open") await closeTunnel(t.id, "revocado"); await save(); return { revoked: true }; },
   };
@@ -298,6 +331,7 @@ if (isMain) {
   console.log(`Huella: ${n.fingerprint}   Direcciones: ${lan.join(", ")}`);
   console.log(`Código de emparejamiento (10 min): ${code}`);
   console.log(`Contenido QR: ${JSON.stringify({ miai: "pc-node", hosts: lan, port: n.port, fingerprint: n.fingerprint, code })}`);
+  console.log(`Subredes VPN: ${cfg.vpnSubnets.join(", ") || "ninguna"}`);
   console.log(`Toolchains: ${Object.keys(n.toolchains).join(", ") || "ninguno detectado"}`);
   process.stdin.on("data", (d) => { if (String(d).trim() === "codigo") console.log(`Nuevo código: ${n.newPairingCode()}`); });
   for (const s of ["SIGINT", "SIGTERM"]) process.on(s, async () => { await n.close(); process.exit(0); });

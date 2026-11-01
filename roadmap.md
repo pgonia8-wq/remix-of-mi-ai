@@ -160,6 +160,6 @@
 - [x] Memoria de trabajo persistente; recuperación sin repetir; pausar/reanudar/detener; disparadores solo de revisión
 - [x] AI Builder, calidad/evidencias, inteligencia de repositorios, entrega con hashes
 - [x] PC Node (servicio), almacenamiento privado, túneles de desarrollo, orquestador de recursos; pantalla «Sistema autónomo»
-- [ ] SSH local/inverso, SOCKS5, VPN — bloqueado: requiere plugin nativo (bloque 5)
-- [ ] Validación con proveedor real, Android físico, PC Windows/macOS, Docker, commit/push Git — bloqueado: dispositivo, claves y equipos de Fer
+- [x] SSH local/inverso, SOCKS5 (PC y SSH), VPN dividida — código listo; prueba nativa en el bloque 5
+- [ ] Validación con proveedor real, Android físico, PC Windows/macOS, Docker, commit/push Git, túneles SSH/VPN nativos — bloqueado: dispositivo, claves y equipos de Fer
 - [ ] Bloque 5: APK final

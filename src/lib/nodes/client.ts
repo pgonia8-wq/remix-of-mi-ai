@@ -62,7 +62,9 @@ export const nodes = {
   async revoke(repo: Repo, id: string) {
     try { await rpc(repo, id, "device.revokeSelf", {}); } catch { /* offline: local revocation still applies */ }
     await repo.sql.run("UPDATE pc_nodes SET revoked=1, status='revoked', device_key_enc='' WHERE id=?", [id]);
+    const vpnOpen = await repo.sql.all<{ id: string }>("SELECT id FROM tunnels WHERE node_id=? AND kind='vpn' AND status='open'", [id]);
     await repo.sql.run("UPDATE tunnels SET status='revocado', closed_at=? WHERE node_id=? AND status='open'", [Date.now(), id]);
+    if (vpnOpen.length) await import("./tunnels").then((m) => m.stopNativeVpn()).catch(() => undefined);
   },
 };
 
