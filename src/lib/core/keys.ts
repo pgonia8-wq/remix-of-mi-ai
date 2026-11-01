@@ -112,7 +112,10 @@ export class KeyRing {
   /** Called at startup: a rotation interrupted by a crash is completed, never left half-applied. */
   async resumeRotation() {
     const [pending] = await this.db.all<{ id: number }>(`SELECT id FROM key_versions WHERE status='rotating' ORDER BY id DESC LIMIT 1`);
-    return pending ? this.finishRotation(pending.id) : null;
+    if (pending) return this.finishRotation(pending.id);
+    const cur = await this.current();
+    const [left] = await this.db.all<{ c: number }>(`SELECT COUNT(*) AS c FROM assets WHERE key_id<>?`, [cur]);
+    return left && left.c > 0 ? this.finishRotation(cur) : null;
   }
   async finishRotation(next: number) {
     const rows = await this.db.all<{ id: string; project_id: string; key_id: number; wrapped_dek: string }>(`SELECT id, project_id, key_id, wrapped_dek FROM assets WHERE key_id<>?`, [next]);
