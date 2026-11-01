@@ -288,7 +288,7 @@ describe("D · PC Node real", () => {
     const id = await paired(), p = (await repo.createProject("P")).id;
     const ok = await rpc<{ jobId: string }>(repo, id, "job.start", { argv: ["node", "-e", "console.log(6*7)"], projectId: p, rootIndex: 0 });
     let st: any; for (let i = 0; i < 50; i++) { st = await rpc(repo, id, "job.status", { jobId: ok.jobId }); if (st.status !== "running") break; await new Promise((r) => setTimeout(r, 100)); }
-    expect(st.status).toBe("succeeded"); expect(st.output.trim()).toBe("42");
+    expect(st.output.trim()).toBe("42"); expect(st.status).toBe("succeeded");
     await expect(rpc(repo, id, "job.start", { argv: ["rm", "-rf", "/"], projectId: p })).rejects.toThrow(/no permitida|no instalada/);
     const long = await rpc<{ jobId: string }>(repo, id, "job.start", { argv: ["node", "-e", "setTimeout(()=>{},60000)"], projectId: p });
     expect(await rpc(repo, id, "job.cancel", { jobId: long.jobId })).toEqual({ cancelled: true });
