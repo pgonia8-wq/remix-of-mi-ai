@@ -110,6 +110,6 @@ export async function startRealtime(core: Core, projectId: string, model: ModelW
     const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
     const res = await call(ep.calls, { method: "POST", headers: { authorization: `Bearer ${ephemeral}`, "content-type": "application/sdp" }, body: offer.sdp ?? "" }, ephemeral, 20_000);
     await pc.setRemoteDescription({ type: "answer", sdp: await res.text() });
-    return { stop, interrupt: () => { send({ type: "response.cancel" }); send({ type: "output_audio_buffer.clear" }); }, mute: (muted: boolean) => media?.getAudioTracks().forEach((t) => { t.enabled = !muted; }), simulateEvent: (data: unknown) => dc.onmessage?.({ data: JSON.stringify(data) } as MessageEvent) };
+    return { stop, interrupt: () => { send({ type: "response.cancel" }); send({ type: "output_audio_buffer.clear" }); }, mute: (muted: boolean) => media?.getAudioTracks().forEach((t) => { t.enabled = !muted; }) };
   } catch (e) { stop(); throw e; }
 }
