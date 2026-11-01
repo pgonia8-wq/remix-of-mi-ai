@@ -32,3 +32,4 @@
 - GLB previews dynamically load Three.js after mount and block external GLB resources. Why: native/browser SSR safety and preventing untrusted model files from fetching external data.
 - Chat attachments use AssetStore encrypted originals and Repo project-scoped message links; images use provider-native multimodal payloads only for models declaring vision. Why: chat files must survive reload without crossing projects or silently dropping images.
 - Shared navigation uses a desktop sidebar and accessible mobile drawer with a full-height chat area; safe Markdown excludes raw HTML. Why: broad tools stay discoverable without shrinking conversations or executing model-generated markup.
+- Audio edits use deterministic PCM/WAV processing; video export uses pinned Android Media3 with private transient cache cleared after completion/error and startup. Why: real local media engines must preserve encrypted originals and never expose a shell.
