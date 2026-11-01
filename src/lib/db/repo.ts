@@ -12,6 +12,7 @@ export interface KeyVault {
 }
 
 export type Project = { id: string; name: string; description: string | null; created_at: number };
+export const DEFAULT_CONTEXT_MESSAGES = 20;
 export type Chat = { id: string; project_id: string; title: string; provider_id: string | null; model: string | null; created_at: number; updated_at: number };
 export type Message = { id: string; project_id: string; chat_id: string; role: "user" | "assistant" | "system"; content: string; provider_id: string | null; model: string | null; created_at: number };
 export type MemoryKind = "hecho" | "decision" | "hipotesis";
