@@ -16,7 +16,7 @@ describe("máscaras solo a proveedores compatibles", () => {
 });
 
 describe("investigación: direcciones privadas", () => {
-  it.each(["https://100.64.0.1/x", "https://[::ffff:127.0.0.1]/", "https://2130706433/", "https://0x7f000001/", "https://intranet/", "https://010.0.0.1/"])("rechaza %s", (u) => {
+  it.each(["https://100.64.0.1/x", "https://[::ffff:127.0.0.1]/", "https://2130706433/", "https://0x7f000001/", "https://intranet/", "https://0177.0.0.1/"])("rechaza %s", (u) => {
     expect(isSafeSourceUrl(u)).toBe(false);
   });
   it("acepta página pública", () => { expect(isSafeSourceUrl("https://es.wikipedia.org/wiki/Sol")).toBe(true); });

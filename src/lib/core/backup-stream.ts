@@ -159,13 +159,12 @@ export async function recoverInterruptedRestores(repo: Repo, fs: BlobBackend) {
 export function linesOf(text: string) { return text.split("\n"); }
 
 /** Reads a backup file line by line without loading it whole (Blob.stream + incremental decoding). */
-export async function* linesOfBlob(blob: Blob): AsyncGenerator<string> {
-  const reader = blob.stream().getReader();
+export async function* linesOfBlob(blob: Blob, chunk = 1 << 20): AsyncGenerator<string> {
   const dec = new TextDecoder(); let buf = "";
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true });
+  const readSlice = async (b: Blob): Promise<Uint8Array> => typeof b.arrayBuffer === "function" ? new Uint8Array(await b.arrayBuffer())
+    : new Uint8Array(await new Promise<ArrayBuffer>((ok, ko) => { const r = new FileReader(); r.onload = () => ok(r.result as ArrayBuffer); r.onerror = () => ko(r.error); r.readAsArrayBuffer(b); }));
+  for (let o = 0; o < blob.size; o += chunk) {
+    buf += dec.decode(await readSlice(blob.slice(o, o + chunk)), { stream: true });
     let nl: number;
     while ((nl = buf.indexOf("\n")) >= 0) { yield buf.slice(0, nl); buf = buf.slice(nl + 1); }
   }
