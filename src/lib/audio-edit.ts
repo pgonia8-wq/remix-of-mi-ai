@@ -16,9 +16,16 @@ export function editPcm(source: PcmAudio, edit: AudioEdit): PcmAudio {
   }
   return { sampleRate: source.sampleRate, channels };
 }
-export function mixPcm(tracks: { audio: PcmAudio; offset: number; gain: number }[]): PcmAudio {
-  if (!tracks.length || tracks.length > 4) throw new Error("Elige entre una y cuatro pistas.");
-  const sampleRate = tracks[0]?.audio.sampleRate; if (!sampleRate) throw new Error("Audio vacío");
+/** Linear resampling so tracks recorded at different rates (44.1 kHz / 48 kHz) can be mixed. */
+export function resamplePcm(a: PcmAudio, rate: number): PcmAudio {
+  if (a.sampleRate === rate) return a;
+  const ratio = a.sampleRate / rate;
+  return { sampleRate: rate, channels: a.channels.map((ch) => { const n = Math.floor(ch.length / ratio), out = new Float32Array(n); for (let i = 0; i < n; i++) { const x = i * ratio, k = Math.floor(x), f = x - k; out[i] = (ch[k] ?? 0) * (1 - f) + (ch[k + 1] ?? ch[k] ?? 0) * f; } return out; }) };
+}
+export function mixPcm(input: { audio: PcmAudio; offset: number; gain: number }[]): PcmAudio {
+  if (!input.length || input.length > 4) throw new Error("Elige entre una y cuatro pistas.");
+  const sampleRate = input[0]?.audio.sampleRate; if (!sampleRate) throw new Error("Audio vacío");
+  const tracks = input.map((t) => ({ ...t, audio: resamplePcm(t.audio, sampleRate) }));
   if (tracks.some((t) => t.audio.sampleRate !== sampleRate || !Number.isFinite(t.offset) || t.offset < 0 || !Number.isFinite(t.gain) || t.gain < 0 || t.gain > 4 || !t.audio.channels[0])) throw new Error("Frecuencia, tiempo o volumen no válido.");
   const length = Math.max(...tracks.map((t) => Math.round(t.offset * sampleRate) + (t.audio.channels[0]?.length ?? 0)));
   if (length > sampleRate * 600) throw new Error("Máximo diez minutos para mezcla local.");
