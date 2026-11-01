@@ -13,7 +13,7 @@ export function buildCad(doc:CadDocument):Map<string,Solid>{
    case 'union':case 'subtract':case 'intersect':{if(f.refs.length<2||f.refs.length>16)throw new Error('Elige dos sólidos anteriores.');const inputs=f.refs.map(id=>{const item=solids.get(id);if(!item)throw new Error('Referencia CAD inexistente o circular.');return item;});s=modeling.booleans[f.kind](...inputs);break;}
    default:throw new Error('Operación CAD desconocida.');
   }
-  s=modeling.transforms.scale(f.scale,s);s=modeling.transforms.rotate(f.rotation.map(d=>d*Math.PI/180),s);s=modeling.transforms.translate(f.position,s);solids.set(f.id,s);
+  s=modeling.transforms.scale(f.scale,s);s=modeling.transforms.rotate([f.rotation[0]*Math.PI/180,f.rotation[1]*Math.PI/180,f.rotation[2]*Math.PI/180],s);s=modeling.transforms.translate(f.position,s);solids.set(f.id,s);
  }
  return solids;
 }

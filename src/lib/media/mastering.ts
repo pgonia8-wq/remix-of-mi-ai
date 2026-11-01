@@ -14,8 +14,8 @@ export function limitPcm(a:PcmAudio, ceilingDb:number, lookaheadMs:number):PcmAu
   if(!len || !Number.isFinite(ceilingDb) || ceilingDb>0 || ceilingDb< -12 || !Number.isFinite(lookaheadMs) || lookaheadMs<1 || lookaheadMs>20) throw new Error('Limitador inválido.');
   const ceiling=10**(ceilingDb/20),ahead=Math.ceil(a.sampleRate*lookaheadMs/1000), peaks=new Float32Array(len);
   for(let i=0;i<len;i++) for(const ch of a.channels) peaks[i]=Math.max(peaks[i]??0,Math.abs(ch[i]??0));
-  const queue:number[]=[], maxima=new Float32Array(len); let head=0;
-  for(let i=len-1;i>=0;i--){while(queue.length>head && (queue[queue.length-1]??0)>i+ahead) queue.pop(); while(queue.length>head && (peaks[queue[queue.length-1]??0]??0)<=(peaks[i]??0)) queue.pop(); queue.push(i); while((queue[head]??0)>i+ahead)head++; maxima[i]=peaks[queue[head]??i]??0;}
+  const queue:number[]=[], maxima=new Float32Array(len); let head=0, next=0;
+  for(let i=0;i<len;i++){while(next<len && next<=i+ahead){while(queue.length>head && (peaks[queue[queue.length-1]??0]??0)<=(peaks[next]??0))queue.pop();queue.push(next++);}while(head<queue.length && (queue[head]??0)<i)head++;maxima[i]=peaks[queue[head]??i]??0;}
   let gain=1; const release=Math.exp(-1/(0.08*a.sampleRate)), gains=new Float32Array(len);
   for(let i=0;i<len;i++){const wanted=Math.min(1,ceiling/Math.max(ceiling,maxima[i]??0));gain=wanted<gain?wanted:wanted+(gain-wanted)*release;gains[i]=gain;}
   return {sampleRate:a.sampleRate,channels:a.channels.map(ch=>Float32Array.from(ch,(v,i)=>Math.max(-ceiling,Math.min(ceiling,v*(gains[i]??1)))))};

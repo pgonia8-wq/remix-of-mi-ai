@@ -1,6 +1,7 @@
 # PC Node service rules
 
 - Standalone Node 20+ with zero dependencies; must run on Windows, Linux and macOS. Why: installable on any PC without the app's toolchain.
+- Media sessions bind device and project; fixed FFmpeg/Demucs argv only, Demucs requires an explicit local model repository, chunk transfers are bounded and temporary files are removed after collection/cancellation. Why: heavy optional engines never become a silent network download or arbitrary path bridge.
 - Only folders passed with `--share` are reachable, one `miai/<projectId>` subfolder per project; reject absolute paths, `..` and symlinks. Why: whole-disk access never exists.
 - Processes: argv only (no shell), binary must be a detected toolchain, scrubbed env, project cwd. Docker mode adds no-network/memory/CPU caps; process mode caps CPU time and file size only and reports that honestly. Why: never claim isolation that is not there.
 - Git: reject `-c`, `--config-env`, `-C`, `--exec-path`; remote subcommands need `remoteApproved`. Why: config/alias injection runs arbitrary commands.
