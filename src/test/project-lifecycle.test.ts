@@ -18,7 +18,7 @@ it("duplica chats, mensajes y memoria en un proyecto nuevo e independiente", asy
   const b = await repo.duplicateProject(a.id);
   expect(b.name).toBe("A (copia)");
   const chats = await repo.listChats(b.id); expect(chats).toHaveLength(1);
-  expect((await repo.listMessages(b.id, chats[0].id)).map((m) => m.content)).toEqual(["hola"]);
+  expect((await repo.listMessages(b.id, chats[0]!.id)).map((m) => m.content)).toEqual(["hola"]);
   expect((await repo.listMemory(b.id)).map((m) => m.content)).toEqual(["dato"]);
   await repo.deleteProject(a.id); expect(await repo.listChats(b.id)).toHaveLength(1);
 });
