@@ -172,7 +172,7 @@ function ChatPage() {
           value={contextLimit}
           onChange={(e) => { const n = Number(e.target.value); void mutate((r) => r.setChatContextLimit(pid, chatId, n)).then(() => toast.success(n === 0 ? "Contexto: todos los mensajes" : `Contexto: últimos ${n} mensajes`)); }}
         >
-          {[...new Set([4, 10, 20, 50, 100, 200, 500, 1000, 1500, contextLimit])].filter((n) => n > 0).sort((a, b) => a - b).map((n) => <option key={n} value={n}>Contexto: {n} mensajes</option>)}
+          {[...new Set([4, 10, 20, 50, 100, 200, 500, 1000, 1500, contextLimit])].filter((n) => n > 0).sort((a, b) => a - b).map((n) => <option key={n} value={n}>Contexto: {n}</option>)}
           <option value={0}>Contexto: ilimitado</option>
         </select>
       </div>
