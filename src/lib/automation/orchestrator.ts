@@ -71,7 +71,7 @@ export const realModel: ModelCall = async ({ core, projectId, prompt, tools }) =
     return { text: j.content ?? "", model: native.model.name };
   }
   const d = route(models, { capability: "chat", mode: "auto" });
-  if (!d.ok) throw new Error(d.reason);
+  if (!d.ok) throw new NoRequestSent(d.reason);
   const r = await execute(core, projectId, d.model, { capability: "chat", prompt });
   return { text: r.text ?? "", model: d.model.name };
 };
@@ -135,12 +135,19 @@ async function think(core: Core, p: string, run: AutoRun, role: Role, prompt: st
   if (limits.maxUsd !== null && fresh.spent_usd >= limits.maxUsd) throw new LimitHit("Presupuesto de la ejecución agotado.");
   // Consumption is persisted before the call so a crash cannot restore budget.
   await core.repo.sql.run("UPDATE auto_runs SET calls=calls+1, tokens=tokens+?, updated_at=? WHERE id=?", [Math.ceil(prompt.length / 4), now(), run.id]);
-  const out = await model({ core, projectId: p, role, prompt, tools });
+  let out: Awaited<ReturnType<ModelCall>>;
+  try { out = await model({ core, projectId: p, role, prompt, tools }); }
+  catch (e) {
+    // Nothing left the phone (no compatible model, budget refusal): undo the pre-counted consumption.
+    if (e instanceof NoRequestSent || (e instanceof Error && e.name === "BudgetError")) await core.repo.sql.run("UPDATE auto_runs SET calls=calls-1, tokens=MAX(0, tokens-?) WHERE id=?", [Math.ceil(prompt.length / 4), run.id]);
+    throw e;
+  }
   await core.repo.sql.run("UPDATE auto_runs SET tokens=tokens+? WHERE id=?", [Math.ceil(out.text.length / 4), run.id]);
   await core.repo.sql.run("INSERT INTO auto_observations VALUES (?,?,?,?,?,'model',NULL,?,?,0,NULL,?,0,?)", [crypto.randomUUID(), p, run.id, null, role, prompt.slice(0, 500), (out.text || JSON.stringify(out.native)).slice(0, 2000), Math.ceil((prompt.length + out.text.length) / 4), now()]);
   return out;
 }
 class LimitHit extends Error {}
+export class NoRequestSent extends Error {}
 
 function toolsHelp(ids: string[]) {
   return ids.map((id) => getTool(id)).filter((t): t is ToolDef => !!t).map((t) => `- ${t.id}: ${t.description}${t.approval === "always" ? " (requiere aprobación humana)" : ""}`).join("\n");
