@@ -7,6 +7,7 @@ import { embeddingBody, embeddingInputs, parseEmbeddings } from "./embeddings";
 import { OPENAI_VOICES, parseSpeech, parseTranscript, speechBody, transcriptionForm } from "./audio";
 import { derivedEdit, chatViaLegacy, editForm, imageBody, parseImages } from "./openai";
 import { sync, trimSlash, type AdapterCredentials, type ProviderAdapter } from "./types";
+import { toolCallBody, parseToolCalls } from "./tool-calls";
 import { azureVideoSupport, runAzureVideo, pollAzureVideo } from "./azure-video";
 
 export function azureUrl(c: AdapterCredentials, deployment: string, op: "images/generations" | "images/edits" | "chat/completions" | "audio/speech" | "audio/transcriptions" | "audio/translations" | "embeddings"): { url: string; v1: boolean } {
@@ -25,7 +26,7 @@ export function azureUrl(c: AdapterCredentials, deployment: string, op: "images/
 export const azureAdapter: ProviderAdapter = {
   id: "azure_openai",
   label: "Azure OpenAI",
-  operations: { chat: sync(), vision: sync(), "image.generate": sync(), "image.edit": sync(), "image.upscale": sync(), "image.remove_bg": sync(), "audio.tts": sync(), "audio.transcribe": sync(), "audio.translate": sync(), embedding: sync(), "video.generate": azureVideoSupport },
+  operations: { chat: sync(), "chat.tools": sync(), vision: sync(), "image.generate": sync(), "image.edit": sync(), "image.upscale": sync(), "image.remove_bg": sync(), "audio.tts": sync(), "audio.transcribe": sync(), "audio.translate": sync(), embedding: sync(), "video.generate": azureVideoSupport },
   async listVoices() { return OPENAI_VOICES.map((v) => ({ id: v, name: v })); },
   supports(cap) { return cap in this.operations; },
   async run(c, r) {
@@ -47,6 +48,11 @@ export const azureAdapter: ProviderAdapter = {
     if (r.capability === "embedding") {
       const { url, v1 } = azureUrl(c, deployment, "embeddings");
       return parseEmbeddings(await (await call(url, { method: "POST", headers: { "api-key": key, "content-type": "application/json" }, body: JSON.stringify(embeddingBody({ ...r, model: deployment }, v1)), signal: r.signal ?? null }, key)).json(), embeddingInputs(r).length);
+    }
+    if (r.capability === "chat.tools") {
+      const { url, v1 } = azureUrl(c, deployment, "chat/completions");
+      const res = await call(url, { method: "POST", headers: { "api-key": key, "content-type": "application/json" }, body: JSON.stringify(toolCallBody({ ...r, model: deployment }, v1)), signal: r.signal ?? null }, key);
+      return { kind: "text", text: parseToolCalls(await res.json()) };
     }
     if (r.capability === "vision") {
       const { url, v1 } = azureUrl(c, deployment, "chat/completions");

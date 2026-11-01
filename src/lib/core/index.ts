@@ -80,6 +80,10 @@ export function getCore(): Promise<Core> {
         return !!p && !!getAdapter(p.adapter).poll;
       });
       await runs.recover(repo);
+      const { recoverAutonomy } = await import("../automation/orchestrator");
+      await recoverAutonomy(repo);
+      const { nativeTransportIfAvailable } = await import("../nodes/client");
+      await nativeTransportIfAvailable().catch(() => undefined);
       await syncNativeSchedules(repo);
       const core: Core = { repo, jobs, assets, keys, files, device, profile, startup: { ...clean, ...rec, restoresRolledBack } };
       Object.defineProperty(core, "profile", { get: () => profile, set: (p: PerfProfile) => { profile = p; } });

@@ -28,6 +28,7 @@ const base = (id: string, label: string, inputs: string[], outputs: string[], o:
 export const INITIAL_CAPABILITIES: CapabilitySpec[] = [
   base("chat", "Chat", ["text"], ["text"], { params: { temperature: { type: "number", min: 0, max: 2 } } }),
   base("reasoning", "Razonamiento", ["text"], ["text"]),
+  base("chat.tools", "Llamadas nativas a herramientas", ["text"], ["text"], { restrictions: ["Solo modelos verificados que declaren tool calling"] }),
   base("vision", "Visión", ["text", "image"], ["text"], { mimeIn: ["image/png", "image/jpeg", "image/webp"], maxInputBytes: 20_000_000 }),
   base("research.web", "Buscar en internet", ["text"], ["text"], { restrictions: ["Cita siempre las fuentes"] }),
   base("document.analyze", "Análisis de documentos", ["document", "text"], ["text"], { mimeIn: ["application/pdf", "text/plain", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "text/csv"] }),

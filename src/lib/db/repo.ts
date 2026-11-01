@@ -4,6 +4,7 @@ import { SCHEMA_V3, PROJECT_TABLES_V3 } from "../core/schema-v3";
 import { Registry } from "../core/registry";
 import type { ChatAttachment } from "../chat-attachments";
 import { exclusive } from "../core/operation-lock";
+import { SCHEMA_B4, PROJECT_TABLES_B4 } from "../automation/schema-b4";
 
 export interface KeyVault {
   encrypt(plain: string): Promise<string>;
@@ -58,6 +59,9 @@ export class Repo {
 
   readonly registry: Registry;
   get sql(): SqlDb { return this.db; }
+  /** Seals device-level secrets (PC Node keys) with the Keystore-backed vault; never stored in plaintext. */
+  sealSecret(plain: string) { return this.vault.encrypt(plain); }
+  openSecret(cipher: string) { return this.vault.decrypt(cipher); }
 
   async saveConnectionSecret(projectId: string, id: string, secret: string) {
     need(projectId);
@@ -79,6 +83,7 @@ export class Repo {
     await this.db.run(`CREATE TABLE IF NOT EXISTS cost_ledger (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, provider_id TEXT, model TEXT, operation TEXT NOT NULL, amount_usd REAL NOT NULL, estimated INTEGER NOT NULL, created_at INTEGER NOT NULL)`);
     await this.db.run(`CREATE TABLE IF NOT EXISTS model_prices (model TEXT PRIMARY KEY, input_per_mtok REAL, output_per_mtok REAL, per_image REAL, per_second REAL, per_call REAL, updated_at INTEGER NOT NULL)`);
     await this.db.run(`CREATE TABLE IF NOT EXISTS restore_journal (id TEXT PRIMARY KEY, kind TEXT NOT NULL, state TEXT NOT NULL, detail TEXT, updated_at INTEGER NOT NULL)`);
+    for (const s of SCHEMA_B4) await this.db.run(s);
     await this.registry.seedCapabilities();
     await this.registry.syncLegacyProviders();
   }
@@ -126,7 +131,7 @@ export class Repo {
     await this.db.run(`UPDATE projects SET name=?, description=? WHERE id=?`, [name, description, id]);
   }
   async deleteProject(id: string) {
-    for (const t of ["cost_ledger", "project_budgets", "messages", "chats", "memory_versions", "memory_items", "documents", ...PROJECT_TABLES_V3])
+    for (const t of ["cost_ledger", "project_budgets", "messages", "chats", "memory_versions", "memory_items", "documents", ...PROJECT_TABLES_V3, ...PROJECT_TABLES_B4])
       await this.db.run(`DELETE FROM ${t} WHERE project_id=?`, [id]);
     await this.db.run(`DELETE FROM projects WHERE id=?`, [id]);
   }
