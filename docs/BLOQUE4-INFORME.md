@@ -24,7 +24,10 @@ Detectados en tiempo real en cada PC. En este entorno: node, npm, npx, python3, 
 ## 8–11. Estado
 - **PC Node**: servicio funcional; emparejamiento, cifrado, antirrepetición, recursos, procesos, cancelación, desconexión, recuperación (trabajos → «lost»), túneles: **probado** con proceso real en loopback y desde la vista previa. Descubrimiento UDP: implementado en el nodo; el teléfono usa QR/código (WebView sin UDP).
 - **Almacenamiento privado**: carpetas explícitas, aislamiento, hashes, conflictos, versiones, cuotas, estado sin conexión: **probado**.
-- **Tunnel Manager**: túnel de desarrollo LAN con destinos permitidos, TTL, registro, revocación, reconexión con política: **probado**. SSH local/inverso, SOCKS5, VPN: **pendiente** (requiere plugin nativo).
+- **Tunnel Manager** (6 tipos, todos con destinos permitidos, TTL, registro, cierre al revocar/borrar proyecto, sin reapertura automática tras reiniciar):
+  - Desarrollo LAN y **SOCKS5 en la PC**: **probados** con tráfico real (credenciales de un solo uso, destinos denegados).
+  - **VPN dividida**: servidor del PC Node **probado** con un cliente de prueba que habla el mismo protocolo cifrado (TCP de punta a punta, rechazo fuera de subred). Servicio Android `MiaiVpnService`: escrito, **pendiente** de compilar y probar en el teléfono.
+  - **SSH reenvío local, inverso y SOCKS5 sobre SSH** (`MiaiTunnelPlugin`, JSch): lógica de la app **probada** con plugin simulado; nativo escrito, **pendiente** de compilar y probar en el teléfono con un servidor real.
 - **Resource Orchestrator**: selección determinista y conmutación: **probado** (lógica).
 
 ## 12. Migraciones
