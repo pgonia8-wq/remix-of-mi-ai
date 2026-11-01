@@ -334,6 +334,8 @@ export class Repo {
     const enc = input.apiKey ? await this.vault.encrypt(input.apiKey) : null;
     if (id) {
       await this.db.run(`DELETE FROM provider_verifications WHERE provider_id=?`, [id]);
+      // Any config change invalidates every capability test of this provider's models (endpoint/key/version fingerprint).
+      await this.db.run(`DELETE FROM capability_tests WHERE model_id IN (SELECT m.id FROM models m JOIN auth_refs a ON a.provider_id=m.provider_id WHERE a.legacy_provider_id=?)`, [id]).catch(() => undefined);
       await this.db.run(
         `UPDATE providers SET name=?, kind=?, endpoint=?, deployment=?, model=?, api_version=?, extra_params=?, enabled=? ${enc ? ", api_key_enc=?" : ""} WHERE id=?`,
         [input.name, input.kind, input.endpoint ?? null, input.deployment ?? null, input.model, input.apiVersion ?? null, input.extraParams ?? null, input.enabled === false ? 0 : 1, ...(enc ? [enc] : []), id],

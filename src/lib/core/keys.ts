@@ -71,6 +71,11 @@ export class KeyRing {
   async current(): Promise<number> {
     const [r] = await this.db.all<{ id: number }>(`SELECT id FROM key_versions WHERE status='active' ORDER BY id DESC LIMIT 1`);
     if (r) return r.id;
+    // Crash between "retire old" and "activate new": finish the pending rotation instead of recreating version 1.
+    const [rot] = await this.db.all<{ id: number }>(`SELECT id FROM key_versions WHERE status='rotating' ORDER BY id DESC LIMIT 1`);
+    if (rot) { await this.db.run(`UPDATE key_versions SET status='active' WHERE id=?`, [rot.id]); return rot.id; }
+    const [any] = await this.db.all<{ id: number }>(`SELECT id FROM key_versions ORDER BY id DESC LIMIT 1`);
+    if (any) throw new Error("No hay una llave maestra activa; se detuvo para no crear una nueva sobre datos existentes.");
     const info = await this.backend.ensure(1);
     await this.db.run(`INSERT OR IGNORE INTO key_versions (id, status, protection, created_at) VALUES (1,'active',?,?)`, [info.protection, Date.now()]);
     return 1;

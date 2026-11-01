@@ -74,6 +74,9 @@ export class AssetStore {
       if (meta.parentId) await this.relate(projectId, meta.parentId, id, "version", meta.jobId ?? null);
       return row;
     } catch (e) {
+      // Roll back the row too (e.g. relate failed after INSERT) so no metadata points at a deleted file.
+      await this.db.run(`DELETE FROM asset_relations WHERE to_id=?`, [id]).catch(() => undefined);
+      await this.db.run(`DELETE FROM assets WHERE id=? AND project_id=?`, [id, projectId]).catch(() => undefined);
       await this.fs.remove(tmp).catch(() => undefined);
       await this.fs.remove(final).catch(() => undefined);
       throw e;

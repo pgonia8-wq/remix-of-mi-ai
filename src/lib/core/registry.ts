@@ -93,7 +93,7 @@ export class Registry {
   async upsertModel(m: { providerId: string; remoteId: string; name?: string; source: RegistryModel["source"]; contextTokens?: number | null; costInfo?: string | null; privacy?: RegistryModel["privacy"] }): Promise<string> {
     const [existing] = await this.db.all<{ id: string }>(`SELECT id FROM models WHERE provider_id=? AND remote_id=?`, [m.providerId, m.remoteId]);
     if (existing) {
-      await this.db.run(`UPDATE models SET name=?, status='active', updated_at=? WHERE id=?`, [m.name ?? m.remoteId, now(), existing.id]);
+      await this.db.run(`UPDATE models SET name=?, status='active', cost_info=COALESCE(?,cost_info), privacy=COALESCE(?,privacy), context_tokens=COALESCE(?,context_tokens), updated_at=? WHERE id=?`, [m.name ?? m.remoteId, m.costInfo ?? null, m.privacy ?? null, m.contextTokens ?? null, now(), existing.id]);
       return existing.id;
     }
     const id = uid();
@@ -120,7 +120,9 @@ export class Registry {
     await this.db.run(`DELETE FROM models WHERE id=?`, [modelId]);
   }
   /** Catalog import: ids present upstream become active; previously imported ids that vanished are marked retired. */
-  async applyImport(providerId: string, remoteIds: string[]) {
+  async applyImport(providerId: string, remoteIds: string[], opts: { complete: boolean } = { complete: true }) {
+    // Only a complete (non-paginated, non-empty) catalog may retire models; a partial answer never removes anything.
+    if (!opts.complete || !remoteIds.length) { for (const r of remoteIds) await this.upsertModel({ providerId, remoteId: r, source: "import" }); return { added: remoteIds.length, retired: 0 }; }
     const seen = new Set(remoteIds);
     for (const r of remoteIds) await this.upsertModel({ providerId, remoteId: r, source: "import" });
     const imported = await this.db.all<{ id: string; remote_id: string }>(`SELECT id, remote_id FROM models WHERE provider_id=? AND source='import'`, [providerId]);

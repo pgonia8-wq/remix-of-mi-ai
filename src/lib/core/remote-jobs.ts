@@ -33,7 +33,8 @@ export async function pollRemoteJob(core: Core, projectId: string, id: string) {
     const meta = JSON.parse(j.params ?? "{}") as Record<string, unknown>;
     const saved = await core.repo.sql.all<{ id: string }>("SELECT id FROM assets WHERE project_id=? AND job_id=?", [projectId, id]);
     // Recover a crash after an asset commit without registering duplicate output.
-    if (!saved.length) for (const file of result.files) {
+    // Per-output dedupe: resume after the files already committed (a crash mid multi-file save loses nothing).
+    for (const file of result.files.slice(saved.length)) {
       await core.assets.put(projectId, (async function* () { yield file.bytes; })(), {
         kind: file.mime === "model/gltf-binary" ? "model3d" : file.mime.split("/")[0] ?? "document", mime: file.mime, name: file.name,
         providerId: j.provider_id, modelId: j.model_id, capability: j.capability_id, jobId: id,
