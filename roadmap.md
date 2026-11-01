@@ -185,4 +185,4 @@
 - [x] 3D: edición de vértices, huesos, animación por keyframes y exportación GLB animada.
 - [x] Voz: Azure en tiempo real y herramientas durante la llamada vía invokeTool con aprobaciones.
 - [ ] Bloqueado (proveedor): Azure música/3D no tiene contrato público; no se inventa.
-- [ ] Compilar APK build.11 con la misma firma y entregar ZIP.
+- [x] Compilar APK build.11 con la misma firma y entregar ZIP.
