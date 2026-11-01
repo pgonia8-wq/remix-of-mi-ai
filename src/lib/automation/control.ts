@@ -12,7 +12,7 @@ export async function runUntilPause(core: Core, p: string, id: string, approved 
   if (active.has(key)) throw new Error("Orquestador ya activo");
   active.add(key);
   try {
-    let r = await advance(core, p, id, approved);
+    let r = await advance(core, p, id, approved, false, signal);
     for (let n = 0; n < 60 && r.status === "ready" && !signal?.aborted; n++) r = await advance(core, p, id, false, false, signal);
     return r;
   } finally { active.delete(key); }
