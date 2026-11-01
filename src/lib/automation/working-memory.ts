@@ -5,7 +5,7 @@ import { scrubSecrets, type Repo } from "../db/repo";
 export type MemKind = "goal" | "plan" | "decision" | "observation" | "external" | "review" | "summary" | "file";
 export type MemEntry = { id: string; project_id: string; run_id: string; kind: MemKind; content: string; created_at: number };
 const LIMIT = 24_000;
-const scrub = (s: string) => String(scrubSecrets({ detail: s }).detail);
+const scrub = (s: string) => String(scrubSecrets({ detail: s })["detail"]);
 export const workingMemory = {
   async add(repo: Repo, p: string, runId: string, kind: MemKind, content: string) {
     if (!p) throw new Error("projectId requerido");

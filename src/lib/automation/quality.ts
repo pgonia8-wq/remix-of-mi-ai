@@ -33,7 +33,7 @@ export async function runQuality(ctx: ToolCtx, kinds: CheckKind[], runJob: JobRu
   const files = list.filter((x) => !x.dir).map((x) => x.path);
   const manifests: Record<string, string> = {};
   if (files.includes("package.json")) { const r = await rpc<{ data: string }>(ctx.core.repo, ctx.nodeId!, "fs.read", { rootIndex: f.root_index, projectId: ctx.projectId, path: "package.json" }); manifests["package.json"] = new TextDecoder().decode(Uint8Array.from(atob(r.data), (c) => c.charCodeAt(0))); }
-  const info = JSON.parse((await ctx.core.repo.sql.all<{ info: string }>("SELECT info FROM pc_nodes WHERE id=?", [ctx.nodeId]))[0]?.info ?? "{}") as { toolchains?: Record<string, string> };
+  const info = JSON.parse((await ctx.core.repo.sql.all<{ info: string }>("SELECT info FROM pc_nodes WHERE id=?", [ctx.nodeId ?? ""]))[0]?.info ?? "{}") as { toolchains?: Record<string, string> };
   const checks = detectChecks(files, manifests);
   const lines: string[] = [];
   for (const kind of kinds) {

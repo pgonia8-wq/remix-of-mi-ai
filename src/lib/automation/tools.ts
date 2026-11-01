@@ -263,14 +263,14 @@ export async function invokeTool(ctx: ToolCtx, toolId: string, raw: unknown, opt
     if (!def.run) throw new ToolRejected("Sin implementación ejecutable.");
     out = await Promise.race([def.run(ctx, input), new Promise<never>((_r, rej) => setTimeout(() => rej(new ToolRejected("Tiempo máximo superado.")), def.timeoutMs))]);
   } catch (e) {
-    const msg = String(scrubSecrets({ detail: e instanceof Error ? e.message : String(e) }).detail).slice(0, 500);
+    const msg = String(scrubSecrets({ detail: e instanceof Error ? e.message : String(e) })["detail"]).slice(0, 500);
     // Definite local rejections are safe to clear; anything else with side effects stays uncertain.
     if (e instanceof ToolRejected || (!def.sideEffect && def.cost === "none")) { await repo.sql.run("DELETE FROM auto_checkpoints WHERE project_id=? AND op_key=?", [p, opts.opKey]); return reject(msg); }
     await repo.sql.run("UPDATE auto_checkpoints SET state='uncertain', detail=?, updated_at=? WHERE project_id=? AND op_key=?", [msg, Date.now(), p, opts.opKey]);
     await observe(ctx, "uncertain", toolId, input, msg, true, costUsd, Date.now() - t0);
     return { status: "review", reason: msg };
   }
-  const output = String(scrubSecrets({ detail: out.output }).detail);
+  const output = String(scrubSecrets({ detail: out.output })["detail"]);
   await repo.sql.run("UPDATE auto_checkpoints SET state='done', detail=?, updated_at=? WHERE project_id=? AND op_key=?", [output.slice(0, 20_000), Date.now(), p, opts.opKey]);
   await observe(ctx, "tool", toolId, input, output, out.trusted, out.costUsd ?? costUsd, Date.now() - t0);
   await repo.sql.run("UPDATE auto_runs SET spent_usd=spent_usd+?, unknown_cost_calls=unknown_cost_calls+?, updated_at=? WHERE project_id=? AND id=?", [costUsd ?? 0, costUsd === null && def.cost !== "none" ? 1 : 0, Date.now(), p, ctx.runId]);
@@ -280,7 +280,7 @@ export async function invokeTool(ctx: ToolCtx, toolId: string, raw: unknown, opt
 }
 async function observe(ctx: ToolCtx, kind: string, tool: string, input: unknown, output: string, trusted: boolean, cost: number | null, ms: number) {
   await ctx.core.repo.sql.run("INSERT INTO auto_observations VALUES (?,?,?,?,?,?,?,?,?,?,?,0,?,?)", [crypto.randomUUID(), ctx.projectId, ctx.runId, ctx.taskId, ctx.agent, kind, tool,
-    String(scrubSecrets({ detail: canonical(input) }).detail).slice(0, 2000), output.slice(0, 4000), trusted ? 1 : 0, cost, ms, Date.now()]);
+    String(scrubSecrets({ detail: canonical(input) })["detail"]).slice(0, 2000), output.slice(0, 4000), trusted ? 1 : 0, cost, ms, Date.now()]);
 }
 /** JSON-schema-ish description for native tool calling. */
 export function toolSchemaFor(def: ToolDef) {
