@@ -29,7 +29,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     try { const c = await mutate((r) => r.createChat(pid)); await navigate({ to: "/chat/$chatId", params: { chatId: c.id } }); setOpen(false); }
     catch { toast.error("No se pudo crear la conversación."); }
   }
-  const sidebar = <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
+  const sidebar = <div className="flex h-full flex-col glass-strong text-sidebar-foreground">
     <div className="flex h-16 shrink-0 items-center justify-between px-5"><Link to="/" onClick={() => setOpen(false)} className="flex items-center gap-2.5 font-display text-lg font-semibold"><span className="flex h-8 w-8 items-center justify-center rounded-lg brand-mark text-sm">mi</span>MI AI</Link><Button size="icon" variant="ghost" className="hidden lg:inline-flex" aria-label="Ocultar barra lateral" title="Ocultar barra lateral" onClick={() => setCollapsed(true)}><PanelLeftClose className="h-4 w-4" /></Button></div>
     <div className="space-y-3 px-3"><Button variant="outline" className="w-full justify-start gap-3 border-sidebar-border bg-sidebar-accent/40" onClick={newChat}><SquarePen className="h-4 w-4" />Nueva conversación</Button>
       <label className="flex items-center gap-2 rounded-lg bg-sidebar-accent/40 px-3 py-2"><Search className="h-4 w-4 shrink-0 text-muted-foreground" /><input aria-label="Buscar conversaciones" className="min-w-0 flex-1 bg-transparent text-sm outline-none" placeholder="Buscar" value={search} onChange={(e) => setSearch(e.target.value)} /></label>
@@ -43,11 +43,11 @@ export function AppShell({ children }: { children: ReactNode }) {
     </div>
     <div className="space-y-1 border-t border-sidebar-border p-3"><Link to="/models" onClick={() => setOpen(false)} className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-sidebar-accent"><Boxes className="h-4 w-4" />Modelos</Link><Link to="/settings" onClick={() => setOpen(false)} className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-sidebar-accent"><Settings className="h-4 w-4" />Configuración</Link><div className="flex items-center gap-2 px-3 pt-3 text-[11px] text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5 text-success" />Privado · En tu dispositivo</div></div>
   </div>;
-  return <div className="flex h-dvh w-full overflow-hidden bg-background">
+  return <div className="flex h-dvh w-full overflow-hidden app-bg">
     {!collapsed && <aside className="hidden w-64 shrink-0 border-r border-sidebar-border lg:block">{sidebar}</aside>}
     <Sheet open={open} onOpenChange={setOpen}><SheetContent side="left" className="w-[min(300px,86vw)] p-0 sm:max-w-[300px]"><SheetTitle className="sr-only">Menú MI AI</SheetTitle><SheetDescription className="sr-only">Proyectos, conversaciones, archivos y configuración</SheetDescription>{sidebar}</SheetContent></Sheet>
     <div className="flex min-w-0 flex-1 flex-col">
-      <header className="flex h-14 shrink-0 items-center gap-3 px-3 sm:px-5">
+      <header className="glass-strong flex h-14 shrink-0 items-center gap-3 border-b border-sidebar-border px-3 sm:px-5">
         <Button variant="ghost" size="icon" aria-label="Abrir menú" title="Abrir menú" className={collapsed ? "" : "lg:hidden"} onClick={() => { if (window.matchMedia("(min-width:1024px)").matches) setCollapsed(false); else setOpen(true); }}><Menu className="h-5 w-5" /></Button>
         <span className="font-display text-lg font-semibold">MI AI</span>
         <div className="relative ml-auto flex max-w-[50%] items-center gap-1"><FolderKanban className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /><select aria-label="Proyecto activo" className="min-w-0 appearance-none bg-transparent py-2 pl-1 pr-5 text-xs text-muted-foreground outline-none" value={pid ?? ""} onChange={(e) => { setActiveProject(e.target.value || null); if (inChat) navigate({ to: "/chats" }); }}><option value="">Proyecto</option>{projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select><ChevronDown className="pointer-events-none absolute right-0 h-3.5 w-3.5 text-muted-foreground" /></div>
