@@ -114,3 +114,10 @@
 ## Fase 1 (completada)
 - [x] Proyectos, chats, memoria, documentos, proveedores con prueba real, Azure OpenAI, respaldo cifrado, APK build.3
 - [x] Probado por el usuario en Poco C40: APK abre, chat funciona, proveedor persiste
+
+## Cierre de auditoría (plan aprobado 2026-11-01)
+- [x] Bloque 1: archivar/duplicar proyectos (probado en web y pruebas)
+- [ ] Bloque 1: respaldo por bloques, rotación reanudable, costos/presupuestos, exportar un proyecto, riesgos R01–R20
+- [ ] Bloques 2–3: medios, documentos, investigación, datos
+- [ ] Bloque 4: sistema autónomo (ReAct, Tool Manager, multiagente, AI Builder)
+- [ ] Bloque 5: APK final

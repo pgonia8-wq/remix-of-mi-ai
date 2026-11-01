@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { Plus, Trash2, Check } from "lucide-react";
+import { Plus, Trash2, Copy, Archive, ArchiveRestore, Check } from "lucide-react";
 import { toast } from "sonner";
 import { setActiveProject, useActiveProjectId, useMutate, useRepoQuery } from "@/lib/use-app";
 import { btnCls, inputCls } from "@/components/AppShell";
@@ -26,6 +26,9 @@ function Projects() {
   const nav = useNavigate();
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
+  const { data: archivedIds = [] } = useRepoQuery(["projects", "archived"], (r) => r.listArchivedProjectIds());
+  const visible = projects.filter((p) => archivedIds.includes(p.id) === showArchived);
 
   async function create() {
     if (!name.trim()) return;
@@ -49,7 +52,7 @@ function Projects() {
       {error && <p className="text-sm text-destructive">No se pudo abrir la base de datos: {String((error as Error).message)}</p>}
       {isLoading && <p className="text-sm text-muted-foreground">Abriendo base de datos cifrada…</p>}
       <ul className="space-y-2">
-        {projects.map((p) => (
+        {visible.map((p) => (
           <li key={p.id} className={`flex items-center gap-3 rounded-xl border p-4 ${active === p.id ? "border-primary bg-accent/40" : "bg-card"}`}>
             <button
               className="flex-1 text-left"
@@ -62,6 +65,12 @@ function Projects() {
               {p.description && <div className="text-xs text-muted-foreground">{p.description}</div>}
             </button>
             {active === p.id && <Check className="h-4 w-4 text-primary" />}
+            <button aria-label="Duplicar proyecto" className="text-muted-foreground" onClick={async () => { await mutate((r) => r.duplicateProject(p.id)); toast.success("Proyecto duplicado"); }}>
+              <Copy className="h-4 w-4" />
+            </button>
+            <button aria-label={showArchived ? "Restaurar proyecto" : "Archivar proyecto"} className="text-muted-foreground" onClick={async () => { await mutate((r) => r.setProjectArchived(p.id, !showArchived)); toast.success(showArchived ? "Proyecto restaurado" : "Proyecto archivado"); }}>
+              {showArchived ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
+            </button>
             <button
               aria-label="Eliminar proyecto"
               className="text-muted-foreground"
@@ -75,7 +84,8 @@ function Projects() {
             </button>
           </li>
         ))}
-        {!isLoading && !projects.length && <p className="text-center text-sm text-muted-foreground">Aún no tienes proyectos.</p>}
+        {!isLoading && !visible.length && <p className="text-center text-sm text-muted-foreground">{showArchived ? "No hay proyectos archivados." : "Aún no tienes proyectos."}</p>}
+        <button className="w-full text-center text-sm text-muted-foreground underline" onClick={() => setShowArchived((v) => !v)}>{showArchived ? "Ver proyectos activos" : `Ver archivados (${archivedIds.length})`}</button>
       </ul>
     </div>
   );
