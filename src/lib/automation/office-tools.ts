@@ -12,6 +12,9 @@ const tool = (t: Partial<Base> & Pick<Base, "id" | "name" | "description" | "inp
 const uuid = z.string().uuid();
 const MIME = { docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" } as const;
 
+const VIDEO = z.object({ clips: z.array(z.object({ assetId: uuid, start: z.number().min(0), end: z.number().positive(), transition: z.enum(["cut", "fade", "wipeleft", "slideright", "circleopen"]).default("cut"), transitionSeconds: z.number().min(0.1).max(3).default(0.5) }).strict()).min(1).max(8), captions: z.array(z.object({ start: z.number().min(0), end: z.number().positive(), text: z.string().min(1).max(200) }).strict()).max(60).default([]), ratio: z.enum(["original", "16:9", "9:16"]).default("original"), rotation: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]).default(0), mute: z.boolean().default(false), target: z.enum(["phone", "pc"]).default("phone") }).strict();
+type VideoIn = z.infer<typeof VIDEO>;
+
 export function officeTools(R: new (m: string) => Error): ToolDef[] {
   async function load(ctx: ToolCtx, id: string) {
     const a = await ctx.core.assets.get(ctx.projectId, id);
@@ -64,10 +67,11 @@ export function officeTools(R: new (m: string) => Error): ToolDef[] {
         return { output: `${shown}\n\nGuardada como ${a.name}.`, trusted: true, assets: [a] };
       } }),
     tool({ id: "video.render", name: "Renderizar línea de tiempo de video", family: "multimedia", description: "Une clips de video del proyecto con recortes, subtítulos, rotación y formato. En el teléfono (Android) solo cortes directos; transiciones (fade, wipeleft, slideright, circleopen) requieren `target`=pc con FFmpeg en tu PC Node. Resultado: un MP4 nuevo.",
-      input: z.object({ clips: z.array(z.object({ assetId: uuid, start: z.number().min(0), end: z.number().positive(), transition: z.enum(["cut", "fade", "wipeleft", "slideright", "circleopen"]).default("cut"), transitionSeconds: z.number().min(0.1).max(3).default(0.5) }).strict()).min(1).max(8), captions: z.array(z.object({ start: z.number().min(0), end: z.number().positive(), text: z.string().min(1).max(200) }).strict()).max(60).default([]), ratio: z.enum(["original", "16:9", "9:16"]).default("original"), rotation: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]).default(0), mute: z.boolean().default(false), target: z.enum(["phone", "pc"]).default("phone") }).strict(),
+      input: VIDEO,
       permissions: ["local.write"], sideEffect: true, timeoutMs: 15 * 60_000, maxCalls: 5,
       availability: async () => ({ ok: true }),
-      run: async (ctx, i) => {
+      run: async (ctx, input) => {
+        const i = input as VideoIn;
         for (const c of i.clips) { if (c.end <= c.start) throw new R("Cada clip necesita fin mayor que inicio."); const a = await ctx.core.assets.get(ctx.projectId, c.assetId); if (!a || !a.mime.startsWith("video/")) throw new R("Clip inexistente o que no es video."); }
         if (i.target === "phone") {
           if (i.clips.some((c) => c.transition !== "cut")) throw new R("Las transiciones necesitan target=pc (FFmpeg en tu PC Node). En el teléfono solo cortes directos.");
