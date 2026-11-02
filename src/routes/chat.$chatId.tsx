@@ -119,7 +119,7 @@ function ChatPage() {
       let tools = toolSet?.schemas.length ? toolSet.schemas : undefined;
       let runId: string | null = null;
       // Tool loop: the model may request app tools; each runs through invokeTool and its result goes back to the model.
-      for (let turn = 0; turn < 8; turn++) {
+      for (let turn = 0; turn < 30; turn++) {
         let turnText = "";
         let result;
         try {
@@ -137,7 +137,7 @@ function ChatPage() {
         out += turnText;
         if (!result.toolCalls.length) break;
         msgs.push({ role: "assistant", content: turnText, tool_calls: result.toolCalls });
-        if (!runId) { const { createRun } = await import("@/lib/automation/orchestrator"); runId = await createRun(core, pid, { goal: `Chat: ${(text || "respuesta").slice(0, 300)}`, kind: "chat", limits: { maxCalls: 40, unknownCost: "allow" } }); }
+        if (!runId) { const { createRun } = await import("@/lib/automation/orchestrator"); runId = await createRun(core, pid, { goal: `Chat: ${(text || "respuesta").slice(0, 300)}`, kind: "chat", limits: { maxCalls: 300, perAgentCalls: 300, unknownCost: "allow" } }); }
         const { runChatTool, TOOL_LABELS, toolIdOf } = await import("@/lib/chat-tools");
         for (const call of result.toolCalls) {
           setActivity(`${TOOL_LABELS[toolIdOf(call.name)] ?? "Usando herramienta"}…`);
