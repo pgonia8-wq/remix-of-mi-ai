@@ -30,6 +30,7 @@ const tool = (t: Partial<Base> & Pick<Base, "id" | "name" | "description" | "inp
 } as ToolDef);
 
 const MIME_BY_EXT: Record<string, string> = { md: "text/markdown", txt: "text/plain", json: "application/json", js: "text/javascript", ts: "text/plain", py: "text/x-python", html: "text/html", css: "text/css", csv: "text/csv", xml: "application/xml", svg: "image/svg+xml", yaml: "text/yaml", yml: "text/yaml" };
+const PY_MIME: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", pdf: "application/pdf", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", parquet: "application/octet-stream", npy: "application/octet-stream", zip: "application/zip" };
 export const mimeFor = (path: string) => MIME_BY_EXT[path.split(".").pop()?.toLowerCase() ?? ""] ?? "text/plain";
 const kindFor = (mime: string) => mime.startsWith("image/") ? "image" : mime.startsWith("audio/") ? "audio" : mime.startsWith("video/") ? "video" : mime === "model/gltf-binary" ? "model3d" : "document";
 const cleanName = (s: string, fallback = "archivo") => s.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ").trim().slice(0, 120) || fallback;
@@ -271,9 +272,18 @@ export function phoneTools(H: PhoneHelpers): ToolDef[] {
       } }),
 
     // ===== Ejecutar código en el teléfono =====
-    tool({ id: "code.python", name: "Ejecutar Python", family: "desarrollo", description: "Ejecuta Python 3 (biblioteca estándar) en un sandbox aislado del teléfono sin red, archivos de la app ni claves. Usa print() para mostrar resultados.",
-      input: z.object({ source: z.string().min(1).max(120_000), input: z.string().max(60_000).default("") }).strict(), env: ["sandbox"], timeoutMs: 100_000, maxCalls: 30, availability: H.hasWorker,
-      run: async (ctx, i) => { const { runPython } = await import("../code/python"); const r = await runPython(i.source, i.input, ctx.signal); return { output: r.ok ? r.output || "(sin salida)" : `Error:\n${r.error}\n${r.output}`, trusted: true, evidence: { kind: "exec", status: r.ok ? "passed" : "failed", command: "python (pyodide)", output: (r.ok ? r.output : `${r.error}\n${r.output}`).slice(0, 4000) } }; } }),
+    tool({ id: "code.python", name: "Ejecutar Python", family: "desarrollo", description: "Ejecuta Python 3 en un sandbox aislado del teléfono sin red, archivos de la app ni claves. Incluye biblioteca estándar más numpy, pandas, matplotlib y scipy (sin internet). Usa print(). Archivos de assetIds se copian a /in/<nombre>; todo lo que guardes en /out/ (p. ej. plt.savefig('/out/grafica.png'), df.to_csv('/out/datos.csv')) se adjunta al chat.",
+      input: z.object({ source: z.string().min(1).max(120_000), input: z.string().max(60_000).default(""), assetIds: z.array(assetId).max(10).default([]) }).strict(), env: ["sandbox"], timeoutMs: 200_000, maxCalls: 30, availability: H.hasWorker,
+      run: async (ctx, i) => {
+        const { runPython, pyFileName } = await import("../code/python");
+        const inputs = [];
+        for (const id of i.assetIds) { const { meta, bytes } = await loadAsset(ctx, id, H); inputs.push({ name: pyFileName(meta.name ?? id), data: bytes }); }
+        const r = await runPython(i.source, i.input, ctx.signal, inputs);
+        const assets: ToolAsset[] = [];
+        for (const f of r.files ?? []) { const ext = f.name.split(".").pop()?.toLowerCase() ?? ""; assets.push(await saveAsset(ctx, f.data, f.name, PY_MIME[ext] ?? mimeFor(f.name))); }
+        const filesNote = assets.length ? `\nArchivos creados: ${assets.map((a) => a.name).join(", ")}` : "";
+        return { output: (r.ok ? r.output || "(sin salida)" : `Error:\n${r.error}\n${r.output}`) + filesNote, trusted: true, ...(assets.length ? { assets } : {}), evidence: { kind: "exec", status: r.ok ? "passed" : "failed", command: "python (pyodide)", output: (r.ok ? r.output : `${r.error}\n${r.output}`).slice(0, 4000) } };
+      } }),
     tool({ id: "code.ts", name: "Ejecutar TypeScript", family: "desarrollo", description: "Transpila TypeScript y lo ejecuta en el sandbox aislado (sin imports, red ni almacenamiento). Usa console.log.",
       input: z.object({ source: z.string().min(1).max(60_000), input: z.string().max(60_000).default("") }).strict(), env: ["sandbox"], timeoutMs: 20_000, availability: H.hasWorker,
       run: async (ctx, i) => {

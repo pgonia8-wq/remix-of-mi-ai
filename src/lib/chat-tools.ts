@@ -39,7 +39,7 @@ const HINTS: Record<string, string> = {
   "doc.create": "Crea un archivo PDF, Word (docx), Excel (xlsx, usa tablas Markdown), PowerPoint (pptx, una diapositiva por título) o Markdown.",
   "fs.write": "Escribe un archivo de texto en el espacio de trabajo. `baseHash`=null si es nuevo; si existe, primero fs.read y usa su hash.",
   "fs.patch": "Edita partes de un archivo existente: cada edición reemplaza un fragmento exacto (`find`) por `replace`.",
-  "code.python": "Ejecuta Python 3 (solo biblioteca estándar: math, statistics, json, re, datetime, csv, itertools, decimal, fractions…). Usa print().",
+  "code.python": "Ejecuta Python 3 con biblioteca estándar, numpy, pandas, matplotlib y scipy (offline). Usa print(). Archivos adjuntos (assetIds) quedan en /in/; lo que guardes en /out/ (gráficas PNG, CSV, etc.) se adjunta al chat.",
   "code.js": "Ejecuta JavaScript aislado para cálculos exactos. Usa console.log para el resultado.",
   "pc.exec": "Solo si hay PC/VM emparejada: ejecuta un programa allí. Para shell usa argv [\"bash\",\"-lc\",\"comando\"] o [\"powershell\",\"-Command\",\"...\"].",
   "agents.delegate": "Delega al sistema autónomo un trabajo de varios pasos (programar, construir una app o script, investigar y redactar, revisar y corregir). Trabaja en el teléfono sin PC; la persona aprueba antes de empezar. `mode`=builder para construir software (con `kind`), team para el resto.",
