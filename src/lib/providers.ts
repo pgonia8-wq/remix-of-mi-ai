@@ -14,7 +14,11 @@ export const PROVIDER_KINDS: { kind: ProviderKind; label: string; endpoint: stri
   { kind: "custom", label: "Endpoint personalizado", endpoint: "https://", model: "modelo" },
 ];
 
-export type ChatMsg = { role: "system" | "user" | "assistant"; content: string; images?: { mime: string; data: string }[] };
+export type ToolCall = { id: string; name: string; arguments: string };
+export type ChatMsg = { role: "system" | "user" | "assistant" | "tool"; content: string; images?: { mime: string; data: string }[]; tool_calls?: ToolCall[]; tool_call_id?: string };
+/** Providers whose chat endpoint follows the OpenAI tool-calling contract (tools + streamed delta.tool_calls). */
+export const CHAT_TOOL_KINDS: ProviderKind[] = ["openai", "azure", "azure_openai", "xai", "deepseek", "mistral", "openai_compatible", "custom"];
+export const supportsChatTools = (kind: ProviderKind) => CHAT_TOOL_KINDS.includes(kind);
 export type ProviderCall = {
   kind: ProviderKind;
   endpoint: string | null;
@@ -41,10 +45,15 @@ function extra(p: ProviderCall): Record<string, unknown> {
 }
 const trim = (s: string) => s.replace(/\/+$/, "");
 
-function buildRequest(p: ProviderCall, messages: ChatMsg[]): { url: string; init: RequestInit; parse: (data: any) => string | null } {
+function buildRequest(p: ProviderCall, messages: ChatMsg[], tools?: unknown[]): { url: string; init: RequestInit; parse: (data: any) => string | null } {
   const hasImages = messages.some((m) => m.images?.length);
   if (hasImages && !["openai", "azure", "azure_openai", "anthropic", "gemini", "xai", "mistral", "openai_compatible", "custom"].includes(p.kind)) throw new ProviderError("parameters", "Este adaptador no admite imágenes en el chat. Elige un modelo con visión.");
-  const openaiMessages = messages.map((m) => ({ role: m.role, content: m.images?.length ? [{ type: "text", text: m.content }, ...m.images.map((i) => ({ type: "image_url", image_url: { url: `data:${i.mime};base64,${i.data}` } }))] : m.content }));
+  const openaiMessages = messages.map((m) => m.role === "tool" ? { role: "tool", tool_call_id: m.tool_call_id, content: m.content }
+    : m.tool_calls?.length ? { role: "assistant", content: m.content || null, tool_calls: m.tool_calls.map((c) => ({ id: c.id, type: "function", function: { name: c.name, arguments: c.arguments } })) }
+    : ({ role: m.role, content: m.images?.length ? [{ type: "text", text: m.content }, ...m.images.map((i) => ({ type: "image_url", image_url: { url: `data:${i.mime};base64,${i.data}` } }))] : m.content }));
+  // Tool-call turns exist only for OpenAI-style providers; other contracts never receive them.
+  if (!supportsChatTools(p.kind)) messages = messages.filter((m) => m.role !== "tool" && !m.tool_calls?.length);
+  const toolBody = tools?.length && supportsChatTools(p.kind) ? { tools, tool_choice: "auto" } : {};
   const defaults = PROVIDER_KINDS.find((k) => k.kind === p.kind);
   if (!defaults) throw new ProviderError("endpoint", "Endpoint incorrecto: proveedor desconocido.");
   const azure = p.kind === "azure" || p.kind === "azure_openai";
@@ -121,7 +130,7 @@ function buildRequest(p: ProviderCall, messages: ChatMsg[]): { url: string; init
   } else if (key) headers["authorization"] = `Bearer ${key}`;
   return {
     url,
-    init: { method: "POST", headers, body: JSON.stringify({ ...(azureV1 ? { model: p.deployment?.trim() } : azure ? {} : { model: p.model }), stream: true, messages: openaiMessages, ...x }) },
+    init: { method: "POST", headers, body: JSON.stringify({ ...(azureV1 ? { model: p.deployment?.trim() } : azure ? {} : { model: p.model }), stream: true, messages: openaiMessages, ...toolBody, ...x }) },
     parse: (d) => d.choices?.[0]?.delta?.content ?? null,
   };
 }
@@ -146,8 +155,9 @@ const sleep = (ms: number, signal?: AbortSignal) => new Promise<void>((resolve, 
 });
 
 /** Streams text deltas. API key is only placed in request headers — never logged. */
-export async function streamChat(p: ProviderCall, messages: ChatMsg[], onDelta: (t: string) => void, signal?: AbortSignal) {
-  const { url, init, parse } = buildRequest(p, messages);
+export async function streamChat(p: ProviderCall, messages: ChatMsg[], onDelta: (t: string) => void, signal?: AbortSignal, opts: { tools?: unknown[] } = {}): Promise<{ toolCalls: ToolCall[] }> {
+  const { url, init, parse } = buildRequest(p, messages, opts.tools);
+  const calls: { id: string; name: string; arguments: string }[] = [];
   let res: Response;
   for (let attempt = 0; ; attempt++) {
     res = await fetch(url, { ...init, signal: signal ?? null });
@@ -171,6 +181,14 @@ export async function streamChat(p: ProviderCall, messages: ChatMsg[], onDelta: 
     if (parsed.error || parsed.type === "error") throw responseError(res.status, JSON.stringify(parsed.error ?? parsed), p.apiKey);
     const text = parse(parsed);
     if (typeof text === "string" && text) onDelta(text);
+    const deltas = parsed.choices?.[0]?.delta?.tool_calls;
+    if (Array.isArray(deltas)) for (const d of deltas) {
+      const i = typeof d?.index === "number" ? d.index : calls.length;
+      const c = (calls[i] ??= { id: "", name: "", arguments: "" });
+      if (typeof d.id === "string" && d.id) c.id = d.id;
+      if (typeof d.function?.name === "string") c.name += d.function.name;
+      if (typeof d.function?.arguments === "string") c.arguments += d.function.arguments;
+    }
   };
   try { for (;;) {
     const { done, value } = await reader.read();
@@ -183,6 +201,7 @@ export async function streamChat(p: ProviderCall, messages: ChatMsg[], onDelta: 
       consume(line);
     }
   } } finally { await reader.cancel().catch(() => undefined); reader.releaseLock(); }
+  return { toolCalls: calls.filter((c) => c && c.name).map((c, i) => ({ id: c.id || `call_${i}`, name: c.name, arguments: c.arguments || "{}" })) };
 }
 
 export type DiagnosticCode = "key" | "auth" | "endpoint" | "model" | "unavailable" | "network" | "timeout" | "parameters";

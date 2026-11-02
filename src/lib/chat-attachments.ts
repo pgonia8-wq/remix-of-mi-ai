@@ -25,7 +25,8 @@ export async function chatHistory(core: Core, projectId: string, chatId: string,
     const images: NonNullable<ChatMsg["images"]> = [];
     let content = message.content;
     for (const file of files) {
-      if (file.mime.startsWith("image/")) {
+      if (message.role !== "user") content += `\n\n[Archivo creado en esta conversación: ${file.name} (${file.mime})]`;
+      else if (file.mime.startsWith("image/")) {
         const bytes = await core.assets.read(projectId, file.asset_id);
         let binary = ""; for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
         images.push({ mime: file.mime, data: btoa(binary) });

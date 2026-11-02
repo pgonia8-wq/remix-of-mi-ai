@@ -186,3 +186,8 @@
 - [x] Voz: Azure en tiempo real y herramientas durante la llamada vía invokeTool con aprobaciones.
 - [ ] Bloqueado (proveedor): Azure música/3D no tiene contrato público; no se inventa.
 - [x] Compilar APK build.11 con la misma firma y entregar ZIP.
+
+## Chat con herramientas (pedido de Fer, 2026-11-02)
+- [x] Aceptar URL wss de Azure en tiempo real y verificar con sesión de voz real
+- [x] Conectar al chat: imagen, video, voz, música, 3D, búsqueda/investigación, documentos PDF/Word/Excel/PowerPoint, notas, tareas, recordatorios, memoria, código; resultados en la conversación y confirmación de cobros conocidos
+- [ ] Compilar build.13 cuando Fer lo pida

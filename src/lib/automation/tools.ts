@@ -18,7 +18,8 @@ export type Family = "ia" | "investigacion" | "ingenieria" | "desarrollo" | "inf
 export type Permission = "provider" | "network" | "local.write" | "pc.read" | "pc.write" | "pc.exec" | "remote" | "tunnel" | "memory" | "sensitive";
 export type Risk = "low" | "medium" | "high";
 export type ToolCtx = { core: Core; projectId: string; runId: string; taskId: string | null; agent: string; nodeId?: string | null; folderId?: string | null; signal?: AbortSignal; opKey?: string };
-export type ToolOut = { output: string; trusted: boolean; evidence?: { kind: string; status: EvidenceStatus; command: string; output: string }; costUsd?: number | null };
+export type ToolAsset = { id: string; mime: string; name: string };
+export type ToolOut = { output: string; trusted: boolean; assets?: ToolAsset[]; evidence?: { kind: string; status: EvidenceStatus; command: string; output: string }; costUsd?: number | null };
 export type EvidenceStatus = "passed" | "failed" | "not_run" | "blocked" | "simulated";
 export type ToolDef = {
   id: string; name: string; description: string; family: Family; input: z.ZodTypeAny; output: string;
@@ -44,7 +45,8 @@ const providerRun = (capability: string) => async (ctx: ToolCtx, i: { text: stri
   const r = await execute(ctx.core, ctx.projectId, m.model, { capability, prompt: i.text, saveText: true, ...(ctx.signal ? { signal: ctx.signal } : {}) });
   if (r.pending) return { output: `Trabajo remoto ${r.jobId} en curso; revisar en Trabajos.`, trusted: true };
   const body = r.text ?? (r.results ? r.results.map((x) => `${x.title}\n${x.url}\n${x.snippet}`).join("\n\n") : r.assets.map((a) => `Archivo ${a.name ?? a.id} (${a.mime})`).join("\n"));
-  return { output: body.slice(0, 20_000), trusted: false };
+  const files = r.text ? [] : r.assets.filter((a) => a.mime !== "text/plain").map((a) => ({ id: a.id, mime: a.mime, name: a.name ?? "archivo" }));
+  return { output: body.slice(0, 20_000), trusted: false, ...(files.length ? { assets: files } : {}) };
 };
 async function nodeReady(ctx: ToolCtx, toolchain?: string) {
   if (!ctx.nodeId) return { ok: false, reason: "No hay PC Node asignado a esta ejecución." };
@@ -170,6 +172,19 @@ export const TOOL_REGISTRY: ToolDef[] = [
   provider("image.generate", "Generar imagen", "multimedia", "image.generate"),
   provider("audio.tts", "Voz", "multimedia", "audio.tts"),
   provider("video.generate", "Generar video", "multimedia", "video.generate"),
+  provider("music.generate", "Generar música", "multimedia", "music.generate"),
+  provider("model3d.generate", "Generar modelo 3D", "multimedia", "model3d.generate"),
+  { id: "doc.create", name: "Crear documento", description: "Crea en el teléfono un PDF, Word, Excel, PowerPoint o Markdown a partir de Markdown (títulos, listas y tablas).", family: "productividad",
+    input: z.object({ title: z.string().min(1).max(160), format: z.enum(["pdf", "docx", "xlsx", "pptx", "md"]), markdown: z.string().min(1).max(200_000) }).strict(), output: "archivo",
+    permissions: ["local.write"], network: false, cost: "none", maxCalls: 20, timeoutMs: 120_000, parallel: false, env: ["android"], risk: "low", approval: "never", sideEffect: true, roles: "all",
+    availability: ok,
+    run: async (ctx, i) => {
+      const { exportDoc, EXPORT_MIME } = await import("../docs/export");
+      const bytes = await exportDoc(i.markdown, i.format, i.title);
+      const name = `${i.title.replace(/[\\/:*?"<>|]+/g, " ").trim().slice(0, 80) || "documento"}.${i.format}`;
+      const a = await ctx.core.assets.put(ctx.projectId, (async function* () { yield bytes; })(), { kind: "document", name, mime: EXPORT_MIME[i.format as keyof typeof EXPORT_MIME], capability: "doc.create" });
+      return { output: `Documento creado: ${name} (${bytes.length} bytes)`, trusted: true, assets: [{ id: a.id, mime: a.mime, name }] };
+    } },
   declared("media.ocr", "OCR", "multimedia", "OCR local disponible en Documentos; requiere archivo elegido por el usuario.", ["local.write"]),
   // H. Productividad
   { id: "note.save", name: "Guardar nota", description: "Guarda una nota del proyecto.", family: "productividad", input: z.object({ title: z.string().min(1).max(200), body: z.string().max(60_000) }).strict(), output: "id", permissions: ["local.write"], network: false, cost: "none", maxCalls: 20, timeoutMs: 5000, parallel: true, env: ["android"], risk: "low", approval: "never", sideEffect: true, roles: "all",
@@ -208,7 +223,7 @@ export const fileLocks = {
 
 export type Limits = { maxUsd: number | null; maxCalls: number; maxTokens: number; maxMs: number; concurrency: number; maxTurnsPerTask: number; perAgentCalls: number; perToolCalls: Record<string, number>; unknownCost: "ask" | "deny" | "allow"; maxReplans: number };
 export const DEFAULT_LIMITS: Limits = { maxUsd: null, maxCalls: 60, maxTokens: 400_000, maxMs: 6 * 3600_000, concurrency: 2, maxTurnsPerTask: 12, perAgentCalls: 30, perToolCalls: {}, unknownCost: "ask", maxReplans: 2 };
-export type InvokeResult = { status: "ok"; output: string; trusted: boolean } | { status: "approval"; approvalId: string; summary: string } | { status: "review"; reason: string } | { status: "rejected"; reason: string };
+export type InvokeResult = { status: "ok"; output: string; trusted: boolean; assets?: ToolAsset[] } | { status: "approval"; approvalId: string; summary: string } | { status: "review"; reason: string } | { status: "rejected"; reason: string };
 
 /** The single gate for every tool call. */
 export async function invokeTool(ctx: ToolCtx, toolId: string, raw: unknown, opts: { allowed: string[]; limits: Limits; opKey: string }): Promise<InvokeResult> {
@@ -283,7 +298,7 @@ export async function invokeTool(ctx: ToolCtx, toolId: string, raw: unknown, opt
   await repo.sql.run("UPDATE auto_runs SET spent_usd=spent_usd+?, unknown_cost_calls=unknown_cost_calls+?, updated_at=? WHERE project_id=? AND id=?", [costUsd ?? 0, costUsd === null && def.cost !== "none" ? 1 : 0, Date.now(), p, ctx.runId]);
   if (out.evidence) await repo.sql.run("INSERT INTO auto_evidence VALUES (?,?,?,?,?,?,?,?,?,?,?)", [crypto.randomUUID(), p, ctx.runId, ctx.taskId, out.evidence.kind, out.evidence.status, out.evidence.command.slice(0, 500), out.evidence.output.slice(0, 8000), await sha256Hex(out.evidence.output), ctx.nodeId ?? "android", Date.now()]);
   await workingMemory.add(repo, p, ctx.runId, out.trusted ? "observation" : "external", `${toolId}: ${output.slice(0, 1500)}`);
-  return { status: "ok", output, trusted: out.trusted };
+  return { status: "ok", output, trusted: out.trusted, ...(out.assets?.length ? { assets: out.assets } : {}) };
 }
 async function observe(ctx: ToolCtx, kind: string, tool: string, input: unknown, output: string, trusted: boolean, cost: number | null, ms: number) {
   await ctx.core.repo.sql.run("INSERT INTO auto_observations VALUES (?,?,?,?,?,?,?,?,?,?,?,0,?,?)", [crypto.randomUUID(), ctx.projectId, ctx.runId, ctx.taskId, ctx.agent, kind, tool,
