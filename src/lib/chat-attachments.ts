@@ -52,5 +52,7 @@ export function fitHistory(history: ChatMsg[], maxMessages = 20): ChatMsg[] {
 }
 /** Provider rejections caused by sending too much text in one request. */
 export function isContextOverflow(status: number | undefined, technical: string | undefined) {
-  return status === 429 || status === 413 || /context.?length|maximum context|too many tokens|token.?limit|prompt is too long|request too large|tokens? per min/i.test(technical ?? "");
+  // 429 / "tokens per minute" are speed limits of the provider, not a too-long conversation: never blame the context for them.
+  if (status === 429 || /tokens? per min|rate.?limit|requests? per min|TPM|RPM/i.test(technical ?? "")) return false;
+  return status === 413 || /context.?length|context window|maximum context|max(imum)?_?(input|prompt)?_?tokens? .*exceed|too many tokens|prompt is too long|input is too long|request too large|reduce the length/i.test(technical ?? "");
 }

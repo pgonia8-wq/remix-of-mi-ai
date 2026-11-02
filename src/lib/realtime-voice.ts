@@ -36,7 +36,8 @@ export function jsonSchemaOf(schema: unknown): Record<string, unknown> {
     case "ZodBoolean": return { type: "boolean" };
     case "ZodArray": return { type: "array", items: jsonSchemaOf(def["type"]) };
     case "ZodEnum": return { type: "string", enum: def["values"] };
-    case "ZodOptional": case "ZodDefault": case "ZodNullable": return jsonSchemaOf(def["innerType"]);
+    case "ZodOptional": case "ZodDefault": return jsonSchemaOf(def["innerType"]);
+    case "ZodNullable": { const inner = jsonSchemaOf(def["innerType"]); return typeof inner["type"] === "string" ? { ...inner, type: [inner["type"], "null"] } : { anyOf: [inner, { type: "null" }] }; }
     case "ZodEffects": return jsonSchemaOf(def["schema"]);
     case "ZodLiteral": { const v = def["value"]; return { type: typeof v === "number" ? "number" : typeof v === "boolean" ? "boolean" : "string", enum: [v] }; }
     case "ZodTuple": { const items = (def["items"] as unknown[]).map(jsonSchemaOf); return { type: "array", items: items[0] ?? {}, minItems: items.length, maxItems: items.length }; }
