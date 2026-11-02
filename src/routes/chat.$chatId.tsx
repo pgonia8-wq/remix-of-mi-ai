@@ -133,7 +133,7 @@ function ChatPage() {
         const { runChatTool, TOOL_LABELS, toolIdOf } = await import("@/lib/chat-tools");
         for (const call of result.toolCalls) {
           setActivity(`${TOOL_LABELS[toolIdOf(call.name)] ?? "Usando herramienta"}…`);
-          const step = await runChatTool(core, pid, runId, call, (summary) => new Promise<boolean>((resolve) => setApproval({ summary, resolve: (ok) => { setApproval(null); resolve(ok); } })), abort.current.signal);
+          const step = await runChatTool(core, pid, runId, call, (summary) => new Promise<boolean>((resolve) => { const done = (ok: boolean) => { setApproval(null); resolve(ok); }; abort.current?.signal.addEventListener("abort", () => done(false), { once: true }); setApproval({ summary, resolve: done }); }), abort.current.signal);
           produced.push(...step.assets);
           msgs.push({ role: "tool", tool_call_id: call.id, content: step.reply.slice(0, 12_000) });
         }
@@ -167,7 +167,6 @@ function ChatPage() {
         const kept = await repo.addMessage(pid, chatId, "assistant", out || "Archivos creados antes de la interrupción:", provider.id, provider.deployment || provider.model).catch(() => null);
         if (kept) for (const a of produced) await repo.attachToMessage(pid, chatId, kept.id, a.id, null).catch(() => undefined);
       }
-      approval?.resolve(false);
       setActivity(null); setApproval(null);
       setStreaming(null);
       setBusy(false);
