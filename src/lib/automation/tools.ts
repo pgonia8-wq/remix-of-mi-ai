@@ -15,6 +15,7 @@ import { workingMemory } from "./working-memory";
 import { localWs } from "./local-workspace";
 import { scrubSecrets } from "../db/repo";
 import { phoneTools } from "./phone-tools";
+import { officeTools } from "./office-tools";
 
 export type Family = "ia" | "investigacion" | "ingenieria" | "desarrollo" | "infraestructura" | "datos" | "multimedia" | "productividad";
 export type Permission = "provider" | "network" | "local.write" | "pc.read" | "pc.write" | "pc.exec" | "remote" | "tunnel" | "memory" | "sensitive";
@@ -279,6 +280,8 @@ export const TOOL_REGISTRY: ToolDef[] = [
       remove: async (c, path) => { if (onPhone(c)) await localWs.remove(c.core.repo, c.projectId, path); else await pcFiles.remove(c.core.repo, c.projectId, c.folderId!, path); },
     },
   }),
+  // K. Documentos de Office, hojas con fórmulas, render de video y rigging 3D.
+  ...officeTools(ToolRejected),
 ];
 export const TOOL_IDS = TOOL_REGISTRY.map((t) => t.id);
 export const getTool = (id: string) => TOOL_REGISTRY.find((t) => t.id === id) ?? null;
