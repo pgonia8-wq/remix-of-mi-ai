@@ -65,7 +65,7 @@ function parse(tokens: Tok[]): Node {
     if (t.t === "bool") return { k: "bool", v: t.v };
     if (t.t === "ref") return { k: "ref", v: t.v };
     if (t.t === "range") return { k: "range", a: t.a, b: t.b };
-    if (t.t === "op" && (t.v === "-" || t.v === "+")) return { k: "un", op: t.v, x: expr(4.5) };
+    if (t.t === "op" && (t.v === "-" || t.v === "+")) return { k: "un", op: t.v, x: expr(6) }; // Excel: -2^2 = 4
     if (t.t === "(") { const e = expr(0); if (tokens[p++]?.t !== ")") throw new Error("#VALUE!"); return e; }
     if (t.t === "fn") {
       p++; const args: Node[] = [];

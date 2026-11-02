@@ -38,7 +38,7 @@ async function sampleDocx() {
     new Paragraph({ children: [new TextRun({ text: "Ventas de ", bold: true }), new TextRun({ text: "Mar", italics: true }), new TextRun({ text: "zo crecieron." })] }),
     new Paragraph({ children: [new ImageRun({ type: "png", data: png, transformation: { width: 10, height: 10 } })] }),
   ] }] });
-  return new Uint8Array(await (await Packer.toBlob(doc)).arrayBuffer());
+  return new Uint8Array(await Packer.toBuffer(doc));
 }
 
 describe("editar Word conservando estilos e imágenes", () => {

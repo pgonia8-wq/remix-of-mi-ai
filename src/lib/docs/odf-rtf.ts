@@ -119,17 +119,18 @@ const rtfText = (s: string) => {
   }
   return o;
 };
-/** Inline **bold** and *italic* become RTF formatting; everything else is plain text. */
-const rtfInline = (s: string) => rtfText(s).replace(/\*\*(.+?)\*\*/g, "{\\b $1}").replace(/\*(.+?)\*/g, "{\\i $1}");
+/** Inline **bold** and *italic* survive Markdown parsing as control markers and become RTF formatting. */
+const markInline = (md: string) => md.replace(/\*\*(.+?)\*\*/g, "\u0001$1\u0002").replace(/(^|[^*])\*([^*\n]+?)\*/g, "$1\u0003$2\u0004");
+const rtfInline = (s: string) => rtfText(s).replace(/\u0001/g, "{\\b ").replace(/\u0003/g, "{\\i ").replace(/[\u0002\u0004]/g, "}");
 
 export function writeRtf(md: string, title: string): Uint8Array {
   const parts = [`{\\rtf1\\ansi\\ansicpg1252\\deff0\\uc1{\\fonttbl{\\f0\\fswiss Arial;}}{\\info{\\title ${rtfText(title)}}}\\viewkind4\\f0\\fs22`, `{\\pard\\sb0\\sa200\\b\\fs40 ${rtfText(title)}\\par}`];
-  const raw = md.replace(/\r/g, "").split("\n");
-  for (const b of parseMarkdown(md)) {
-    if (b.t === "h") parts.push(`{\\pard\\sb240\\sa120\\b\\fs${b.level === 1 ? 32 : b.level === 2 ? 28 : 24} ${rtfText(b.text)}\\par}`);
-    else if (b.t === "p") { const src = raw.find((l) => l.includes(b.text.slice(0, 20))) ?? b.text; parts.push(`{\\pard\\sa160 ${/\*/.test(src) ? rtfInline(src.trim()) : rtfText(b.text)}\\par}`); }
-    else if (b.t === "li") parts.push(`{\\pard\\fi-280\\li560\\sa80 \\bullet\\tab ${rtfText(b.text)}\\par}`);
-    else if (b.t === "table") for (const r of b.rows) { let x = 0; parts.push(`\\trowd\\trgaph108${r.map(() => `\\cellx${(x += 2200)}`).join("")}${r.map((c) => `\\pard\\intbl ${rtfText(c)}\\cell`).join("")}\\row`); }
+  const clean = (t: string) => t.replace(/[\u0001-\u0004]/g, "");
+  for (const b of parseMarkdown(markInline(md))) {
+    if (b.t === "h") parts.push(`{\\pard\\sb240\\sa120\\b\\fs${b.level === 1 ? 32 : b.level === 2 ? 28 : 24} ${rtfText(clean(b.text))}\\par}`);
+    else if (b.t === "p") parts.push(`{\\pard\\sa160 ${rtfInline(b.text)}\\par}`);
+    else if (b.t === "li") parts.push(`{\\pard\\fi-280\\li560\\sa80 \\bullet\\tab ${rtfInline(b.text)}\\par}`);
+    else if (b.t === "table") for (const r of b.rows) { let x = 0; parts.push(`\\trowd\\trgaph108${r.map(() => `\\cellx${(x += 2200)}`).join("")}${r.map((c) => `\\pard\\intbl ${rtfText(clean(c))}\\cell`).join("")}\\row`); }
     else parts.push("\\par");
   }
   parts.push("}");
