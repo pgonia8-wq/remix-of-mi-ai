@@ -237,4 +237,5 @@
 - [x] Adaptar la app a todos los teléfonos (barra de estado, cámara, barra de navegación, teclado) — reportado en Motorola G86 Power
 - [x] Enviar proyectos por Bluetooth a otro teléfono e importarlos allí
 - [x] Enviar por Bluetooth la configuración de los modelos instalados
-- [ ] Compilar build.18 con estos cambios cuando Fer lo pida
+- [x] build.18 compilada (pantalla en todos los teléfonos, Bluetooth de proyectos y modelos)
+- [ ] Probar build.18 en el Motorola G86 Power (pendiente de Fer)
