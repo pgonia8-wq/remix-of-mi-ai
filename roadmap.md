@@ -234,6 +234,7 @@
 - [ ] Compilar build.17 cuando Fer lo pida
 
 ## Solicitud actual — pantallas y Bluetooth
-- [ ] Adaptar la app a todos los teléfonos (barra de estado, cámara, barra de navegación, teclado) — reportado en Motorola G86 Power
-- [ ] Enviar proyectos por Bluetooth a otro teléfono e importarlos allí
-- [ ] Enviar por Bluetooth la configuración de los modelos instalados
+- [x] Adaptar la app a todos los teléfonos (barra de estado, cámara, barra de navegación, teclado) — reportado en Motorola G86 Power
+- [x] Enviar proyectos por Bluetooth a otro teléfono e importarlos allí
+- [x] Enviar por Bluetooth la configuración de los modelos instalados
+- [ ] Compilar build.18 con estos cambios cuando Fer lo pida
