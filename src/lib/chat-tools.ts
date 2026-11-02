@@ -86,11 +86,15 @@ export async function chatToolSet(core: Core, projectId: string): Promise<ChatTo
   return { schemas, available, unavailable };
 }
 
+/** Only used when the tools are really sent with this request as native function definitions. */
 export function toolsPrompt(set: ChatToolSet) {
   const on = set.available.map((id) => `- ${TOOL_LABELS[id] ?? id} (${toolName(id)})`).join("\n");
   const off = set.unavailable.map((u) => `- ${TOOL_LABELS[u.id] ?? u.id}: ${u.reason}`).join("\n");
-  return `\n\nHerramientas de MI AI:\n${on ? `Puedes usarlas directamente cuando la persona lo pida o cuando ayuden a resolver su petición (crear y editar medios, documentos, internet y APIs, archivos y código en el espacio de trabajo del teléfono, Python/TypeScript/JavaScript, bases de datos, comprimidos, sistema, agentes, PC/VM). Los adjuntos del usuario traen su id para usarlos en herramientas. No digas que no tienes una herramienta si está en esta lista:\n${on}\nLos archivos que crees aparecen solos en la conversación; no inventes enlaces.` : "Ninguna herramienta está lista ahora."}${off ? `\nNo disponibles todavía (explica a la persona qué configurar, normalmente un modelo con esa capacidad en Modelos):\n${off}` : ""}`;
+  return `\n\nHerramientas de MI AI:\n${on ? `Estas herramientas van en esta misma petición como funciones nativas (tool calling): para usarlas, llama a la función por su nombre; MI AI la ejecuta en el teléfono y te devuelve el resultado. Úsalas cuando la persona lo pida o cuando ayuden (medios, documentos, internet y APIs, archivos y código en el espacio de trabajo del teléfono, Python/TypeScript/JavaScript, bases de datos, comprimidos, sistema, agentes, PC/VM). Si te piden comprobar una herramienta, llámala de verdad en lugar de suponer. No digas que no tienes interfaz de llamadas ni que no puedes ejecutarlas. Los adjuntos del usuario traen su id para usarlos en herramientas. Disponibles:\n${on}\nLos archivos que crees aparecen solos en la conversación; no inventes enlaces.` : "Ninguna herramienta está lista ahora."}${off ? `\nNo disponibles todavía (explica a la persona qué configurar, normalmente un modelo con esa capacidad en Modelos):\n${off}` : ""}`;
 }
+/** The provider rejected the tool definitions for this request: the model must not claim them. */
+export const toolsRejectedPrompt = "\n\nEn esta respuesta el modelo rechazó las herramientas de MI AI, así que no puedes ejecutar ninguna. Si la persona pide una acción, dile que este modelo no aceptó las herramientas y que pruebe otro modelo con llamadas a herramientas.";
+export const noToolsPrompt = "\n\nEn este chat no tienes herramientas de MI AI conectadas; responde solo con texto y no afirmes que puedes ejecutar acciones.";
 
 export type ToolStep = { reply: string; assets: ToolAsset[]; runId?: string };
 type Ask = (summary: string) => Promise<boolean>;
