@@ -124,3 +124,13 @@ describe("Esquemas para el modelo", () => {
     expect(set.schemas.length).toBeLessThanOrEqual(128);
   });
 });
+
+describe("python scientific packages", () => {
+  it("ships numpy, pandas, matplotlib and scipy with file names confined to /in and /out", async () => {
+    const { PYTHON_PACKAGES, pyFileName, PYTHON_LIMITS } = await import("@/lib/code/python");
+    expect([...PYTHON_PACKAGES]).toEqual(["numpy", "pandas", "matplotlib", "scipy"]);
+    expect(pyFileName("../../etc/passwd")).toBe("_.._etc_passwd");
+    expect(pyFileName(".hidden")).toBe("hidden");
+    expect(PYTHON_LIMITS.inputFiles).toBe(10);
+  });
+});
