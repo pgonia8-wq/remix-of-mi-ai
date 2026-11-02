@@ -56,7 +56,7 @@ function Notes({ pid }: { pid: string }) {
   );
   return (
     <div className="space-y-2">
-      <div className="flex gap-2"><input className={inputCls} placeholder="Buscar notas" value={q} onChange={(e) => setQ(e.target.value)} /><Button onClick={() => setEdit({})}><Plus /></Button></div>
+      <div className="flex gap-2"><input className={inputCls} placeholder="Buscar notas" value={q} onChange={(e) => setQ(e.target.value)} /><Button aria-label="Crear nota" title="Crear nota" onClick={() => setEdit({})}><Plus /></Button></div>
       {list.map((n) => (
         <div key={n.id} className="flex items-start gap-2 rounded-xl border bg-card p-3 text-sm">
           <button className="min-w-0 flex-1 text-left" onClick={() => setEdit(n)}>
