@@ -5,7 +5,7 @@ import { inputCls } from "@/components/AppShell";
 import { getRepo } from "@/lib/app-db";
 import { useMutate } from "@/lib/use-app";
 import type { Provider, ProviderKind } from "@/lib/db/repo";
-import { canSaveModel, PROVIDER_KINDS, testProvider, type ConnectionResult, type ProviderCall } from "@/lib/providers";
+import { canSaveModel, isRealtimeDeployment, parseRealtimeUrl, PROVIDER_KINDS, testProvider, type ConnectionResult, type ProviderCall } from "@/lib/providers";
 
 export function ConnectionDiagnostic({ result }: { result: ConnectionResult | null }) {
   if (!result) return null;
@@ -27,7 +27,15 @@ export function ProviderForm({ provider, onClose }: { provider?: Provider | unde
   const mutate = useMutate();
   const azureOpenAI = form.kind === "azure_openai";
   const call: ProviderCall = { kind: form.kind, endpoint: form.endpoint, apiKey: form.apiKey, model: azureOpenAI ? form.deployment.trim() : form.model, deployment: form.deployment, apiVersion: form.apiVersion, extraParams: azureOpenAI ? "" : form.extraParams };
-  function change(patch: Partial<typeof form>) { epoch.current++; setForm({ ...form, ...patch }); setResult(null); setTested(null); }
+  function change(patch: Partial<typeof form>) {
+    // Azure portal realtime URL (wss://…/openai/v1/realtime?model=…) → HTTPS resource URL + deployment.
+    if (azureOpenAI && patch.endpoint !== undefined) {
+      const rt = parseRealtimeUrl(patch.endpoint);
+      if (rt) patch = { ...patch, endpoint: rt.endpoint, ...(rt.deployment ? { deployment: rt.deployment } : {}) };
+    }
+    epoch.current++; setForm({ ...form, ...patch }); setResult(null); setTested(null);
+  }
+  const realtime = azureOpenAI && isRealtimeDeployment(form.deployment);
   async function test() {
     const version = ++epoch.current;
     const snapshot = { ...call };
@@ -54,6 +62,7 @@ export function ProviderForm({ provider, onClose }: { provider?: Provider | unde
     <label className="block space-y-1 text-sm">Proveedor<select aria-label="Proveedor" className={inputCls} value={form.kind} disabled={!!provider || saving} onChange={e => { const defaults = PROVIDER_KINDS.find(x => x.kind === e.target.value); if (defaults) change({ kind: defaults.kind, name: defaults.label, endpoint: defaults.endpoint, model: defaults.model, apiKey: "", deployment: "", apiVersion: "", extraParams: "" }); }}>{PROVIDER_KINDS.map(p => <option key={p.kind} value={p.kind}>{p.label}</option>)}</select></label>
     {!azureOpenAI && field("Nombre", "name")}{field(azureOpenAI ? "URL" : "Endpoint", "endpoint")}{field(provider?.has_key ? "API Key (vacío = conservar la actual)" : "API Key", "apiKey")}{!azureOpenAI && field("Modelo", "model")}{field(meta?.needsDeployment ? "Deployment" : "Deployment (opcional)", "deployment")}{field(azureOpenAI ? "Versión de API" : "Versión de API (opcional)", "apiVersion")}
     {!azureOpenAI && <label className="block space-y-1 text-sm">Parámetros extra JSON<textarea aria-label="Parámetros extra JSON" className={inputCls} disabled={saving} rows={2} value={form.extraParams} onChange={e => change({ extraParams: e.target.value })} /></label>}
+    {realtime && <p className="text-xs text-muted-foreground">Modelo de voz en tiempo real: se prueba abriendo una sesión de voz real y se usará en Conversación por voz, no en el chat de texto.</p>}
     <Button variant="outline" className="w-full" disabled={busy || saving} onClick={test}>{busy ? <LoaderCircle className="animate-spin" /> : <Plug />}{busy ? "Conectando..." : "Probar conexión"}</Button>
     <ConnectionDiagnostic result={result} />
     <div className="flex flex-wrap gap-2"><Button className="flex-1" disabled={busy || saving || !form.name.trim() || !canSaveModel(call, tested, result)} onClick={save}><Save />Guardar modelo</Button><Button variant="ghost" disabled={saving} onClick={() => { epoch.current++; onClose(); }}>Cancelar</Button></div>

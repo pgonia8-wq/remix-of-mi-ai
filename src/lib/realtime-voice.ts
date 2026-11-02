@@ -20,9 +20,10 @@ export function realtimeEndpoints(kind: string, endpoint: string | null) {
   if (kind === "openai") return { secrets: "https://api.openai.com/v1/realtime/client_secrets", calls: "https://api.openai.com/v1/realtime/calls", auth: "bearer" as const };
   if (kind !== "azure_openai") throw new ProviderError("parameters", "Voz en tiempo real solo con OpenAI o Azure OpenAI.");
   let u: URL; try { u = new URL((endpoint ?? "").trim()); } catch { throw new ProviderError("endpoint", "URL de Azure incorrecta."); }
+  if (u.protocol === "wss:") u = new URL(`https://${u.host}${u.pathname}`); // portal's realtime URL → same resource over HTTPS
   if (u.protocol !== "https:") throw new ProviderError("endpoint", "URL de Azure incorrecta: usa HTTPS.");
   const path = u.pathname.replace(/\/+$/, "");
-  if (!(path === "" || path === "/openai" || path.startsWith("/openai/v1") || path.startsWith("/openai/deployments"))) throw new ProviderError("endpoint", "URL de Azure incorrecta: usa la URL del recurso o /openai/v1.");
+  if (!(path === "" || path === "/openai" || path.startsWith("/openai/v1") || path.startsWith("/openai/deployments") || path === "/openai/realtime")) throw new ProviderError("endpoint", "URL de Azure incorrecta: usa la URL del recurso o /openai/v1.");
   return { secrets: `${u.origin}/openai/v1/realtime/client_secrets`, calls: `${u.origin}/openai/v1/realtime/calls`, auth: "api-key" as const };
 }
 /** Minimal zod → JSON Schema for tool parameters (objects, strings, numbers, booleans, arrays, enums). */
