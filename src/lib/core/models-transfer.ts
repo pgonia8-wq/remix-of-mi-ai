@@ -24,7 +24,7 @@ export async function collectModels(repo: Repo): Promise<ModelsPayload> {
       enabled: p.enabled,
       models: all.filter((m) => m.provider_id === p.id).map((m) => ({
         remoteId: m.remote_id, name: m.name, favorite: m.favorite, contextTokens: m.context_tokens ?? null, costInfo: m.cost_info ?? null, privacy: m.privacy,
-        caps: m.capabilities.map((c) => c.id),
+        caps: [...m.capabilities],
       })),
     })),
   };

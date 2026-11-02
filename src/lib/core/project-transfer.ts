@@ -86,23 +86,31 @@ export async function importProject(opts: { repo: Repo; assets: AssetStore; text
 }
 
 // ---------- Bluetooth packaging ----------
-// Android's Bluetooth receiver rejects unknown file types on many phones, so a project sent by Bluetooth
-// travels inside a plain ZIP ("Nombre.miaiproj.zip"). The content stays sealed with the project password.
+// Android's Bluetooth receiver rejects unknown file types on many phones, so a project or model setup sent by
+// Bluetooth travels inside a plain ZIP ("Nombre.miaiproj.zip"). The content stays sealed with its password.
 export const BLUETOOTH_MIME = "application/zip";
-export function bluetoothName(projectName: string) { return `${projectName.replace(/[^\w-]+/g, "_") || "proyecto"}.miaiproj.zip`; }
-export async function packForBluetooth(text: string, projectName: string): Promise<Uint8Array> {
+const safeBase = (n: string) => n.replace(/[^\w-]+/g, "_") || "proyecto";
+export function bluetoothName(baseName: string, ext = ".miaiproj") { return `${safeBase(baseName)}${ext}.zip`; }
+export async function packForBluetooth(text: string, baseName: string, ext = ".miaiproj"): Promise<Uint8Array> {
   const { zipStore } = await import("../zip");
-  return zipStore([{ path: bluetoothName(projectName).replace(/\.zip$/, ""), data: te.encode(text) }]);
+  return zipStore([{ path: `${safeBase(baseName)}${ext}`, data: te.encode(text) }]);
 }
-/** Reads a received project file: plain .miaiproj or the Bluetooth ZIP. */
-export async function projectFileText(bytes: Uint8Array): Promise<string> {
+/** Reads a received file: the plain sealed text or the Bluetooth ZIP that contains it. */
+export async function unpackReceived(bytes: Uint8Array, ext: string, label: string): Promise<string> {
   if (bytes[0] === 0x50 && bytes[1] === 0x4b) {
     const { unzipSync } = await import("fflate");
     const files = unzipSync(bytes);
-    const name = Object.keys(files).find((n) => n.toLowerCase().endsWith(".miaiproj"));
-    if (!name) throw new Error("El ZIP no contiene un proyecto de MI AI (.miaiproj).");
+    const name = Object.keys(files).find((n) => n.toLowerCase().endsWith(ext));
+    if (!name) throw new Error(`El ZIP no contiene ${label} de MI AI (${ext}).`);
     return td.decode(files[name]!);
   }
   return td.decode(bytes);
 }
+export const projectFileText = (bytes: Uint8Array) => unpackReceived(bytes, ".miaiproj", "un proyecto");
 export const isProjectFileName = (n: string) => /\.miaiproj(\.zip)?$/i.test(n);
+export async function fileBytes(chunks: AsyncIterable<Uint8Array>): Promise<Uint8Array> {
+  const parts: Uint8Array[] = []; let n = 0;
+  for await (const c of chunks) { parts.push(c.slice()); n += c.length; }
+  const all = new Uint8Array(n); let o = 0; for (const c of parts) { all.set(c, o); o += c.length; }
+  return all;
+}
