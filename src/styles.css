@@ -294,3 +294,9 @@ body { color-scheme: dark; }
 
 /* Long conversations: the browser skips layout/paint of off-screen messages. */
 .chat-message { content-visibility: auto; contain-intrinsic-size: auto 320px; }
+
+/* Safe areas: real status bar / cutout / navigation bar / keyboard sizes on every phone (set natively on Android). */
+:root { --sat: env(safe-area-inset-top, 0px); --sar: env(safe-area-inset-right, 0px); --sab: env(safe-area-inset-bottom, 0px); --sal: env(safe-area-inset-left, 0px); --kb: 0px; }
+.safe-shell { padding: var(--sat) var(--sar) calc(var(--sab) + var(--kb)) var(--sal); }
+.safe-sheet { padding-top: var(--sat); padding-bottom: calc(var(--sab) + var(--kb)); }
+.safe-sheet > button.absolute { top: calc(var(--sat) + 1rem); }

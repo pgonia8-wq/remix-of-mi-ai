@@ -1,8 +1,9 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { Plus, Trash2, Copy, Archive, ArchiveRestore, Check, Download, Upload, Wallet } from "lucide-react";
+import { Plus, Trash2, Copy, Archive, ArchiveRestore, Check, Download, Upload, Wallet, Bluetooth } from "lucide-react";
 import { getCore } from "@/lib/core";
-import { exportProject, importProject } from "@/lib/core/project-transfer";
+import { exportProject, importProject, packForBluetooth, projectFileText, fileBytes, bluetoothName, BLUETOOTH_MIME } from "@/lib/core/project-transfer";
+import { blobChunks, sendByBluetooth } from "@/lib/device";
 import { passwordStrength } from "@/lib/core/backup";
 import { saveExport } from "@/lib/save-export";
 import { toast } from "sonner";
@@ -22,6 +23,8 @@ export const Route = createFileRoute("/")({
   }),
   component: Projects,
 });
+
+const readProjectUpload = async (f: File) => projectFileText(await fileBytes(blobChunks(f)));
 
 function Projects() {
   const { data: projects = [], isLoading, error } = useRepoQuery(["projects"], (r) => r.listProjects());
@@ -50,7 +53,7 @@ function Projects() {
   }
 
   const panelProject = projects.find((x) => x.id === panel?.projectId);
-  async function doExport() {
+  async function doExport(via: "file" | "bluetooth" = "file") {
     if (!panelProject) return;
     const st = passwordStrength(pw); if (!st.ok) { toast.error(st.hint); return; }
     setBusy(true);
@@ -58,8 +61,14 @@ function Projects() {
       const core = await getCore();
       const mem = core.device.totalMemMB ? core.device.totalMemMB / 1024 : null;
       const text = await exportProject({ repo: core.repo, assets: core.assets, projectId: panelProject.id, password: pw, deviceMemGB: mem });
-      await saveExport(new TextEncoder().encode(text), `${panelProject.name.replace(/[^\w-]+/g, "_")}.miaiproj`, "application/octet-stream");
-      toast.success("Proyecto exportado y cifrado"); setPanel(null);
+      if (via === "bluetooth") {
+        const r = await sendByBluetooth({ data: await packForBluetooth(text, panelProject.name), name: bluetoothName(panelProject.name), mime: BLUETOOTH_MIME });
+        toast.success(r === "downloaded" ? "Archivo listo: envíalo por Bluetooth desde tu teléfono" : "Elige el teléfono de destino. Allí ábrelo con «Importar proyecto» y la misma contraseña.");
+      } else {
+        await saveExport(new TextEncoder().encode(text), `${panelProject.name.replace(/[^\w-]+/g, "_")}.miaiproj`, "application/octet-stream");
+        toast.success("Proyecto exportado y cifrado");
+      }
+      setPanel(null);
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); setPw(""); }
   }
   async function doImport(f: File | undefined) {
@@ -67,7 +76,7 @@ function Projects() {
     setBusy(true);
     try {
       const core = await getCore();
-      const r = await importProject({ repo: core.repo, assets: core.assets, text: await f.text(), password: pw });
+      const r = await importProject({ repo: core.repo, assets: core.assets, text: await readProjectUpload(f), password: pw });
       await mutate(async () => undefined);
       toast.success(`Proyecto "${r.project.name}" importado como proyecto nuevo`); setPanel(null);
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); setPw(""); }
@@ -106,13 +115,13 @@ function Projects() {
           ) : (
             <>
               <h2 className="font-semibold">{panel.mode === "export" ? `Exportar "${panelProject?.name}"` : "Importar proyecto"}</h2>
-              <p className="text-xs text-muted-foreground">{panel.mode === "export" ? "Incluye chats, memoria, notas, tareas, documentos y archivos, cifrados con esta contraseña. Las API keys no se incluyen." : "Se crea un proyecto nuevo; nunca se mezcla con otro. Una contraseña incorrecta se rechaza sin cambiar nada."}</p>
+              <p className="text-xs text-muted-foreground">{panel.mode === "export" ? "Incluye chats, memoria, notas, tareas, documentos y archivos, cifrados con esta contraseña. Las API keys no se incluyen. «Bluetooth» lo envía a otro teléfono; allí se abre con «Importar proyecto» y la misma contraseña." : "Se crea un proyecto nuevo; nunca se mezcla con otro. Una contraseña incorrecta se rechaza sin cambiar nada."}</p>
               <input className={inputCls} type="password" placeholder="Contraseña del archivo" value={pw} onChange={(e) => setPw(e.target.value)} />
               {busy && <p className="text-xs text-primary">Procesando…</p>}
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {panel.mode === "export"
-                  ? <button className={btnCls + " flex-1"} disabled={busy || !pw} onClick={doExport}><Download className="h-4 w-4" /> Exportar</button>
-                  : <label className={btnCls + " flex-1 cursor-pointer" + (busy || !pw ? " pointer-events-none opacity-50" : "")}><Upload className="h-4 w-4" /> Elegir archivo<input type="file" className="hidden" accept=".miaiproj,application/octet-stream" onChange={(e) => doImport(e.target.files?.[0])} /></label>}
+                  ? <><button className={btnCls + " flex-1"} disabled={busy || !pw} onClick={() => doExport("file")}><Download className="h-4 w-4" /> Guardar</button><button className={btnCls + " flex-1"} disabled={busy || !pw} onClick={() => doExport("bluetooth")}><Bluetooth className="h-4 w-4" /> Bluetooth</button></>
+                  : <label className={btnCls + " flex-1 cursor-pointer" + (busy || !pw ? " pointer-events-none opacity-50" : "")}><Upload className="h-4 w-4" /> Elegir archivo<input type="file" className="hidden" accept=".miaiproj,.zip,application/zip,application/octet-stream" onChange={(e) => doImport(e.target.files?.[0])} /></label>}
                 <button className="flex-1 text-sm underline" onClick={() => setPanel(null)}>Cancelar</button>
               </div>
             </>

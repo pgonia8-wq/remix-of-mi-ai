@@ -30,6 +30,19 @@ public class MiaiDevicePlugin extends Plugin {
 
   @Override public void load() { instance = this; }
 
+  // ---------- screen insets (status bar, cutout, navigation bar, keyboard) in CSS px ----------
+  static volatile float[] insets = new float[] { 0, 0, 0, 0, 0 };
+  static JSObject insetsObj() {
+    float[] i = insets; JSObject o = new JSObject();
+    o.put("top", i[0]); o.put("right", i[1]); o.put("bottom", i[2]); o.put("left", i[3]); o.put("ime", i[4]);
+    return o;
+  }
+  static void insetsChanged(float top, float right, float bottom, float left, float ime) {
+    insets = new float[] { top, right, bottom, left, ime };
+    MiaiDevicePlugin p = instance; if (p != null) p.notifyListeners("insets", insetsObj(), true);
+  }
+  @PluginMethod public void getInsets(PluginCall call) { call.resolve(insetsObj()); }
+
   // ---------- background work notice ----------
   @PluginMethod public void startWork(PluginCall call) {
     try {
@@ -84,10 +97,20 @@ public class MiaiDevicePlugin extends Plugin {
       } else s.setType("text/plain");
       if (text != null && !text.isEmpty()) s.putExtra(Intent.EXTRA_TEXT, text);
       if (subject != null && !subject.isEmpty()) s.putExtra(Intent.EXTRA_SUBJECT, subject);
+      // "Enviar por Bluetooth": open the system Bluetooth sender directly when present (package name varies by maker).
+      if ("bluetooth".equals(call.getString("target"))) {
+        for (android.content.pm.ResolveInfo ri : getContext().getPackageManager().queryIntentActivities(s, 0)) {
+          if (ri.activityInfo != null && ri.activityInfo.packageName.toLowerCase(Locale.ROOT).contains("bluetooth")) {
+            s.setClassName(ri.activityInfo.packageName, ri.activityInfo.name);
+            getActivity().startActivity(s);
+            JSObject o = new JSObject(); o.put("direct", true); call.resolve(o); return;
+          }
+        }
+      }
       Intent chooser = Intent.createChooser(s, call.getString("title", "Compartir en…"));
       chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
       getActivity().startActivity(chooser);
-      call.resolve();
+      JSObject o = new JSObject(); o.put("direct", false); call.resolve(o);
     } catch (Exception e) { call.reject("No se pudo abrir Compartir en…"); }
   }
 

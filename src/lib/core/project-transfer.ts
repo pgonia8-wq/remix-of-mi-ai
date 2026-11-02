@@ -84,3 +84,33 @@ export async function importProject(opts: { repo: Repo; assets: AssetStore; text
     throw e;
   }
 }
+
+// ---------- Bluetooth packaging ----------
+// Android's Bluetooth receiver rejects unknown file types on many phones, so a project or model setup sent by
+// Bluetooth travels inside a plain ZIP ("Nombre.miaiproj.zip"). The content stays sealed with its password.
+export const BLUETOOTH_MIME = "application/zip";
+const safeBase = (n: string) => n.replace(/[^\w-]+/g, "_") || "proyecto";
+export function bluetoothName(baseName: string, ext = ".miaiproj") { return `${safeBase(baseName)}${ext}.zip`; }
+export async function packForBluetooth(text: string, baseName: string, ext = ".miaiproj"): Promise<Uint8Array> {
+  const { zipStore } = await import("../zip");
+  return zipStore([{ path: `${safeBase(baseName)}${ext}`, data: te.encode(text) }]);
+}
+/** Reads a received file: the plain sealed text or the Bluetooth ZIP that contains it. */
+export async function unpackReceived(bytes: Uint8Array, ext: string, label: string): Promise<string> {
+  if (bytes[0] === 0x50 && bytes[1] === 0x4b) {
+    const { unzipSync } = await import("fflate");
+    const files = unzipSync(bytes);
+    const name = Object.keys(files).find((n) => n.toLowerCase().endsWith(ext));
+    if (!name) throw new Error(`El ZIP no contiene ${label} de MI AI (${ext}).`);
+    return td.decode(files[name]!);
+  }
+  return td.decode(bytes);
+}
+export const projectFileText = (bytes: Uint8Array) => unpackReceived(bytes, ".miaiproj", "un proyecto");
+export const isProjectFileName = (n: string) => /\.miaiproj(\.zip)?$/i.test(n);
+export async function fileBytes(chunks: AsyncIterable<Uint8Array>): Promise<Uint8Array> {
+  const parts: Uint8Array[] = []; let n = 0;
+  for await (const c of chunks) { parts.push(c.slice()); n += c.length; }
+  const all = new Uint8Array(n); let o = 0; for (const c of parts) { all.set(c, o); o += c.length; }
+  return all;
+}

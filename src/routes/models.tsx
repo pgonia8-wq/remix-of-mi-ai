@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { MediaProviderForm } from "@/components/MediaProviderForm";
 import { SearxngForm } from "@/components/SearxngForm";
 import { AzureVideoModelForm } from "@/components/AzureVideoModelForm";
+import { ModelsTransfer } from "@/components/ModelsTransfer";
 
 export const Route = createFileRoute("/models")({
   head: () => ({
@@ -65,7 +66,7 @@ function Models() {
       </div>
       <p className="text-xs text-muted-foreground">Cada modelo muestra solo las capacidades que tú o su catálogo declaran. «Probar» hace una operación real con tu clave (puede tener costo). Los proveedores de texto se agregan en Ajustes.</p>
       {adding && <RegisterModel providers={providers} caps={caps.map((c) => c.id)} onDone={() => setAdding(false)} />}
-      <Button variant="outline" onClick={() => setAzureVideo(v => !v)}>Video Azure</Button>
+      <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => setAzureVideo(v => !v)}>Video Azure</Button><ModelsTransfer /></div>
       {azureVideo && <AzureVideoModelForm providers={providers} />}
 
       <section className="space-y-2 rounded-xl border bg-card p-3 text-sm">
