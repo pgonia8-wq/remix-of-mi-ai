@@ -68,8 +68,11 @@ export function voiceprint(input: Float32Array, sr = 16000): Voiceprint {
     const fb = Array.from({ length: bands }, (_, m) => { let sum = 0; for (let k = pts[m]!; k < pts[m + 2]!; k++) { const w = k < pts[m + 1]! ? (k - pts[m]!) / Math.max(1, pts[m + 1]! - pts[m]!) : (pts[m + 2]! - k) / Math.max(1, pts[m + 2]! - pts[m + 1]!); sum += w * (pow[k] ?? 0); } return Math.log(sum + 1e-10); });
     feats.push(Array.from({ length: coefs }, (_, c) => fb.reduce((acc, v, m) => acc + v * Math.cos(Math.PI * (c + 1) * (m + 0.5) / bands), 0)));
     // pitch by normalized autocorrelation
-    let best = 0, lag = 0; for (let L = Math.floor(sr / 400); L <= Math.floor(sr / 70); L++) { let num = 0, d1 = 0, d2 = 0; for (let i = 0; i + L < win; i++) { const a = x[s + i]!, b = x[s + i + L]!; num += a * b; d1 += a * a; d2 += b * b; } const r = num / Math.sqrt(d1 * d2 + 1e-12); if (r > best) { best = r; lag = L; } }
-    if (best > 0.5 && lag) pitches.push(sr / lag);
+    // shortest lag whose correlation is close to the best one (avoids octave-down errors)
+    const rs: number[] = []; let best = 0;
+    for (let L = Math.floor(sr / 400); L <= Math.floor(sr / 70); L++) { let num = 0, d1 = 0, d2 = 0; for (let i = 0; i + L < win; i++) { const a = x[s + i]!, b = x[s + i + L]!; num += a * b; d1 += a * a; d2 += b * b; } const r = num / Math.sqrt(d1 * d2 + 1e-12); rs.push(r); best = Math.max(best, r); }
+    const k = rs.findIndex((r, i) => r >= best * 0.9 && r >= (rs[i - 1] ?? -1) && r >= (rs[i + 1] ?? -1));
+    if (best > 0.5 && k >= 0) pitches.push(sr / (k + Math.floor(sr / 400)));
   });
   if (feats.length < 20) throw new Error("La grabación tiene muy poca voz clara. Graba más cerca del micrófono y sin ruido.");
   const mean = Array.from({ length: coefs }, (_, c) => feats.reduce((s, f) => s + f[c]!, 0) / feats.length);
@@ -80,8 +83,10 @@ export function voiceprint(input: Float32Array, sr = 16000): Voiceprint {
 
 /** Same-speaker score in [0,1] from MFCC statistics (cosine) and pitch closeness. */
 export function compareVoiceprints(a: Voiceprint, b: Voiceprint) {
-  const dot = a.mfcc.reduce((s, v, i) => s + v * b.mfcc[i]!, 0), na = Math.hypot(...a.mfcc), nb = Math.hypot(...b.mfcc);
-  const timbre = na && nb ? (dot / (na * nb) + 1) / 2 : 0;
+  // Standardized mean difference per cepstral coefficient (pooled deviation), averaged; 0 = identical timbre.
+  const C = a.mfcc.length / 2; let d = 0;
+  for (let c = 0; c < C; c++) { const pooled = Math.sqrt(((a.mfcc[C + c] ?? 0) ** 2 + (b.mfcc[C + c] ?? 0) ** 2) / 2) || 1; d += Math.abs(a.mfcc[c]! - b.mfcc[c]!) / pooled; }
+  const timbre = Math.exp(-d / C * 2);
   const ratio = a.f0 && b.f0 ? Math.max(a.f0, b.f0) / Math.min(a.f0, b.f0) : 1;
   const pitch = Math.max(0, 1 - Math.log2(ratio) * 2); // one octave apart → 0
   const score = 0.6 * timbre + 0.4 * pitch;
