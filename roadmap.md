@@ -215,4 +215,4 @@
 - [x] A8 Reacciones automáticas a archivos/eventos, tutor adaptativo, animación 3D más fina.
 - [x] A9 Clonación de voz con verificación real de que la voz es del usuario.
 - [x] Compartir en: enviar mensajes, archivos y resultados a otras apps (hoja de compartir de Android).
-- [ ] Compilar build.14 una sola vez al final.
+- [x] Compilar build.14 una sola vez al final (firma fija, Android 11+, ARM64/ARMv7). Pruebas físicas pendientes del usuario.
