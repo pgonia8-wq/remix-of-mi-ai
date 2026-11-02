@@ -18,6 +18,7 @@ function Studio({ pid }: { pid: string }) {
   const { data: assets = [] } = useCoreQuery(["mesh-sources", pid], async (c) => (await c.assets.list(pid)).filter((a) => a.capability_id === "cad.document" || a.capability_id === "mesh.document"));
   const [doc, setDoc] = useState<MeshDoc | null>(null), [selected, setSelected] = useState<number[]>([]), [radius, setRadius] = useState(0), [delta, setDelta] = useState<V3>([0, 0, 0]);
   const [bone, setBone] = useState(""), [boneName, setBoneName] = useState("hueso1"), [time, setTime] = useState(0), [playing, setPlaying] = useState(false), [pose, setPose] = useState<{ rot: V3; move: V3 }>({ rot: [0, 0, 0], move: [0, 0, 0] }), [busy, setBusy] = useState(false);
+  const [smooth, setSmooth] = useState(true), [ease, setEase] = useState<Ease>("ease");
   useEffect(() => { if (!playing || !doc) return; let raf = 0, last = performance.now(); const tick = (now: number) => { setTime((t) => (t + (now - last) / 1000) % doc.duration); last = now; raf = requestAnimationFrame(tick); }; raf = requestAnimationFrame(tick); return () => cancelAnimationFrame(raf); }, [playing, doc]);
   useEffect(() => { if (doc && bone) setPose(sampleKeys(doc.tracks.find((t) => t.bone === bone)?.keys ?? [], time)); }, [bone, time, doc]);
   async function action(fn: Parameters<typeof mutate>[0]) { setBusy(true); try { await mutate(fn); } catch (e) { toast.error(e instanceof Error ? e.message : "No se pudo completar"); } finally { setBusy(false); } }
