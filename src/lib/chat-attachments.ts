@@ -50,6 +50,27 @@ export function fitHistory(history: ChatMsg[], maxMessages = 20): ChatMsg[] {
   while (out.length > 1 && out[0]!.role === "assistant") out.shift();
   return out;
 }
+/**
+ * After a real "too long" rejection: shrink the request in place and say whether anything changed.
+ * First trims older tool results of the current answer, then drops the oldest half of earlier conversation turns.
+ * The system message and the latest user message are always kept; the chat itself still stores every message.
+ */
+export function shrinkForRetry(msgs: ChatMsg[]): boolean {
+  const lastUser = msgs.map((m) => m.role).lastIndexOf("user");
+  const tools = msgs.map((m, i) => (m.role === "tool" && i > lastUser ? i : -1)).filter((i) => i >= 0);
+  let changed = false;
+  for (const i of tools.slice(0, -2)) {
+    const m = msgs[i]!;
+    if (m.content.length > 1500) { msgs[i] = { ...m, content: `${m.content.slice(0, 1500)}\n[resultado recortado para caber en el contexto]` }; changed = true; }
+  }
+  if (changed) return true;
+  const earlier = lastUser - 1; // messages between the system prompt and the latest user message
+  if (earlier < 1) return false;
+  let drop = Math.max(1, Math.ceil(earlier / 2));
+  while (1 + drop < lastUser && msgs[1 + drop]!.role !== "user") drop++;
+  msgs.splice(1, drop);
+  return true;
+}
 /** Provider rejections caused by sending too much text in one request. */
 export function isContextOverflow(status: number | undefined, technical: string | undefined) {
   // 429 / "tokens per minute" are speed limits of the provider, not a too-long conversation: never blame the context for them.
