@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { Inbox, Images, MessageSquarePlus } from "lucide-react";
+import { Inbox, Images, MessageSquarePlus, FolderInput } from "lucide-react";
+import { importProject, isProjectFileName, projectFileText } from "@/lib/core/project-transfer";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Button } from "./ui/button";
@@ -18,6 +19,7 @@ export function ShareInbox() {
   const active = useActiveProjectId();
   const { data: projects = [] } = useRepoQuery(["projects"], (r) => r.listProjects());
   const [pid, setPid] = useState<string>("");
+  const [pw, setPw] = useState("");
   const navigate = useNavigate(), mutate = useMutate();
   useEffect(() => { const load = () => void readInbox().then(setItems); load(); return onInbox(load); }, []);
   useEffect(() => { if (!pid && (active || projects[0])) setPid(active ?? projects[0]!.id); }, [active, projects, pid]);
@@ -41,6 +43,21 @@ export function ShareInbox() {
       await navigate({ to: "/library" });
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
   }
+  const projectFile = files.find((f) => isProjectFileName(f.name ?? ""));
+  async function importReceived() {
+    if (!projectFile) return;
+    setBusy(true);
+    try {
+      const parts: Uint8Array[] = []; let n = 0;
+      for await (const c of readCacheFile(projectFile.path!)) { parts.push(c.slice()); n += c.length; }
+      const all = new Uint8Array(n); let o = 0; for (const c of parts) { all.set(c, o); o += c.length; }
+      const c = await getCore();
+      const r = await importProject({ repo: c.repo, assets: c.assets, text: await projectFileText(all), password: pw });
+      await mutate(async () => undefined); setActiveProject(r.project.id); await done();
+      toast.success(`Proyecto "${r.project.name}" importado como proyecto nuevo`);
+      await navigate({ to: "/" });
+    } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); setPw(""); }
+  }
   async function toChat() {
     if (!pid) { toast.error("Crea un proyecto primero."); return; }
     setBusy(true);
@@ -62,6 +79,11 @@ export function ShareInbox() {
         {files.map((f) => <li key={f.path} className="truncate">{f.name} <span className="text-muted-foreground">{fmt(f.size)}</span></li>)}
         {texts.map((t, i) => <li key={i} className="line-clamp-3 text-muted-foreground">“{t.text}”</li>)}
       </ul>
+      {projectFile && <div className="space-y-2 rounded-lg border p-3">
+        <p className="text-sm font-medium">Es un proyecto de MI AI</p>
+        <input aria-label="Contraseña del proyecto" type="password" className="w-full rounded-md border bg-background p-2 text-sm" placeholder="Contraseña del archivo" value={pw} onChange={(e) => setPw(e.target.value)} />
+        <Button className="w-full" disabled={busy || !pw} onClick={importReceived}><FolderInput />Importar como proyecto nuevo</Button>
+      </div>}
       <label className="block text-sm">Proyecto
         <select aria-label="Proyecto de destino" className="mt-1 w-full rounded-md border bg-background p-2" value={pid} onChange={(e) => setPid(e.target.value)}>
           {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}

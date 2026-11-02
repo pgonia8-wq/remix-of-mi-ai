@@ -123,7 +123,7 @@ function Projects() {
               <p className="text-xs text-muted-foreground">{panel.mode === "export" ? "Incluye chats, memoria, notas, tareas, documentos y archivos, cifrados con esta contraseña. Las API keys no se incluyen. «Bluetooth» lo envía a otro teléfono; allí se abre con «Importar proyecto» y la misma contraseña." : "Se crea un proyecto nuevo; nunca se mezcla con otro. Una contraseña incorrecta se rechaza sin cambiar nada."}</p>
               <input className={inputCls} type="password" placeholder="Contraseña del archivo" value={pw} onChange={(e) => setPw(e.target.value)} />
               {busy && <p className="text-xs text-primary">Procesando…</p>}
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {panel.mode === "export"
                   ? <><button className={btnCls + " flex-1"} disabled={busy || !pw} onClick={() => doExport("file")}><Download className="h-4 w-4" /> Guardar</button><button className={btnCls + " flex-1"} disabled={busy || !pw} onClick={() => doExport("bluetooth")}><Bluetooth className="h-4 w-4" /> Bluetooth</button></>
                   : <label className={btnCls + " flex-1 cursor-pointer" + (busy || !pw ? " pointer-events-none opacity-50" : "")}><Upload className="h-4 w-4" /> Elegir archivo<input type="file" className="hidden" accept=".miaiproj,.zip,application/zip,application/octet-stream" onChange={(e) => doImport(e.target.files?.[0])} /></label>}
