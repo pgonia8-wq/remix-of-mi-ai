@@ -30,6 +30,19 @@ public class MiaiDevicePlugin extends Plugin {
 
   @Override public void load() { instance = this; }
 
+  // ---------- screen insets (status bar, cutout, navigation bar, keyboard) in CSS px ----------
+  static volatile float[] insets = new float[] { 0, 0, 0, 0, 0 };
+  static JSObject insetsObj() {
+    float[] i = insets; JSObject o = new JSObject();
+    o.put("top", i[0]); o.put("right", i[1]); o.put("bottom", i[2]); o.put("left", i[3]); o.put("ime", i[4]);
+    return o;
+  }
+  static void insetsChanged(float top, float right, float bottom, float left, float ime) {
+    insets = new float[] { top, right, bottom, left, ime };
+    MiaiDevicePlugin p = instance; if (p != null) p.notifyListeners("insets", insetsObj(), true);
+  }
+  @PluginMethod public void getInsets(PluginCall call) { call.resolve(insetsObj()); }
+
   // ---------- background work notice ----------
   @PluginMethod public void startWork(PluginCall call) {
     try {
