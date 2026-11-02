@@ -339,7 +339,12 @@ export function responseError(status: number, body: string, key?: string | null)
       + (reason ? ` Detalle del proveedor: ${reason}` : "");
     return new ProviderError("unavailable", label, status, technical);
   }
-  return new ProviderError(code, labels[code], status, technical);
+  // Say why: the provider's own reason (redacted) goes next to the generic label, so chat notices are not a dead end.
+  let reason = "";
+  try { const j = JSON.parse(technical); reason = String(j?.error?.message ?? j?.message ?? ""); } catch { /* plain text body */ }
+  reason = reason.replace(/\s+/g, " ").trim().slice(0, 220);
+  const label = code === "unavailable" ? `${labels[code]}${status ? ` (HTTP ${status})` : ""}` : labels[code];
+  return new ProviderError(code, reason ? `${label} Detalle del proveedor: ${reason}` : label, status, technical);
 }
 /** Realtime deployments are voice-only: they never answer chat completions. */
 export const isRealtimeDeployment = (name: string | null | undefined) => /realtime/i.test(name ?? "");
