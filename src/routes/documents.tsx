@@ -141,7 +141,7 @@ function Result({ text, title }: { text: string; title: string }) {
     <section className="space-y-2 rounded-xl border bg-card p-3">
       <Markdown text={text} />
       <p className="text-[10px] text-muted-foreground">Guardado cifrado en la Biblioteca. Exportar crea una copia sin cifrar.</p>
-      <div className="grid grid-cols-5 gap-1">{(["pdf", "docx", "xlsx", "pptx", "md"] as const).map((f) => <Button key={f} size="sm" variant="outline" onClick={() => exp(f)}>{f.toUpperCase()}</Button>)}</div>
+      <div className="grid grid-cols-4 gap-1 sm:grid-cols-7">{(["pdf", "docx", "xlsx", "pptx", "odt", "rtf", "md"] as const).map((f) => <Button key={f} size="sm" variant="outline" onClick={() => exp(f)}>{f.toUpperCase()}</Button>)}</div>
     </section>
   );
 }

@@ -230,7 +230,7 @@ export const TOOL_REGISTRY: ToolDef[] = [
   provider("music.generate", "Generar música", "multimedia", "music.generate"),
   provider("model3d.generate", "Generar modelo 3D", "multimedia", "model3d.generate"),
   { id: "doc.create", name: "Crear documento", description: "Crea en el teléfono un PDF, Word, Excel, PowerPoint o Markdown a partir de Markdown (títulos, listas y tablas).", family: "productividad",
-    input: z.object({ title: z.string().min(1).max(160), format: z.enum(["pdf", "docx", "xlsx", "pptx", "md"]), markdown: z.string().min(1).max(200_000) }).strict(), output: "archivo",
+    input: z.object({ title: z.string().min(1).max(160), format: z.enum(["pdf", "docx", "xlsx", "pptx", "odt", "rtf", "md"]), markdown: z.string().min(1).max(200_000) }).strict(), output: "archivo",
     permissions: ["local.write"], network: false, cost: "none", maxCalls: 20, timeoutMs: 120_000, parallel: false, env: ["android"], risk: "low", approval: "never", sideEffect: true, roles: "all",
     availability: ok,
     run: async (ctx, i) => {
