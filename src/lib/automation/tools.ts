@@ -250,6 +250,24 @@ export const TOOL_REGISTRY: ToolDef[] = [
     target: (i) => i.text.slice(0, 120), availability: ok, run: async (ctx, i) => { await ctx.core.repo.addMemory(ctx.projectId, "hecho", i.text); return { output: "guardado", trusted: true }; } },
   { id: "reminder.add", name: "Recordatorio de revisión", description: "Programa una alarma que solo abre la revisión.", family: "productividad", input: z.object({ minutes: z.number().int().min(1).max(60 * 24 * 30), note: z.string().max(300) }).strict(), output: "id", permissions: ["local.write"], network: false, cost: "none", maxCalls: 5, timeoutMs: 5000, parallel: false, env: ["android"], risk: "low", approval: "never", sideEffect: true, roles: "all",
     availability: ok, run: async (ctx, i) => { const { scheduleReview } = await import("./triggers"); const id = await scheduleReview(ctx.core.repo, ctx.projectId, ctx.runId, Date.now() + i.minutes * 60_000, "reminder", i.note); return { output: `recordatorio ${id}`, trusted: true }; } },
+  // I. Delegación desde el chat: crea una ejecución autónoma independiente (teléfono por defecto).
+  { id: "agents.delegate", name: "Delegar al equipo de agentes", description: "Crea una ejecución autónoma (equipo de agentes o AI Builder) que planifica, reparte subtareas, usa herramientas y pasa auditoría. Trabaja en el teléfono sin PC; usa la carpeta de PC/VM solo si la persona la eligió en Sistema autónomo.", family: "productividad",
+    input: z.object({ goal: z.string().min(3).max(8000), mode: z.enum(["team", "builder"]).default("team"), kind: z.enum(["web", "android", "api", "backend", "desktop", "script", "automation", "database", "multi-module", "multi-service"]).default("script"), acceptance: z.array(z.string().min(1).max(300)).max(10).default([]) }).strict(),
+    output: "id de la ejecución", permissions: ["provider", "local.write"], network: true, cost: "none", maxCalls: 3, timeoutMs: 30_000, parallel: false, env: ["android"], risk: "medium", approval: "always", sideEffect: true, roles: ["chat"],
+    target: (i) => `${i.mode === "builder" ? `AI Builder (${i.kind})` : "Equipo de agentes"} en el teléfono: ${i.goal.slice(0, 300)}`,
+    availability: async (ctx) => { const m = await modelFor(ctx, "chat"); return m.ok ? { ok: true } : { ok: false, reason: m.reason }; },
+    run: async (ctx, i) => {
+      const { createRun } = await import("./orchestrator");
+      const { createBuilderRun } = await import("./builder");
+      const { driveRun } = await import("./drive");
+      // The person approved this delegation in the chat; unknown prices proceed, project budgets still apply.
+      const limits = { unknownCost: "allow" as const, concurrency: 2 };
+      const id = i.mode === "builder"
+        ? await createBuilderRun(ctx.core, ctx.projectId, { requirements: i.goal, kind: i.kind, nodeId: null, folderId: null, limits })
+        : await createRun(ctx.core, ctx.projectId, { goal: i.goal, acceptance: i.acceptance, limits, nodeId: null, folderId: null });
+      driveRun(ctx.core, ctx.projectId, id);
+      return { output: `Ejecución autónoma ${id} iniciada en el teléfono. Su avance, aprobaciones y resultado aparecen en esta conversación y en Sistema autónomo. No inventes resultados: explica que el equipo está trabajando.`, trusted: true, runId: id };
+    } },
 ];
 export const TOOL_IDS = TOOL_REGISTRY.map((t) => t.id);
 export const getTool = (id: string) => TOOL_REGISTRY.find((t) => t.id === id) ?? null;
