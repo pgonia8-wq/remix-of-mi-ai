@@ -86,9 +86,9 @@ export function compareVoiceprints(a: Voiceprint, b: Voiceprint) {
   // Standardized mean difference per cepstral coefficient (pooled deviation), averaged; 0 = identical timbre.
   const C = a.mfcc.length / 2; let d = 0;
   for (let c = 0; c < C; c++) { const pooled = Math.sqrt(((a.mfcc[C + c] ?? 0) ** 2 + (b.mfcc[C + c] ?? 0) ** 2) / 2) || 1; d += Math.abs(a.mfcc[c]! - b.mfcc[c]!) / pooled; }
-  const timbre = Math.exp(-d / C * 2);
+  const timbre = Math.exp(-d / C);
   const ratio = a.f0 && b.f0 ? Math.max(a.f0, b.f0) / Math.min(a.f0, b.f0) : 1;
   const pitch = Math.max(0, 1 - Math.log2(ratio) * 2); // one octave apart → 0
   const score = 0.6 * timbre + 0.4 * pitch;
-  return { score: Math.round(score * 1000) / 1000, timbre: Math.round(timbre * 1000) / 1000, pitchRatio: Math.round(ratio * 100) / 100, ok: score >= 0.8 && ratio <= 1.3 };
+  return { score: Math.round(score * 1000) / 1000, timbre: Math.round(timbre * 1000) / 1000, pitchRatio: Math.round(ratio * 100) / 100, ok: score >= 0.6 && ratio <= 1.35 };
 }
