@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { azureKindOf } from "@/lib/azure-url";
 import { takeChatHandoff } from "@/lib/share-handoff";
 import { shareContent } from "@/lib/device";
 import { useEffect, useRef, useState } from "react";
@@ -46,7 +47,8 @@ function ChatPage() {
   const { data: feedback = [] } = useRepoQuery(["chat-feedback", pid, chatId], (r) => pid ? r.messageFeedback(pid, chatId) : Promise.resolve([]), !!pid);
   const { data: contextLimit = 20 } = useRepoQuery(["chat-context", pid, chatId], (r) => pid ? r.getChatContextLimit(pid, chatId) : Promise.resolve(20), !!pid);
   const contextSelect = useRef<HTMLSelectElement | null>(null);
-  const enabled = providers.filter((p) => p.enabled && !["elevenlabs", "tavily", "searxng", "meshy", "runway"].includes(p.kind));
+  // Voice, transcription, embedding and image deployments never answer text chat, so they are not offered here.
+  const enabled = providers.filter((p) => p.enabled && !["elevenlabs", "tavily", "searxng", "meshy", "runway"].includes(p.kind) && (p.kind !== "azure_openai" || azureKindOf({ deployment: p.deployment, extraParams: p.extra_params }) === "chat"));
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState<string | null>(null);
   const abort = useRef<AbortController | null>(null);
