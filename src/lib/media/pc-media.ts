@@ -9,7 +9,7 @@ export async function submitMedia(core:Core,pid:string,nodeId:string,kind:'stems
  const assets=await Promise.all(assetIds.map(id=>core.assets.get(pid,id)));if(assets.some(a=>!a||a.size>60*1024**2))throw Error('Archivo ajeno al proyecto o demasiado grande');
  const caps=await rpc<{ffmpeg:boolean;demucs:boolean}>(core.repo,nodeId,'media.capabilities',{});if(kind==='stems'?!caps.demucs:!caps.ffmpeg)throw Error(kind==='stems'?'Instala Demucs y sus pesos locales en el nodo PC.':'Instala FFmpeg en el nodo PC.');
  let background:Uint8Array|undefined;
- if(kind==='video'&&plan&&tracks.length){const {videoArgs}=await import('../../../pc-node/media-plan.mjs');const duration=videoArgs(plan,assetIds,'out.mp4').duration;validateAudioTracks(tracks,duration);const audio=await mixBackground(core,pid,tracks,duration);if(audio){background=Uint8Array.from(atob(audio),c=>c.charCodeAt(0));plan={...plan,audio:true};}}
+ if(kind==='video'&&plan&&tracks.length){const {videoArgs}=await import('../../../pc-node/media-plan.mjs');const duration=videoArgs(plan,assetIds,'out.mp4').duration;validateAudioTracks(tracks,duration);const audio=await mixBackground(core,pid,tracks,duration);if(audio){background=audio;plan={...plan,audio:true};}}
  const job=await core.jobs.create(pid,{capability:`media.pc.${kind}`,params:{nodeId,kind,assetIds,plan}});await core.jobs.markSent(pid,job.id);
  let sessionId='';
  try{sessionId=(await rpc<{sessionId:string}>(core.repo,nodeId,'media.create',{projectId:pid})).sessionId;
