@@ -147,7 +147,7 @@ export const TOOL_REGISTRY: ToolDef[] = [
       if (onPhone(ctx)) { const r = await localWs.read(ctx.core.repo, ctx.projectId, i.path); return { output: `hash=${r.hash}\n${r.text.slice(0, 30_000)}`, trusted: false }; }
       const r = await pcFiles.read(ctx.core.repo, ctx.projectId, ctx.folderId!, i.path); return { output: `hash=${r.hash}\n${new TextDecoder().decode(r.bytes).slice(0, 30_000)}`, trusted: false };
     } },
-  { id: "fs.write", name: "Escribir archivo", description: "Escribe en el espacio de trabajo; exige el hash de la versión editada (null si es nuevo) y respeta bloqueos.", family: "ingenieria", input: z.object({ path: relPath, content: z.string().max(400_000), baseHash: z.string().regex(/^[0-9a-f]{64}$/).nullable() }).strict(), output: "hash nuevo o conflicto", permissions: ["pc.write"], network: false, cost: "none", maxCalls: 200, timeoutMs: 30_000, parallel: true, env: ["android", "pc"], risk: "low", approval: "never", sideEffect: true, roles: ENG.concat("documenter", "analyst"),
+  { id: "fs.write", name: "Escribir archivo", description: "Escribe en el espacio de trabajo; para editar un archivo existente pasa baseHash (hash que devolvió fs.read); omítelo si el archivo es nuevo y respeta bloqueos.", family: "ingenieria", input: z.object({ path: relPath, content: z.string().max(400_000), baseHash: z.string().regex(/^[0-9a-f]{64}$/).nullish().transform((v) => v ?? null) }).strict(), output: "hash nuevo o conflicto", permissions: ["pc.write"], network: false, cost: "none", maxCalls: 200, timeoutMs: 30_000, parallel: true, env: ["android", "pc"], risk: "low", approval: "never", sideEffect: true, roles: ENG.concat("documenter", "analyst"),
     availability: wsReady, run: async (ctx, i) => {
       await assertLock(ctx, i.path);
       const r = onPhone(ctx) ? await localWs.write(ctx.core.repo, ctx.projectId, i.path, i.content, i.baseHash) : await pcFiles.write(ctx.core.repo, ctx.projectId, ctx.folderId!, i.path, new TextEncoder().encode(i.content), i.baseHash);
@@ -320,8 +320,14 @@ export async function invokeTool(ctx: ToolCtx, toolId: string, raw: unknown, opt
   if (def.roles !== "all" && !def.roles.includes(ctx.agent)) return reject(`El rol ${ctx.agent} no tiene permiso para ${toolId}.`);
   const [pol] = await repo.sql.all<{ enabled: number; max_calls: number | null; budget_usd: number | null }>("SELECT enabled, max_calls, budget_usd FROM tool_policies WHERE project_id=? AND tool=?", [p, toolId]);
   if (pol && !pol.enabled) return reject("Herramienta desactivada para este proyecto.");
-  const parsed = def.input.safeParse(raw);
-  if (!parsed.success) return reject(`Entrada inválida: ${parsed.error.issues[0]?.message ?? "formato"}`);
+  let parsed = def.input.safeParse(raw);
+  if (!parsed.success) {
+    // Repair common model formatting slips (null optionals, "5" for 5, extra keys, "/path"), then validate strictly again.
+    const { coerceArgs, describeIssue } = await import("./coerce");
+    const retry = def.input.safeParse(coerceArgs(def.input, raw));
+    if (retry.success) parsed = retry;
+    else { const { jsonSchemaOf } = await import("../realtime-voice"); return reject(describeIssue(def.input, retry.error, jsonSchemaOf(def.input))); }
+  }
   const input = parsed.data;
   const [{ n: used }] = await repo.sql.all<{ n: number }>("SELECT COUNT(*) n FROM auto_observations WHERE project_id=? AND run_id=? AND tool=? AND kind='tool'", [p, ctx.runId, toolId]) as [{ n: number }];
   const cap = Math.min(def.maxCalls, pol?.max_calls ?? Infinity, opts.limits.perToolCalls[toolId] ?? Infinity);

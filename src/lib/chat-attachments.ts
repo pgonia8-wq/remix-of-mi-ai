@@ -50,7 +50,44 @@ export function fitHistory(history: ChatMsg[], maxMessages = 20): ChatMsg[] {
   while (out.length > 1 && out[0]!.role === "assistant") out.shift();
   return out;
 }
+/**
+ * After a real "too long" rejection: shrink the request in place and say whether anything changed.
+ * First trims older tool results of the current answer, then drops the oldest half of earlier conversation turns.
+ * The system message and the latest user message are always kept; the chat itself still stores every message.
+ */
+export function shrinkForRetry(msgs: ChatMsg[]): boolean {
+  const lastUser = msgs.map((m) => m.role).lastIndexOf("user");
+  const tools = msgs.map((m, i) => (m.role === "tool" && i > lastUser ? i : -1)).filter((i) => i >= 0);
+  let changed = false;
+  for (const i of tools.slice(0, -2)) {
+    const m = msgs[i]!;
+    if (m.content.length > 1500) { msgs[i] = { ...m, content: `${m.content.slice(0, 1500)}\n[resultado recortado para caber en el contexto]` }; changed = true; }
+  }
+  if (changed) return true;
+  const earlier = lastUser - 1; // messages between the system prompt and the latest user message
+  if (earlier < 1) return false;
+  let drop = Math.max(1, Math.ceil(earlier / 2));
+  while (1 + drop < lastUser && msgs[1 + drop]!.role !== "user") drop++;
+  msgs.splice(1, drop);
+  return true;
+}
+/** Keeps the tool results of the current answer under ~120k characters, trimming the oldest first (newest 4 stay whole). */
+export function compactToolResults(msgs: ChatMsg[], budget = 120_000): void {
+  const lastUser = msgs.map((m) => m.role).lastIndexOf("user");
+  const idx = msgs.map((m, i) => (m.role === "tool" && i > lastUser ? i : -1)).filter((i) => i >= 0);
+  let total = idx.reduce((a, i) => a + msgs[i]!.content.length, 0);
+  for (const i of idx.slice(0, -4)) {
+    if (total <= budget) break;
+    const m = msgs[i]!;
+    if (m.content.length <= 800) continue;
+    const short = `${m.content.slice(0, 800)}\n[resultado anterior recortado para no llenar el contexto]`;
+    total -= m.content.length - short.length;
+    msgs[i] = { ...m, content: short };
+  }
+}
 /** Provider rejections caused by sending too much text in one request. */
 export function isContextOverflow(status: number | undefined, technical: string | undefined) {
-  return status === 429 || status === 413 || /context.?length|maximum context|too many tokens|token.?limit|prompt is too long|request too large|tokens? per min/i.test(technical ?? "");
+  // 429 / "tokens per minute" are speed limits of the provider, not a too-long conversation: never blame the context for them.
+  if (status === 429 || /tokens? per min|rate.?limit|requests? per min|TPM|RPM/i.test(technical ?? "")) return false;
+  return status === 413 || /context.?length|context window|maximum context|max(imum)?_?(input|prompt)?_?tokens? .*exceed|too many tokens|prompt is too long|input is too long|request too large|reduce the length/i.test(technical ?? "");
 }

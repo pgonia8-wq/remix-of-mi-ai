@@ -16,7 +16,7 @@ import { ChatMarkdown } from "@/components/ChatMarkdown";
 import { ChatAttachmentPreview } from "@/components/ChatAttachmentPreview";
 import { AutoRunInline } from "@/components/AutoRunInline";
 import { runMarker, splitRunMarkers } from "@/lib/chat-tools";
-import { CHAT_ACCEPT, chatHistory, fitHistory, isContextOverflow, storeChatFile } from "@/lib/chat-attachments";
+import { CHAT_ACCEPT, chatHistory, fitHistory, isContextOverflow, shrinkForRetry, storeChatFile } from "@/lib/chat-attachments";
 import { getCore } from "@/lib/core";
 import type { Message } from "@/lib/db/repo";
 
@@ -125,6 +125,7 @@ function ChatPage() {
       const callInfo = { kind: provider.kind, endpoint: provider.endpoint, apiKey, model: provider.model, deployment: provider.deployment, apiVersion: provider.api_version, extraParams: provider.extra_params };
       let tools = toolSet?.schemas.length ? toolSet.schemas : undefined;
       let runId: string | null = null;
+      let shrinks = 0;
       let thinking = ""; // reasoning DeepSeek/Kimi need back with tools; kept for this answer and later turns
       // Tool loop: the model may request app tools; each runs through invokeTool and its result goes back to the model.
       for (let turn = 0; turn < 30; turn++) {
@@ -148,6 +149,11 @@ function ChatPage() {
             toast.error(`Este modelo rechazó las herramientas de MI AI y respondió solo con texto. Detalle del proveedor: ${reason}`, { duration: 20000 });
             continue;
           }
+          // A real "too long" rejection: trim old turns / old tool results and retry instead of failing the answer.
+          if (!turnText && err instanceof ProviderError && isContextOverflow(err.httpStatus, err.technical) && shrinks < 4 && shrinkForRetry(msgs)) {
+            if (shrinks++ === 0) toast.info("La conversación era más larga de lo que acepta el modelo: envié solo la parte más reciente.");
+            turn--; continue;
+          }
           throw err;
         }
         out += turnText;
@@ -164,6 +170,9 @@ function ChatPage() {
           msgs.push({ role: "tool", tool_call_id: call.id, content: step.reply.slice(0, 12_000) });
         }
         setActivity(null);
+        // Many tool calls in one answer pile up their results: keep the newest whole, trim older ones early.
+        const { compactToolResults } = await import("@/lib/chat-attachments");
+        compactToolResults(msgs);
         if (out && !out.endsWith("\n")) out += "\n\n";
       }
       if (runId) await repo.sql.run("UPDATE auto_runs SET status='completed', phase='done', updated_at=? WHERE project_id=? AND id=?", [Date.now(), pid, runId]).catch(() => undefined);
