@@ -58,7 +58,8 @@ describe("per-chat context messages (not a message quota)", () => {
   it("detects provider context overflow so the user is told to lower it", async () => {
     const { isContextOverflow } = await import("@/lib/chat-attachments");
     expect(isContextOverflow(400, '{"error":{"code":"context_length_exceeded"}}')).toBe(true);
-    expect(isContextOverflow(429, "")).toBe(true);
+    expect(isContextOverflow(429, "")).toBe(false);
+    expect(isContextOverflow(429, "Requests to the ChatCompletions_Create Operation have exceeded token rate limit")).toBe(false);
     expect(isContextOverflow(401, "invalid key")).toBe(false);
   });
   it("stores the setting per chat, default 20, project-scoped", async () => {
