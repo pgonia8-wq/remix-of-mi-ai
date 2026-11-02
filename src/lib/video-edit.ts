@@ -3,7 +3,7 @@ import { isNative } from "./app-db";
 import type { Core } from "./core";
 export type Caption = { start: number; end: number; text: string };
 export type VideoClip = { assetId: string; name: string; start: number; end: number; duration: number };
-export const MiaiMedia = registerPlugin<{ editVideo(o: { clips: { data: string; startMs: number; endMs: number }[]; captions: Caption[]; rotation: number; ratio: string; mute: boolean; audio?: string }): Promise<{ data: string }>; cancel(): Promise<void> }>("MiaiMedia");
+export const MiaiMedia = registerPlugin<{ editVideo(o: { clips: { path: string; startMs: number; endMs: number }[]; captions: Caption[]; rotation: number; ratio: string; mute: boolean; audioPath?: string }): Promise<{ path: string; size: number }>; cancel(): Promise<void> }>("MiaiMedia");
 export function validateTimeline(clips: VideoClip[], captions: Caption[]) {
   if (!clips.length || clips.length > 8) throw new Error("Elige de uno a ocho clips.");
   for (const c of clips) if (![c.start, c.end, c.duration].every(Number.isFinite) || c.start < 0 || c.end <= c.start || c.end > c.duration + 0.01) throw new Error("Recorte fuera de la duración del clip.");
@@ -27,29 +27,31 @@ export async function mixBackground(core: Core, projectId: string, tracks: Audio
   const mixed = mixPcm(decoded);
   const first = mixed.channels[0]; if (!first) throw new Error("Mezcla vacía");
   const trimmed = editPcm(mixed, { start: 0, end: Math.min(videoDuration, first.length / mixed.sampleRate), gain: 1, fadeIn: 0, fadeOut: Math.min(1, videoDuration / 4), normalize: false });
-  const wav = encodeWav(trimmed);
-  let binary = ""; for (let i = 0; i < wav.length; i += 0x8000) binary += String.fromCharCode(...wav.subarray(i, i + 0x8000));
-  return btoa(binary);
+  return encodeWav(trimmed);
 }
 export async function exportVideo(core: Core, projectId: string, clips: VideoClip[], captions: Caption[], settings: { rotation: number; ratio: string; mute: boolean }, tracks: AudioTrack[] = []) {
   const total = validateTimeline(clips, captions);
   validateAudioTracks(tracks, total);
   if (!isNative()) throw new Error("La exportación de video local necesita la APK Android; no se simula en la vista previa.");
-  const inputs = [];
-  for (const clip of clips) {
-    const bytes = await core.assets.read(projectId, clip.assetId);
-    let binary = ""; for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-    inputs.push({ data: btoa(binary), startMs: Math.round(clip.start * 1000), endMs: Math.round(clip.end * 1000) });
-  }
-  const audio = await mixBackground(core, projectId, tracks, total);
+  // Clips are decrypted and staged into the private cache in pieces; nothing travels as one huge base64 string.
+  const { stageToCache, readCacheFile, removeCache } = await import("./device");
+  const inputs: { path: string; startMs: number; endMs: number }[] = [];
+  let audioPath: string | undefined;
+  const cleanup = async () => { for (const i of inputs) await removeCache(i.path); if (audioPath) await removeCache(audioPath); };
+  try {
+    for (const clip of clips) inputs.push({ path: await stageToCache(core.assets.stream(projectId, clip.assetId), "clip.mp4"), startMs: Math.round(clip.start * 1000), endMs: Math.round(clip.end * 1000) });
+    const wav = await mixBackground(core, projectId, tracks, total);
+    if (wav) audioPath = await stageToCache(wav, "fondo.wav");
+  } catch (e) { await cleanup(); throw e; }
   const job = await core.jobs.create(projectId, { capability: "video.local.edit", params: { clips, captions, tracks, ...settings } });
   await core.jobs.markSent(projectId, job.id);
   try {
-    const result = await MiaiMedia.editVideo({ clips: inputs, captions, ...settings, ...(audio ? { audio } : {}) });
+    const result = await MiaiMedia.editVideo({ clips: inputs, captions, ...settings, ...(audioPath ? { audioPath } : {}) });
     await core.jobs.transition(projectId, job.id, "processing", { phase: "accepted" });
-    const bytes = Uint8Array.from(atob(result.data), (c) => c.charCodeAt(0));
-    const asset = await core.assets.put(projectId, (async function* () { yield bytes; })(), { kind: "video", mime: "video/mp4", name: "Video editado.mp4", parentId: clips[0]?.assetId ?? null, capability: "video.local.edit", jobId: job.id, params: { clips, captions, ...settings } });
+    let asset;
+    try { asset = await core.assets.put(projectId, readCacheFile(result.path), { kind: "video", mime: "video/mp4", name: "Video editado.mp4", parentId: clips[0]?.assetId ?? null, capability: "video.local.edit", jobId: job.id, params: { clips, captions, ...settings } }); }
+    finally { await removeCache(result.path); }
     await core.jobs.finishAttempt(projectId, job.id, "completed"); await core.jobs.transition(projectId, job.id, "completed", { phase: "received", progress: 1 });
     return asset;
-  } catch (e) { await core.jobs.finishAttempt(projectId, job.id, "failed"); await core.jobs.transition(projectId, job.id, "failed", { error: "Exportación local no completada." }); throw e; }
+  } catch (e) { await cleanup(); await core.jobs.finishAttempt(projectId, job.id, "failed"); await core.jobs.transition(projectId, job.id, "failed", { error: "Exportación local no completada." }); throw e; }
 }

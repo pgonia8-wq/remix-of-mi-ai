@@ -11,7 +11,6 @@ import { getCore } from "@/lib/core";
 import { route, type RouteMode } from "@/lib/core/router";
 import { execute } from "@/lib/core/executor";
 import type { Asset } from "@/lib/core/asset-store";
-import { isNative } from "@/lib/app-db";
 import { NeedProject, inputCls } from "@/components/AppShell";
 import { AudioStudio } from "@/components/AudioStudio";
 import { Button } from "@/components/ui/button";
