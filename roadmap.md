@@ -194,5 +194,5 @@
 
 ## Entrega actual — build.13
 - [x] Agentes autónomos independientes de PC (teléfono por defecto, VM opcional) y delegación desde el chat.
-- [ ] Corregir lentitud del chat con mensajes largos (escritura y streaming).
-- [ ] Esperar lo que falta según Fer antes de entregar build.13 (compilado, no entregado).
+- [x] Corregir lentitud del chat con mensajes largos (escritura y streaming).
+- [ ] Esperar lo que falta según Fer y recompilar build.13 (bloqueado: falta su indicación).
