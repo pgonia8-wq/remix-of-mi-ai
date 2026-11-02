@@ -111,3 +111,16 @@ describe("Herramientas del chat", () => {
     expect(agent.status === "rejected" && agent.reason).toMatch(/rol/);
   });
 });
+
+describe("Esquemas para el modelo", () => {
+  it("genera esquemas de función válidos para cada herramienta disponible del chat", async () => {
+    const { chatToolSet } = await import("@/lib/chat-tools");
+    const set = await chatToolSet(core, p);
+    expect(set.available).toEqual(expect.arrayContaining(["fs.patch", "db.sql", "archive.extract", "hash.compute", "cad.create", "http.request"]));
+    for (const s of set.schemas as { function: { name: string; parameters: { type: string } } }[]) {
+      expect(s.function.name).toMatch(/^[a-zA-Z0-9_-]{1,64}$/);
+      expect(s.function.parameters.type).toBe("object");
+    }
+    expect(set.schemas.length).toBeLessThanOrEqual(128);
+  });
+});
