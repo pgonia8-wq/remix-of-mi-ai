@@ -291,3 +291,6 @@ body { color-scheme: dark; }
 }
 .btn-graphite-glass:disabled { opacity: 0.85; filter: saturate(0.75); }
 .btn-graphite-glass:not(:disabled):active { transform: translateY(1px); }
+
+/* Long conversations: the browser skips layout/paint of off-screen messages. */
+.chat-message { content-visibility: auto; contain-intrinsic-size: auto 320px; }
