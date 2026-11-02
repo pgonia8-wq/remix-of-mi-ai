@@ -10,23 +10,23 @@ import { extractText, docKind } from "@/lib/docs/extract";
 describe("hoja de cálculo con fórmulas", () => {
   it("recalcula dependencias, rangos y funciones en español e inglés", () => {
     const v = evaluateSheet({ A1: "10", A2: "20", A3: "=SUMA(A1:A2)", B1: "=A3*2", B2: "=PROMEDIO(A1:A2)", C1: '=SI(B1>50;"alto";"bajo")', C2: "=ROUND(10/3, 2)", C3: '=A1&" u"' });
-    expect(v.A3).toBe(30); expect(v.B1).toBe(60); expect(v.B2).toBe(15); expect(v.C1).toBe("alto"); expect(v.C2).toBe(3.33); expect(v.C3).toBe("10 u");
+    expect(v["A3"]).toBe(30); expect(v["B1"]).toBe(60); expect(v["B2"]).toBe(15); expect(v["C1"]).toBe("alto"); expect(v["C2"]).toBe(3.33); expect(v["C3"]).toBe("10 u");
     // cambiar una celda recalcula todo lo que depende de ella
     const w = evaluateSheet({ A1: "100", A2: "20", A3: "=SUMA(A1:A2)", B1: "=A3*2", C1: '=SI(B1>50;"alto";"bajo")' });
-    expect(w.B1).toBe(240);
+    expect(w["B1"]).toBe(240);
   });
   it("detecta ciclos, división entre cero y nombres desconocidos", () => {
     const v = evaluateSheet({ A1: "=B1+1", B1: "=A1+1", C1: "=1/0", D1: "=NOEXISTE(1)" });
-    expect(display(v.A1!)).toBe("#CIRC!"); expect(display(v.C1!)).toBe("#DIV/0!"); expect(display(v.D1!)).toBe("#NAME?");
+    expect(display(v["A1"]!)).toBe("#CIRC!"); expect(display(v["C1"]!)).toBe("#DIV/0!"); expect(display(v["D1"]!)).toBe("#NAME?");
   });
   it("SUMAR.SI, CONTAR.SI y BUSCARV", () => {
     const v = evaluateSheet({ A1: "pan", B1: "5", A2: "leche", B2: "7", A3: "pan", B3: "3", C1: '=SUMAR.SI(A1:A3;"pan";B1:B3)', C2: '=CONTAR.SI(B1:B3;">4")', C3: '=BUSCARV("leche";A1:B3;2;FALSO)', C4: "=2^3^2", C5: "=-2^2", C6: "=50%" });
-    expect(v.C1).toBe(8); expect(v.C2).toBe(2); expect(v.C3).toBe(7); expect(v.C4).toBe(512); expect(v.C5).toBe(4); expect(v.C6).toBe(0.5);
+    expect(v["C1"]).toBe(8); expect(v["C2"]).toBe(2); expect(v["C3"]).toBe(7); expect(v["C4"]).toBe(512); expect(v["C5"]).toBe(4); expect(v["C6"]).toBe(0.5);
   });
   it("guarda fórmulas y resultados en XLSX y los vuelve a leer", async () => {
     const bytes = await writeSheetFile([{ name: "Ventas", cells: { A1: "2", A2: "3", A3: "=A1*A2" } }], "xlsx");
     const [s] = await readSheetFile(bytes);
-    expect(s!.name).toBe("Ventas"); expect(s!.cells.A3).toBe("=A1*A2"); expect(evaluateSheet(s!.cells).A3).toBe(6);
+    expect(s!.name).toBe("Ventas"); expect(s!.cells["A3"]).toBe("=A1*A2"); expect(evaluateSheet(s!.cells)["A3"]).toBe(6);
   });
 });
 

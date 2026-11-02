@@ -248,7 +248,7 @@ export async function writeSheetFile(sheets: Sheet[], format: "xlsx" | "ods" | "
       const p = parseAddr(k); if (!p || raw === "") continue; maxC = Math.max(maxC, p.col); maxR = Math.max(maxR, p.row);
       const v = values[norm(k)] ?? null;
       const cell: Record<string, unknown> = isErr(v) ? { t: "e", v: 0x0f, w: v.error } : typeof v === "number" ? { t: "n", v } : typeof v === "boolean" ? { t: "b", v } : { t: "s", v: v ?? "" };
-      if (raw.startsWith("=")) cell.f = raw.slice(1);
+      if (raw.startsWith("=")) cell["f"] = raw.slice(1);
       ws[norm(k)] = cell;
     }
     ws["!ref"] = `A1:${addr(maxC, maxR)}`;
