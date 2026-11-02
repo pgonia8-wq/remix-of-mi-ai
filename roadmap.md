@@ -191,3 +191,8 @@
 - [x] Aceptar URL wss de Azure en tiempo real y verificar con sesión de voz real
 - [x] Conectar al chat: imagen, video, voz, música, 3D, búsqueda/investigación, documentos PDF/Word/Excel/PowerPoint, notas, tareas, recordatorios, memoria, código; resultados en la conversación y confirmación de cobros conocidos
 - [ ] Compilar build.13 cuando Fer lo pida
+
+## Entrega actual — build.13
+- [x] Agentes autónomos independientes de PC (teléfono por defecto, VM opcional) y delegación desde el chat.
+- [ ] Corregir lentitud del chat con mensajes largos (escritura y streaming).
+- [ ] Esperar lo que falta según Fer antes de entregar build.13 (compilado, no entregado).
