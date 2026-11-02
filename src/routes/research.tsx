@@ -65,7 +65,7 @@ function Research() {
             {res.sources.map((s, i) => <a key={s.url} href={s.url} target="_blank" rel="noreferrer noopener" className="block truncate text-xs text-primary underline">[{i + 1}] {s.title}{s.read ? " · leída" : ""}</a>)}
           </div>
           <p className="text-[10px] text-muted-foreground">Búsquedas ({res.rounds} {res.rounds > 1 ? "rondas" : "ronda"}): {res.queries.join(" · ")}. {res.sources.filter((x) => x.read).length} páginas leídas completas. Guardado cifrado en la Biblioteca con la etiqueta «investigación».</p>
-          <div className="grid grid-cols-3 gap-1">{(["pdf", "docx", "md"] as const).map((f) => <Button key={f} size="sm" variant="outline" onClick={() => exp(f)}>{f.toUpperCase()}</Button>)}</div>
+          <div className="grid grid-cols-5 gap-1">{(["pdf", "docx", "odt", "rtf", "md"] as const).map((f) => <Button key={f} size="sm" variant="outline" onClick={() => exp(f)}>{f.toUpperCase()}</Button>)}</div>
         </section>
       )}
     </div>
