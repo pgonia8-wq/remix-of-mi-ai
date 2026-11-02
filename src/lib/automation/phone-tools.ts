@@ -96,7 +96,7 @@ async function httpCall(method: string, url: string, headers: Record<string, str
     const bytes = binary ? (typeof r.data === "string" ? unb64(r.data) : new Uint8Array(r.data as ArrayBuffer)) : null;
     return { status: r.status, type: String(type), headers: r.headers ?? {}, text: binary ? "" : typeof r.data === "string" ? r.data : JSON.stringify(r.data), bytes };
   }
-  const res = await fetch(url, { method, headers, body, credentials: "omit", redirect: "error" });
+  const res = await fetch(url, { method, headers, body: body ?? null, credentials: "omit", redirect: "error" });
   const type = res.headers.get("content-type") ?? "";
   const h: Record<string, string> = {}; res.headers.forEach((v, k) => { h[k] = v; });
   if (binary) return { status: res.status, type, headers: h, text: "", bytes: new Uint8Array(await res.arrayBuffer()) };
@@ -463,7 +463,7 @@ export function phoneTools(H: PhoneHelpers): ToolDef[] {
     tool({ id: "device.info", name: "Recursos del teléfono", family: "infraestructura", description: "Modelo, sistema, núcleos, RAM, memoria usada por la app, almacenamiento, batería y GPU del teléfono.", input: z.object({}).strict(),
       run: async () => {
         const info: Record<string, unknown> = { cores: navigator.hardwareConcurrency, ramGb: (navigator as { deviceMemory?: number }).deviceMemory ?? null };
-        try { const { Device } = await import("@capacitor/device"); const d = await Device.getInfo(); Object.assign(info, { model: d.model, manufacturer: d.manufacturer, os: `${d.operatingSystem} ${d.osVersion}`, androidSdk: d.androidSDKVersion, webView: d.webViewVersion, appMemoryUsedMb: d.memUsed ? Math.round(d.memUsed / 1048576) : null, diskFreeGb: d.realDiskFree ? +(d.realDiskFree / 1e9).toFixed(1) : null, diskTotalGb: d.realDiskTotal ? +(d.realDiskTotal / 1e9).toFixed(1) : null }); const b = await Device.getBatteryInfo(); info["battery"] = { level: b.batteryLevel, charging: b.isCharging }; } catch { /* web */ }
+        try { const { Device } = await import("@capacitor/device"); const d = await Device.getInfo(); Object.assign(info, { model: d.model, manufacturer: d.manufacturer, os: `${d.operatingSystem} ${d.osVersion}`, androidSdk: d.androidSDKVersion, webView: d.webViewVersion, appMemoryUsedMb: d.memUsed ? Math.round(d.memUsed / 1048576) : null, diskFreeGb: (d as { realDiskFree?: number }).realDiskFree ? +(((d as { realDiskFree?: number }).realDiskFree ?? 0) / 1e9).toFixed(1) : null }); const b = await Device.getBatteryInfo(); info["battery"] = { level: b.batteryLevel, charging: b.isCharging }; } catch { /* web */ }
         try { const est = await navigator.storage?.estimate?.(); if (est) info["appStorageMb"] = { used: Math.round((est.usage ?? 0) / 1048576), quota: Math.round((est.quota ?? 0) / 1048576) }; } catch { /* ignore */ }
         try { const c = typeof OffscreenCanvas !== "undefined" ? new OffscreenCanvas(1, 1) : null; const gl = c?.getContext("webgl") as WebGLRenderingContext | null; const ext = gl?.getExtension("WEBGL_debug_renderer_info"); if (gl && ext) info["gpu"] = gl.getParameter(ext.UNMASKED_RENDERER_WEBGL); } catch { /* ignore */ }
         return { output: JSON.stringify(info), trusted: true };
