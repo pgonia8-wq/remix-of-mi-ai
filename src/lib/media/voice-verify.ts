@@ -54,7 +54,7 @@ export function voiceprint(x: Float32Array, sr = 16000): Voiceprint {
   const hamming = Float64Array.from({ length: win }, (_, i) => 0.54 - 0.46 * Math.cos(2 * Math.PI * i / (win - 1)));
   const lo = mel(80), hi = mel(7600), pts = Array.from({ length: bands + 2 }, (_, i) => Math.floor((N + 1) * imel(lo + (hi - lo) * i / (bands + 1)) / sr));
   const energies: number[] = []; for (let s = 0; s + win <= x.length; s += hop) { let e = 0; for (let i = 0; i < win; i++) e += x[s + i]! ** 2; energies.push(e / win); }
-  const sorted = [...energies].sort((a, b) => a - b), thr = Math.max(1e-6, (sorted[Math.floor(sorted.length * 0.9)] ?? 0) * 0.1);
+  const sorted = [...energies].sort((a, b) => a - b), thr = Math.max(1e-9, (sorted[Math.floor(sorted.length * 0.9)] ?? 0) * 0.1);
   const feats: number[][] = [], pitches: number[] = [];
   energies.forEach((e, f) => {
     if (e < thr) return;
