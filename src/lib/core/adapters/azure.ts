@@ -6,21 +6,36 @@ import { visionBody, parseVision } from "./vision";
 import { embeddingBody, embeddingInputs, parseEmbeddings } from "./embeddings";
 import { OPENAI_VOICES, parseSpeech, parseTranscript, speechBody, transcriptionForm } from "./audio";
 import { derivedEdit, chatViaLegacy, editForm, imageBody, parseImages } from "./openai";
-import { sync, trimSlash, type AdapterCredentials, type ProviderAdapter } from "./types";
+import { b64ToBytes, sync, trimSlash, type AdapterCredentials, type ProviderAdapter, type RunRequest, type RunResult } from "./types";
+import { azureKindOf, parseAzureUrl } from "../../azure-url";
 import { toolCallBody, parseToolCalls } from "./tool-calls";
 import { azureVideoSupport, runAzureVideo, pollAzureVideo } from "./azure-video";
 
 export function azureUrl(c: AdapterCredentials, deployment: string, op: "images/generations" | "images/edits" | "chat/completions" | "audio/speech" | "audio/transcriptions" | "audio/translations" | "embeddings"): { url: string; v1: boolean } {
-  let u: URL;
-  try { u = new URL(trimSlash(c.endpoint?.trim() ?? "")); } catch { throw new ProviderError("endpoint", "URL de Azure incorrecta."); }
-  if (u.protocol !== "https:") throw new ProviderError("endpoint", "URL de Azure incorrecta: usa HTTPS.");
-  const path = trimSlash(u.pathname);
-  if (path.startsWith("/openai/v1")) return { url: `${u.origin}/openai/v1/${op}`, v1: true };
-  if (path === "" || path === "/openai" || /^\/openai\/deployments\//.test(path)) {
-    if (!c.apiVersion?.trim()) throw new ProviderError("parameters", "Versión de API requerida para la URL clásica de Azure.");
-    return { url: `${u.origin}/openai/deployments/${encodeURIComponent(deployment)}/${op}?api-version=${encodeURIComponent(c.apiVersion.trim())}`, v1: false };
-  }
-  throw new ProviderError("endpoint", "URL de Azure incorrecta: usa la URL del recurso o /openai/v1.");
+  const raw = trimSlash(c.endpoint?.trim() ?? "");
+  try { if (new URL(raw).protocol === "http:") throw new ProviderError("endpoint", "URL de Azure incorrecta: usa HTTPS."); } catch (e) { if (e instanceof ProviderError) throw e; throw new ProviderError("endpoint", "URL de Azure incorrecta."); }
+  // Any URL copied from the portal (resource, /openai/v1/…, /openai/deployments/<x>/<operation>?api-version=…) works.
+  const a = parseAzureUrl(raw);
+  if (!a) throw new ProviderError("endpoint", "URL de Azure incorrecta: usa la URL del recurso, /openai/v1 o la URL completa del deployment.");
+  if (a.v1) return { url: `${a.endpoint}/${op}`, v1: true };
+  const version = c.apiVersion?.trim() || a.apiVersion;
+  if (!version) throw new ProviderError("parameters", "Versión de API requerida para la URL clásica de Azure.");
+  return { url: `${a.endpoint}/openai/deployments/${encodeURIComponent(deployment)}/${op}?api-version=${encodeURIComponent(version)}`, v1: false };
+}
+
+/** gpt-audio deployments speak only through chat completions with audio output (they have no /audio/speech route). */
+async function speakViaAudioChat(c: AdapterCredentials, key: string, deployment: string, r: RunRequest): Promise<RunResult> {
+  const text = (r.prompt ?? "").trim();
+  if (!text) throw new ProviderError("parameters", "Escribe el texto que quieres convertir en voz.");
+  const { url, v1 } = azureUrl(c, deployment, "chat/completions");
+  const voice = String(r.params?.["voice"] || "alloy");
+  const body = { ...(v1 ? { model: deployment } : {}), modalities: ["text", "audio"], audio: { voice, format: "wav" },
+    messages: [{ role: "system", content: "Lee en voz alta exactamente el texto del usuario, sin añadir nada." }, { role: "user", content: text }] };
+  const res = await call(url, { method: "POST", headers: { "api-key": key, "content-type": "application/json" }, body: JSON.stringify(body), signal: r.signal ?? null }, key);
+  const d = await res.json().catch(() => null);
+  const data = d?.choices?.[0]?.message?.audio?.data;
+  if (typeof data !== "string" || data.length < 100) throw new ProviderError("parameters", "Respuesta inválida: el modelo no devolvió audio.", 200);
+  return { kind: "files", files: [{ bytes: b64ToBytes(data), mime: "audio/wav", name: "voz.wav" }], ...(typeof d.choices[0].message.audio.transcript === "string" ? { text: d.choices[0].message.audio.transcript } : {}) };
 }
 
 export const azureAdapter: ProviderAdapter = {
