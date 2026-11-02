@@ -166,17 +166,17 @@ function AssetDetail({ a, onClose, onOpen }: { a: Asset; onClose: () => void; on
   async function exportFile() {
     try {
       const c = await getCore();
-      const bytes = await c.assets.read(a.project_id, a.id); // verified before export
       const name = a.name ?? `miai-${a.id.slice(0, 8)}.${a.format ?? "bin"}`;
-      if (isNative()) {
-        const { Filesystem, Directory } = await import("@capacitor/filesystem");
-        let s = ""; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-        await Filesystem.writeFile({ path: `MI AI/${name}`, data: btoa(s), directory: Directory.Documents, recursive: true });
-        toast.success(`Exportado sin cifrar a Documentos/MI AI/${name}`);
-      } else {
-        const l = document.createElement("a"); l.href = URL.createObjectURL(new Blob([bytes as BlobPart], { type: a.mime })); l.download = name; l.click();
-      }
+      await saveExport(c.assets.stream(a.project_id, a.id), name, a.mime); // authenticated before any byte leaves
     } catch (e) { toast.error((e as Error).message); }
+  }
+  async function shareFile() {
+    try {
+      const c = await getCore();
+      const name = a.name ?? `miai-${a.id.slice(0, 8)}.${a.format ?? "bin"}`;
+      const r = await shareContent({ file: { data: c.assets.stream(a.project_id, a.id), name, mime: a.mime }, title: name });
+      if (r === "downloaded") toast("Este navegador no puede compartir archivos; se descargó.");
+    } catch (e) { if (!(e instanceof DOMException && e.name === "AbortError")) toast.error((e as Error).message); }
   }
   async function runEdit(capability = "image.edit") {
     if (capability === "image.edit" && !edit.trim()) return;

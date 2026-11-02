@@ -1,6 +1,6 @@
 // Universal asset library. Encrypted bytes live outside SQLite (private files on Android); rows hold metadata.
 import type { SqlDb } from "../db/sql";
-import { encryptAsset, readAll, verifyAsset, newDek, type ByteSource } from "./asset-crypto";
+import { encryptAsset, readAll, verifyAsset, decryptAsset, newDek, type ByteSource } from "./asset-crypto";
 import type { KeyRing } from "./keys";
 import type { PerfProfile } from "./device-profile";
 import { exclusive } from "./operation-lock";
@@ -122,6 +122,15 @@ export class AssetStore {
     const dek = await this.keys.unwrapDek(a.key_id, a.wrapped_dek, a.id, a.project_id);
     try { return await readAll(await this.fs.source(a.path), { assetId: a.id, projectId: a.project_id }, dek); }
     catch (e) { await this.db.run(`UPDATE assets SET enc_state='corrupt' WHERE id=? AND project_id=?`, [id, projectId]); throw e; }
+    finally { dek.fill(0); }
+  }
+  /** Bounded-memory plaintext stream for large files: the whole file is authenticated first, then rereads are pinned by digest. */
+  async *stream(projectId: string, id: string): AsyncGenerator<Uint8Array> {
+    const a = await this.get(projectId, id);
+    if (!a) throw new AssetError("Activo no pertenece al proyecto");
+    const dek = await this.keys.unwrapDek(a.key_id, a.wrapped_dek, a.id, a.project_id);
+    try { yield* decryptAsset(await this.fs.source(a.path), { assetId: a.id, projectId: a.project_id }, dek); }
+    catch (e) { if (e instanceof Error && /cambi|integr|autentic/i.test(e.message + e.name)) await this.db.run(`UPDATE assets SET enc_state='corrupt' WHERE id=? AND project_id=?`, [id, projectId]).catch(() => undefined); throw e; }
     finally { dek.fill(0); }
   }
   async verify(projectId: string, id: string) {
