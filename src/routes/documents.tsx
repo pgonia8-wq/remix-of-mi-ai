@@ -69,6 +69,8 @@ function Analyze({ pid }: { pid: string }) {
       if (docKind(f.name, f.type) === "unsupported") { toast.error(`${f.name}: formato no admitido.`); continue; }
       setBusy(`Leyendo ${f.name}…`);
       try {
+        // Text extraction needs the whole document in memory; very large files are refused instead of closing the app.
+        if (f.size > 150 * 1024 * 1024) throw new Error(`${f.name}: supera 150 MB. Divídelo o guárdalo en Biblioteca.`);
         const bytes = new Uint8Array(await f.arrayBuffer());
         let ex = await extractText(bytes, f.name, f.type);
         if (ex.warning === "scanned") {
