@@ -25,6 +25,8 @@ const parse = (pkg: Pkg, path: string) => {
   return d;
 };
 const write = (pkg: Pkg, path: string, d: Document) => { pkg[path] = strToU8(new XMLSerializer().serializeToString(d)); };
+const XMLNS = "http://www.w3.org/XML/1998/namespace";
+const preserve = (el: Element) => el.setAttributeNS(XMLNS, "xml:space", "preserve");
 const els = (root: Document | Element, ns: string, tag: string) => Array.from(root.getElementsByTagNameNS(ns, tag));
 const kids = (el: Element, ns: string, tag: string) => Array.from(el.childNodes).filter((n): n is Element => n.nodeType === 1 && (n as Element).namespaceURI === ns && (n as Element).localName === tag);
 
@@ -46,7 +48,7 @@ function replaceInNodes(nodes: Element[], find: string, replace: string, all: bo
       const before = t.slice(0, from), after = t.slice(from + take);
       nodes[i]!.textContent = startDone ? before + after : before + replace + after;
       startDone = true; remaining -= take;
-      if (/\s$|^\s/.test(nodes[i]!.textContent ?? "")) nodes[i]!.setAttribute("xml:space", "preserve");
+      if (/\s$|^\s/.test(nodes[i]!.textContent ?? "")) preserve(nodes[i]!);
     }
     count++;
     if (!all) break;
@@ -80,9 +82,9 @@ function setParagraphText(p: Element, text: string) {
   const ts = runTexts(p);
   if (!ts.length) {
     const d = p.ownerDocument, r = d.createElementNS(W, "w:r"), t = d.createElementNS(W, "w:t");
-    t.setAttribute("xml:space", "preserve"); t.textContent = text; r.appendChild(t); p.appendChild(r); return;
+    preserve(t); t.textContent = text; r.appendChild(t); p.appendChild(r); return;
   }
-  ts[0]!.textContent = text; ts[0]!.setAttribute("xml:space", "preserve");
+  ts[0]!.textContent = text; preserve(ts[0]!);
   for (const t of ts.slice(1)) t.textContent = "";
 }
 
