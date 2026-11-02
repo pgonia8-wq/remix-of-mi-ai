@@ -1,4 +1,5 @@
 import type { Core } from "./core";
+import { blobChunks } from "./device";
 import type { Repo, Message } from "./db/repo";
 import type { ChatMsg } from "./providers";
 import { docKind, extractText } from "./docs/extract";
@@ -13,9 +14,9 @@ export function attachmentKind(name: string, mime: string) {
 export async function storeChatFile(core: Core, projectId: string, file: File) {
   const kind = attachmentKind(file.name, file.type);
   if (file.size > (kind === "image" ? 20_000_000 : 50 * 1024 * 1024)) throw new Error("Archivo demasiado grande para el chat.");
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const extracted = kind === "document" ? await extractText(bytes, file.name, file.type) : null;
-  const asset = await core.assets.put(projectId, (async function* () { yield bytes; })(), { kind, name: file.name, mime: file.type || "text/plain", capability: "chat.attachment" });
+  // Only documents are read whole (to extract their text); the encrypted copy is always written in pieces.
+  const extracted = kind === "document" ? await extractText(new Uint8Array(await file.arrayBuffer()), file.name, file.type) : null;
+  const asset = await core.assets.put(projectId, blobChunks(file), { kind, name: file.name, mime: file.type || "text/plain", capability: "chat.attachment" });
   return { asset, text: extracted?.text.slice(0, 60_000) ?? null };
 }
 export async function chatHistory(core: Core, projectId: string, chatId: string, history: Message[]): Promise<ChatMsg[]> {
