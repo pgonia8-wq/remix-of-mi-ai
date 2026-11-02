@@ -13,6 +13,26 @@ import { getAdapter } from "./adapters";
 type KeystorePlugin = Parameters<typeof nativeBackend>[0] & { deviceInfo(): Promise<Partial<DeviceFacts>> };
 export const MiaiKeystore = registerPlugin<KeystorePlugin>("MiaiKeystore");
 
+/**
+ * Exact bytes [offset, offset+length) from a ranged response. The Android WebView local server may ignore the
+ * end of the range (returning everything to EOF) or the whole Range header (200 with the full file).
+ */
+export function rangeSlice(status: number, contentRange: string | null, buf: Uint8Array, offset: number, length: number): Uint8Array {
+  let start = offset;
+  if (status === 206) {
+    const m = /bytes\s+(\d+)-/i.exec(contentRange ?? "");
+    start = m ? Number(m[1]) : offset;
+    if (start > offset) throw new Error("Lectura parcial inválida del archivo");
+    const out = buf.subarray(offset - start, offset - start + length);
+    if (out.length !== length) throw new Error("Lectura incompleta del archivo");
+    return out;
+  }
+  if (status !== 200) throw new Error(`No se pudo leer el archivo (HTTP ${status})`);
+  const out = buf.subarray(offset, offset + length);
+  if (out.length !== length) throw new Error("Lectura incompleta del archivo");
+  return out;
+}
+
 /** Native private-file backend: Directory.Data, append-only writes, ranged reads (no full-file load). */
 function nativeFiles(): BlobBackend {
   const fsP = import("@capacitor/filesystem");
@@ -41,10 +61,9 @@ function nativeFiles(): BlobBackend {
         size: Number(st.size),
         async read(offset, length) {
           if (length === 0) return new Uint8Array(0);
-          const r = await fetch(url, { headers: { Range: `bytes=${offset}-${offset + length - 1}` } });
+          const r = await fetch(url, { cache: "no-store", headers: { Range: `bytes=${offset}-${offset + length - 1}` } });
           const buf = new Uint8Array(await r.arrayBuffer());
-          // Some WebView servers ignore Range: slice the full response as a fallback.
-          return r.status === 206 ? buf : buf.subarray(offset, offset + length);
+          return rangeSlice(r.status, r.headers.get("content-range"), buf, offset, length);
         },
       };
     },
