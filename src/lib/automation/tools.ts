@@ -240,7 +240,6 @@ export const TOOL_REGISTRY: ToolDef[] = [
       const a = await ctx.core.assets.put(ctx.projectId, (async function* () { yield bytes; })(), { kind: "document", name, mime: EXPORT_MIME[i.format as keyof typeof EXPORT_MIME], capability: "doc.create" });
       return { output: `Documento creado: ${name} (${bytes.length} bytes)`, trusted: true, assets: [{ id: a.id, mime: a.mime, name }] };
     } },
-  declared("media.ocr", "OCR", "multimedia", "OCR local disponible en Documentos; requiere archivo elegido por el usuario.", ["local.write"]),
   // H. Productividad
   { id: "note.save", name: "Guardar nota", description: "Guarda una nota del proyecto.", family: "productividad", input: z.object({ title: z.string().min(1).max(200), body: z.string().max(60_000) }).strict(), output: "id", permissions: ["local.write"], network: false, cost: "none", maxCalls: 20, timeoutMs: 5000, parallel: true, env: ["android"], risk: "low", approval: "never", sideEffect: true, roles: "all",
     availability: ok, run: async (ctx, i) => { await notes.save(ctx.core.repo.sql, ctx.projectId, { title: i.title, body: i.body }); return { output: "nota guardada", trusted: true }; } },
