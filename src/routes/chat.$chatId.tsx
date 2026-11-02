@@ -123,7 +123,12 @@ function ChatPage() {
         let turnText = "";
         let result;
         try {
-          result = await streamChat(callInfo, msgs, (t) => { turnText += t; setStreaming(out + turnText); }, abort.current.signal, tools ? { tools } : {});
+          // Re-rendering the growing answer on every token is quadratic on long replies: flush at most ~8 times/s.
+          let flush: ReturnType<typeof setTimeout> | null = null;
+          const push = () => { flush = null; setStreaming(out + turnText); };
+          try {
+            result = await streamChat(callInfo, msgs, (t) => { turnText += t; if (!flush) flush = setTimeout(push, 120); }, abort.current.signal, tools ? { tools } : {});
+          } finally { if (flush) clearTimeout(flush); push(); }
         } catch (err) {
           // A provider/deployment without tool support rejects the request: repair once by asking without tools.
           if (tools && !turnText && err instanceof ProviderError && err.httpStatus === 400 && /tool|function/i.test(err.technical ?? "")) { tools = undefined; turn--; continue; }
@@ -225,7 +230,7 @@ function ChatPage() {
         {!messages.length && <div className="flex min-h-[30dvh] flex-col items-center justify-center gap-4 text-center"><span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Sparkles className="h-6 w-6" /></span><h1 className="font-display text-2xl font-medium sm:text-3xl">¿Qué hacemos hoy?</h1><p className="max-w-sm text-sm text-muted-foreground">{provider ? "Tu proyecto, tus ideas. Empecemos." : "Conecta un modelo para empezar."}</p></div>}
         {messages.map((m, index) => {
           const vote = feedback.find((f) => f.message_id === m.id)?.value;
-          return <article key={m.id} className={m.role === "user" ? "ml-auto max-w-[90%] sm:max-w-[80%]" : "w-full min-w-0"}>
+          return <article key={m.id} className={`chat-message ${m.role === "user" ? "ml-auto max-w-[90%] sm:max-w-[80%]" : "w-full min-w-0"}`}>
             {attachments.filter((a) => a.message_id === m.id).map((a) => <ChatAttachmentPreview key={a.id} file={a} />)}
             {editing === m.id ? <div className="space-y-2"><textarea aria-label="Editar mensaje" className={inputCls} rows={4} value={editText} onChange={(e) => setEditText(e.target.value)} /><div className="flex gap-2"><Button size="sm" onClick={async () => { await mutate((r) => r.updateMessage(pid, m.id, editText.trim())); setEditing(null); }}>Guardar</Button><Button size="sm" variant="ghost" onClick={() => setEditing(null)}>Cancelar</Button></div></div> : m.role === "user" ? <div className="rounded-3xl bg-secondary px-5 py-3 text-[15px] leading-7"><p className="whitespace-pre-wrap break-words">{m.content}</p></div> : (() => { const sp = splitRunMarkers(m.content); return <>{sp.text && <ChatMarkdown text={sp.text} />}{sp.runIds.map((id) => <AutoRunInline key={id} pid={pid} runId={id} />)}</>; })()}
             <div className={`mt-2 flex items-center gap-0.5 ${m.role === "user" ? "justify-end" : ""}`}>
