@@ -15,7 +15,7 @@ export const PROVIDER_KINDS: { kind: ProviderKind; label: string; endpoint: stri
 ];
 
 export type ToolCall = { id: string; name: string; arguments: string };
-export type ChatMsg = { role: "system" | "user" | "assistant" | "tool"; content: string; images?: { mime: string; data: string }[]; tool_calls?: ToolCall[]; tool_call_id?: string };
+export type ChatMsg = { role: "system" | "user" | "assistant" | "tool"; content: string; images?: { mime: string; data: string }[]; tool_calls?: ToolCall[]; tool_call_id?: string; reasoning_content?: string };
 /** Providers whose chat endpoint follows the OpenAI tool-calling contract (tools + streamed delta.tool_calls). */
 export const CHAT_TOOL_KINDS: ProviderKind[] = ["openai", "azure", "azure_openai", "xai", "deepseek", "mistral", "openai_compatible", "custom"];
 export const supportsChatTools = (kind: ProviderKind) => CHAT_TOOL_KINDS.includes(kind);
@@ -53,6 +53,8 @@ function buildRequest(p: ProviderCall, messages: ChatMsg[], tools?: unknown[]): 
     : ({ role: m.role, content: m.images?.length ? [{ type: "text", text: m.content }, ...m.images.map((i) => ({ type: "image_url", image_url: { url: `data:${i.mime};base64,${i.data}` } }))] : m.content }));
   // Tool-call turns exist only for OpenAI-style providers; other contracts never receive them.
   if (!supportsChatTools(p.kind)) messages = messages.filter((m) => m.role !== "tool" && !m.tool_calls?.length);
+  // DeepSeek/Kimi thinking models require their reasoning back on assistant turns when tools are sent; OpenAI/Azure never return it.
+  const keepsReasoning = !["openai", "azure", "azure_openai"].includes(p.kind);
   const toolBody = tools?.length && supportsChatTools(p.kind) ? { tools, tool_choice: "auto" } : {};
   const defaults = PROVIDER_KINDS.find((k) => k.kind === p.kind);
   if (!defaults) throw new ProviderError("endpoint", "Endpoint incorrecto: proveedor desconocido.");
