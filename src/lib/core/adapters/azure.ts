@@ -52,6 +52,7 @@ export const azureAdapter: ProviderAdapter = {
     const deployment = r.model || c.deployment || "";
     if (!deployment.trim()) throw new ProviderError("model", "Deployment inexistente: indica el deployment de imágenes.");
     if (r.capability === "audio.tts") {
+      if (azureKindOf({ deployment, extraParams: c.extraParams }) === "audio-chat") return speakViaAudioChat(c, key, deployment, r);
       const { url, v1 } = azureUrl(c, deployment, "audio/speech");
       return parseSpeech(await call(url, { method: "POST", headers: { "api-key": key, "content-type": "application/json" }, body: JSON.stringify(speechBody({ ...r, model: deployment }, v1)), signal: r.signal ?? null }, key));
     }
