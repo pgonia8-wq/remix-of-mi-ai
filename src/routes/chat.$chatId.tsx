@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { DictateButton, SpeakButton } from "@/components/ChatVoice";
 import { ChatMarkdown } from "@/components/ChatMarkdown";
 import { ChatAttachmentPreview } from "@/components/ChatAttachmentPreview";
+import { AutoRunInline } from "@/components/AutoRunInline";
+import { runMarker, splitRunMarkers } from "@/lib/chat-tools";
 import { CHAT_ACCEPT, chatHistory, fitHistory, isContextOverflow, storeChatFile } from "@/lib/chat-attachments";
 import { getCore } from "@/lib/core";
 import type { Message } from "@/lib/db/repo";
@@ -80,6 +82,7 @@ function ChatPage() {
     }
     setBusy(true); let out = "", repo: Awaited<ReturnType<typeof getRepo>> | null = null;
     const produced: ToolAsset[] = [];
+    const delegated: string[] = [];
     abort.current = new AbortController();
     try {
       const core = await getCore(); repo = core.repo;
@@ -135,6 +138,7 @@ function ChatPage() {
           setActivity(`${TOOL_LABELS[toolIdOf(call.name)] ?? "Usando herramienta"}…`);
           const step = await runChatTool(core, pid, runId, call, (summary) => new Promise<boolean>((resolve) => { const done = (ok: boolean) => { setApproval(null); resolve(ok); }; abort.current?.signal.addEventListener("abort", () => done(false), { once: true }); setApproval({ summary, resolve: done }); }), abort.current.signal);
           produced.push(...step.assets);
+          if (step.runId) delegated.push(step.runId);
           msgs.push({ role: "tool", tool_call_id: call.id, content: step.reply.slice(0, 12_000) });
         }
         setActivity(null);
@@ -142,6 +146,9 @@ function ChatPage() {
       }
       if (runId) await repo.sql.run("UPDATE auto_runs SET status='completed', phase='done', updated_at=? WHERE project_id=? AND id=?", [Date.now(), pid, runId]).catch(() => undefined);
       if (!out.trim() && produced.length) out = "Listo. Aquí tienes el resultado.";
+      if (!out.trim() && delegated.length) out = "El equipo de agentes ya está trabajando.";
+      // Live cards for delegated autonomous runs are stored as markers in the message.
+      if (delegated.length) out = `${out.trimEnd()}\n\n${delegated.splice(0).map(runMarker).join("\n")}`;
       await recordUsage(repo, pid, { providerId: provider.id, model: costModel, operation: "chat", usage: { inputChars, outputChars: out.length } }).catch((e) => console.warn("No se pudo registrar el costo del chat:", e instanceof Error ? e.message : e));
       if (!out.trim()) throw new ProviderError("parameters", "El modelo no devolvió una respuesta válida.");
       const saved = regenerate ? (await repo.updateMessage(pid, regenerate.id, out), regenerate) : await repo.addMessage(pid, chatId, "assistant", out, provider.id, provider.deployment || provider.model);
@@ -162,7 +169,8 @@ function ChatPage() {
         } else toast.error(e instanceof ProviderError ? e.message + detail : "Error de red: no se pudo completar la respuesta del modelo.", { duration: 15000 });
       }
     } finally {
-      if ((out || produced.length) && repo && !regenerate) {
+      if ((out || produced.length || delegated.length) && repo && !regenerate) {
+        if (delegated.length) out = `${out || "El equipo de agentes ya está trabajando."}\n\n${delegated.map(runMarker).join("\n")}`;
         // Partial answer or files already created (and possibly billed) are kept even if a later step failed.
         const kept = await repo.addMessage(pid, chatId, "assistant", out || "Archivos creados antes de la interrupción:", provider.id, provider.deployment || provider.model).catch(() => null);
         if (kept) for (const a of produced) await repo.attachToMessage(pid, chatId, kept.id, a.id, null).catch(() => undefined);
@@ -219,13 +227,13 @@ function ChatPage() {
           const vote = feedback.find((f) => f.message_id === m.id)?.value;
           return <article key={m.id} className={m.role === "user" ? "ml-auto max-w-[90%] sm:max-w-[80%]" : "w-full min-w-0"}>
             {attachments.filter((a) => a.message_id === m.id).map((a) => <ChatAttachmentPreview key={a.id} file={a} />)}
-            {editing === m.id ? <div className="space-y-2"><textarea aria-label="Editar mensaje" className={inputCls} rows={4} value={editText} onChange={(e) => setEditText(e.target.value)} /><div className="flex gap-2"><Button size="sm" onClick={async () => { await mutate((r) => r.updateMessage(pid, m.id, editText.trim())); setEditing(null); }}>Guardar</Button><Button size="sm" variant="ghost" onClick={() => setEditing(null)}>Cancelar</Button></div></div> : m.role === "user" ? <div className="rounded-3xl bg-secondary px-5 py-3 text-[15px] leading-7"><p className="whitespace-pre-wrap break-words">{m.content}</p></div> : <ChatMarkdown text={m.content} />}
+            {editing === m.id ? <div className="space-y-2"><textarea aria-label="Editar mensaje" className={inputCls} rows={4} value={editText} onChange={(e) => setEditText(e.target.value)} /><div className="flex gap-2"><Button size="sm" onClick={async () => { await mutate((r) => r.updateMessage(pid, m.id, editText.trim())); setEditing(null); }}>Guardar</Button><Button size="sm" variant="ghost" onClick={() => setEditing(null)}>Cancelar</Button></div></div> : m.role === "user" ? <div className="rounded-3xl bg-secondary px-5 py-3 text-[15px] leading-7"><p className="whitespace-pre-wrap break-words">{m.content}</p></div> : (() => { const sp = splitRunMarkers(m.content); return <>{sp.text && <ChatMarkdown text={sp.text} />}{sp.runIds.map((id) => <AutoRunInline key={id} pid={pid} runId={id} />)}</>; })()}
             <div className={`mt-2 flex items-center gap-0.5 ${m.role === "user" ? "justify-end" : ""}`}>
-              <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground" aria-label="Copiar mensaje" title="Copiar mensaje" onClick={() => navigator.clipboard.writeText(m.content).then(() => { setCopied(m.id); setTimeout(() => setCopied(null), 1800); }).catch(() => toast.error("No se pudo copiar."))}>{copied === m.id ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}</Button>
+              <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground" aria-label="Copiar mensaje" title="Copiar mensaje" onClick={() => navigator.clipboard.writeText(splitRunMarkers(m.content).text).then(() => { setCopied(m.id); setTimeout(() => setCopied(null), 1800); }).catch(() => toast.error("No se pudo copiar."))}>{copied === m.id ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}</Button>
               {m.role === "user" ? <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground" disabled={running} aria-label="Editar mensaje" title="Editar mensaje" onClick={() => { setEditing(m.id); setEditText(m.content); }}><Pencil className="h-4 w-4" /></Button> : <>
                 <Button size="icon" variant="ghost" className={`h-8 w-8 ${vote === "like" ? "text-primary" : "text-muted-foreground"}`} aria-label="Buena respuesta" title="Buena respuesta" onClick={() => mutate((r) => r.setMessageFeedback(pid, m.id, vote === "like" ? null : "like"))}><ThumbsUp className="h-4 w-4" /></Button>
                 <Button size="icon" variant="ghost" className={`h-8 w-8 ${vote === "dislike" ? "text-destructive" : "text-muted-foreground"}`} aria-label="Mala respuesta" title="Mala respuesta" onClick={() => mutate((r) => r.setMessageFeedback(pid, m.id, vote === "dislike" ? null : "dislike"))}><ThumbsDown className="h-4 w-4" /></Button>
-                <SpeakButton projectId={pid} text={m.content} />
+                <SpeakButton projectId={pid} text={splitRunMarkers(m.content).text} />
                 {index === messages.length - 1 && <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground" disabled={running || !provider} aria-label="Regenerar respuesta" title="Regenerar respuesta" onClick={() => { if (confirm("¿Generar otra respuesta? Puede tener costo; la anterior solo se sustituye al recibir el resultado completo.")) send(m); }}><RotateCcw className="h-4 w-4" /></Button>}
                 {m.model && <span className="ml-2 truncate text-[10px] text-muted-foreground">{m.model}</span>}
               </>}
