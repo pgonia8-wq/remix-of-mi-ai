@@ -163,8 +163,9 @@ describe("animación 3D más fina", () => {
     const rigid = autoAssign(doc), smooth = autoAssign(doc, { smooth: true });
     expect(smooth.blend!.some((b) => b > 0)).toBe(true);
     const pr = posedPositions(rigid, 1), ps = posedPositions(smooth, 1);
-    const i = 5; // vértice en el codo: con uniones suaves queda entre ambos huesos
-    expect(Math.hypot(ps[i * 3]! - pr[i * 3]!, ps[i * 3 + 1]! - pr[i * 3 + 1]!)).toBeGreaterThanOrEqual(0);
+    const i = 6; // justo pasando el codo: rígido gira completo con el codo; suave queda un poco entre ambos huesos
+    expect(smooth.blend![i]).toBeGreaterThan(0);
+    expect(Math.hypot(ps[i * 3]! - pr[i * 3]!, ps[i * 3 + 1]! - pr[i * 3 + 1]!)).toBeGreaterThan(0.05);
     expect(smooth.weights2!.length).toBe(11);
   });
 });
