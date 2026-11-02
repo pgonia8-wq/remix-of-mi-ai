@@ -135,34 +135,84 @@ function Clone({ projectId, decision }: { projectId: string; decision: Decision 
   const [samples, setSamples] = useState<{ blob: Blob; name: string }[]>([]);
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [phrase, setPhrase] = useState(() => challengePhrase());
+  const [live, setLive] = useState<Blob | null>(null);
+  const [verified, setVerified] = useState<{ id: string; phrase: number; speaker: number; at: number } | null>(null);
+  const [step, setStep] = useState("");
   const mutate = useCoreMutate();
   const { data: list = [] } = useCoreQuery(["voices", projectId], (c) => voices.list(c.repo.sql, projectId));
+  const { data: models = [] } = useCoreQuery(["registry-models"], (c) => c.repo.registry.listModels());
+  const transcriber = route(models, { capability: "audio.transcribe", mode: "auto" });
+  const reset = () => { setVerified(null); setLive(null); setPhrase(challengePhrase()); };
+
+  /** Live phrase → transcription must match; then every sample must sound like the live speaker (on-device). */
+  async function verify() {
+    if (!live) return;
+    if (!transcriber.ok) { toast.error("Para verificar tu voz necesitas un modelo que transcriba audio (Modelos → audio.transcribe)."); return; }
+    setBusy(true);
+    try {
+      const c = await getCore();
+      setStep("Comprobando que leíste la frase…");
+      const mime = live.type.split(";")[0] || "audio/webm";
+      const t = await execute(c, projectId, transcriber.model, { capability: "audio.transcribe", files: [{ bytes: new Uint8Array(await live.arrayBuffer()), mime, name: `frase.${extForAudio(mime)}` }] });
+      const pm = phraseMatch(phrase, t.text ?? "");
+      if (!pm.ok) throw new Error(`La grabación no coincide con la frase (${Math.round(pm.score * 100)} %${pm.numberOk ? "" : ", falta el código"}). Léela completa y vuelve a intentar.`);
+      setStep("Comparando tu voz con las muestras…");
+      const { decodeAudio } = await import("@/lib/audio-edit");
+      const { voiceprint, mono16k, compareVoiceprints } = await import("@/lib/media/voice-verify");
+      const ref = voiceprint(mono16k(await decodeAudio(new Uint8Array(await live.arrayBuffer()))));
+      let worst = 1;
+      for (const sm of samples) {
+        const r = compareVoiceprints(ref, voiceprint(mono16k(await decodeAudio(new Uint8Array(await sm.blob.arrayBuffer())))));
+        worst = Math.min(worst, r.score);
+        if (!r.ok) throw new Error(`La muestra «${sm.name}» no parece de la misma persona que leyó la frase (coincidencia ${Math.round(r.score * 100)} %). Usa solo grabaciones de tu propia voz.`);
+      }
+      const id = await verifications.record(c.repo.sql, projectId, { phrase, phraseScore: pm.score, speakerScore: worst, samples: samples.length });
+      setVerified({ id, phrase: pm.score, speaker: worst, at: Date.now() });
+      toast.success("Voz verificada: eres tú quien leyó la frase y las muestras coinciden.");
+    } catch (e) { toast.error((e as Error).message); setLive(null); setPhrase(challengePhrase()); } finally { setBusy(false); setStep(""); }
+  }
+
   async function run() {
     if (!decision.ok) { toast.error(decision.reason); return; }
     if (!consent) { toast.error("Confirma el consentimiento."); return; }
+    if (!verified || Date.now() - verified.at > VERIFY_TTL_MS) { toast.error("Primero verifica tu voz con la frase en vivo."); reset(); return; }
     setBusy(true);
     try {
       const c = await getCore();
       const files = await Promise.all(samples.map(async (s) => ({ bytes: new Uint8Array(await s.blob.arrayBuffer()), mime: s.blob.type.split(";")[0] || "audio/webm", name: s.name })));
       const consentAt = Date.now();
-      const r = await execute(c, projectId, decision.model, { capability: "audio.voice_clone", files, params: { name, consent: true } });
-      await voices.add(c.repo.sql, projectId, { providerId: decision.model.provider_id, voiceId: r.text!, name, consentAt });
+      const r = await execute(c, projectId, decision.model, { capability: "audio.voice_clone", files, params: { name, consent: true, verificationId: verified.id } });
+      await voices.add(c.repo.sql, projectId, { providerId: decision.model.provider_id, voiceId: r.text!, name, consentAt, verificationId: verified.id });
       toast.success(`Voz «${name}» creada. Ya aparece en «Voz».`);
-      setName(""); setSamples([]); setConsent(false);
+      setName(""); setSamples([]); setConsent(false); reset();
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); await mutate(async () => undefined); }
   }
   return (
     <div className="space-y-2">
       <input className={inputCls} placeholder="Nombre de la voz" value={name} onChange={(e) => setName(e.target.value)} />
       <div className="flex flex-wrap gap-2">
-        <RecordButton label="Grabar muestra" disabled={busy} onAudio={(b) => setSamples((s) => [...s, { blob: b, name: `muestra-${s.length + 1}.${extForAudio(b.type)}` }])} />
+        <RecordButton label="Grabar muestra" disabled={busy} onAudio={(b) => { setVerified(null); setSamples((s) => [...s, { blob: b, name: `muestra-${s.length + 1}.${extForAudio(b.type)}` }]); }} />
         <label className="flex cursor-pointer items-center gap-1 rounded-md border px-3 text-xs"><Upload className="h-3.5 w-3.5" /> Muestras
-          <input type="file" accept="audio/*" multiple className="hidden" onChange={(e) => setSamples((s) => [...s, ...Array.from(e.target.files ?? []).map((f) => ({ blob: f as Blob, name: f.name }))])} /></label>
+          <input type="file" accept="audio/*" multiple className="hidden" onChange={(e) => { setVerified(null); setSamples((s) => [...s, ...Array.from(e.target.files ?? []).map((f) => ({ blob: f as Blob, name: f.name }))]); }} /></label>
       </div>
-      {samples.map((s, i) => <div key={i} className="flex items-center gap-2 text-xs"><span className="flex-1 truncate">{s.name} · {(s.blob.size / 1024).toFixed(0)} KB</span><button aria-label="Quitar" onClick={() => setSamples(samples.filter((_, j) => j !== i))}><Trash2 className="h-3.5 w-3.5" /></button></div>)}
+      {samples.map((s, i) => <div key={i} className="flex items-center gap-2 text-xs"><span className="flex-1 truncate">{s.name} · {(s.blob.size / 1024).toFixed(0)} KB</span><button aria-label="Quitar" onClick={() => { setVerified(null); setSamples(samples.filter((_, j) => j !== i)); }}><Trash2 className="h-3.5 w-3.5" /></button></div>)}
       <p className="text-[10px] text-muted-foreground">Usa 1–3 minutos de voz clara, sin música. Las muestras se envían al proveedor; MI AI solo guarda el identificador de la voz.</p>
+      <div className="space-y-2 rounded-lg border p-2">
+        <p className="text-xs font-medium">Verificación: demuestra que la voz es tuya</p>
+        <p className="text-xs text-muted-foreground">Graba ahora, en vivo, esta frase. Se comprueba que la leíste y que tu voz coincide con cada muestra. Nada se envía al proveedor hasta superar esto.</p>
+        <p className="rounded-md bg-muted/50 p-2 text-sm font-medium">«{phrase}»</p>
+        <div className="flex flex-wrap gap-2">
+          <RecordButton label={live ? "Grabar de nuevo" : "Grabar la frase"} disabled={busy || !!verified} onAudio={(b) => { setLive(b); setVerified(null); }} />
+          <Button size="sm" variant="ghost" disabled={busy} onClick={reset}>Otra frase</Button>
+          <Button size="sm" variant="outline" disabled={busy || !live || !samples.length || !!verified} onClick={verify}><ShieldCheck />{busy && step ? step : "Verificar que es mi voz"}</Button>
+        </div>
+        {verified && <p className="text-xs text-primary">Verificada · frase {Math.round(verified.phrase * 100)} % · coincidencia de voz {Math.round(verified.speaker * 100)} %. Válida 15 minutos y una sola vez.</p>}
+        {!transcriber.ok && <p className="text-xs text-destructive">Falta un modelo que transcriba audio para verificar la frase.</p>}
+        <p className="text-[10px] text-muted-foreground">La comparación se hace en tu teléfono con rasgos acústicos (timbre y tono). Es una comprobación fuerte, no una prueba forense.</p>
+      </div>
       <label className="flex items-start gap-2 text-xs"><input type="checkbox" className="mt-0.5" checked={consent} onChange={(e) => setConsent(e.target.checked)} /> Confirmo que la voz es mía o que tengo permiso explícito de su dueño para clonarla.</label>
-      <Button className="w-full" disabled={busy || !decision.ok || !consent || !name.trim() || !samples.length} onClick={run}><Mic2 />{busy ? "Creando…" : "Clonar voz"}</Button>
+      <Button className="w-full" disabled={busy || !decision.ok || !consent || !name.trim() || !samples.length || !verified} onClick={run}><Mic2 />{busy && !step ? "Creando…" : "Clonar voz"}</Button>
       {list.length > 0 && <div className="space-y-1 border-t pt-2"><p className="text-xs font-medium">Tus voces</p>
         {list.map((v) => <div key={v.id} className="flex items-center gap-2 text-xs"><span className="flex-1">{v.name} · consentimiento {new Date(v.consent_at).toLocaleDateString()}</span>
           <button aria-label="Quitar voz" onClick={() => confirm("¿Quitar esta voz de MI AI? (No se borra en el proveedor)") && mutate((c) => voices.remove(c.repo.sql, projectId, v.id))}><Trash2 className="h-3.5 w-3.5" /></button></div>)}
