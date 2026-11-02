@@ -14,6 +14,8 @@ import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import javax.crypto.Cipher;
+import javax.crypto.Mac;
+import java.security.SecureRandom;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -26,7 +28,13 @@ public class MiaiVpnService extends VpnService {
   static volatile long expiresAt = 0;
   private static volatile MiaiVpnService instance;
   private ParcelFileDescriptor tun; private Socket sock; private Thread up, down;
-  private static final byte[] HELLO = "miai-vpn-1".getBytes();
+  private static final byte[] HELLO = "miai-vpn-2".getBytes();
+  /** HKDF-SHA256 (RFC 5869), one 32-byte block; must match vpnSessionKey() in pc-node/relay.mjs. */
+  static byte[] sessionKey(byte[] key, byte[] nodeSalt, byte[] phoneSalt) throws Exception {
+    byte[] salt = new byte[nodeSalt.length + phoneSalt.length]; System.arraycopy(nodeSalt, 0, salt, 0, nodeSalt.length); System.arraycopy(phoneSalt, 0, salt, nodeSalt.length, phoneSalt.length);
+    Mac m = Mac.getInstance("HmacSHA256"); m.init(new SecretKeySpec(salt, "HmacSHA256")); byte[] prk = m.doFinal(key);
+    m.init(new SecretKeySpec(prk, "HmacSHA256")); m.update("miai-vpn-2 session".getBytes()); m.update((byte) 1); byte[] okm = m.doFinal(); Arrays.fill(prk, (byte) 0); return okm;
+  }
 
   static void stopNow(String why) { MiaiVpnService s = instance; if (s != null) s.shutdown(why); }
 
@@ -56,9 +64,13 @@ public class MiaiVpnService extends VpnService {
       for (String s : subnets) { String[] p = s.split("/"); int bits = Integer.parseInt(p[1]); if (bits < 8 || bits > 32) throw new IOException("subred"); b.addRoute(p[0], bits); }
       b.addDisallowedApplication(getPackageName()); // our own control traffic never loops into the tunnel
       sock = new Socket(); protect(sock); sock.setTcpNoDelay(true); sock.connect(new InetSocketAddress(host, port), 15000);
-      final SecretKeySpec k = new SecretKeySpec(key, "AES"); Arrays.fill(key, (byte) 0);
       final DataOutputStream out = new DataOutputStream(new BufferedOutputStream(sock.getOutputStream()));
       final DataInputStream in = new DataInputStream(new BufferedInputStream(sock.getInputStream()));
+      sock.setSoTimeout(15000);
+      byte[] nodeSalt = new byte[32]; in.readFully(nodeSalt); byte[] phoneSalt = new byte[32]; new SecureRandom().nextBytes(phoneSalt);
+      byte[] sk = sessionKey(key, nodeSalt, phoneSalt); Arrays.fill(key, (byte) 0);
+      final SecretKeySpec k = new SecretKeySpec(sk, "AES"); Arrays.fill(sk, (byte) 0);
+      out.write(phoneSalt);
       final long[] ctrOut = {0}; long ctrIn = 0;
       final Object lock = new Object();
       Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
@@ -66,13 +78,14 @@ public class MiaiVpnService extends VpnService {
       Cipher d = Cipher.getInstance("AES/GCM/NoPadding");
       int len = in.readInt(); if (len < 16 || len > 70000) throw new IOException("frame"); byte[] buf = new byte[len]; in.readFully(buf);
       d.init(Cipher.DECRYPT_MODE, k, new GCMParameterSpec(128, nonce(1, ctrIn++))); if (!Arrays.equals(d.doFinal(buf), HELLO)) throw new IOException("hello");
+      sock.setSoTimeout(0);
       tun = b.establish(); if (tun == null) throw new IOException("Permiso VPN no concedido");
       state = "activa";
       final FileInputStream tin = new FileInputStream(tun.getFileDescriptor()); final FileOutputStream tout = new FileOutputStream(tun.getFileDescriptor());
       up = new Thread(() -> {
         byte[] pkt = new byte[1500];
         try { Cipher e = Cipher.getInstance("AES/GCM/NoPadding");
-          while (!Thread.interrupted()) { int n = tin.read(pkt); if (n <= 0) continue;
+          while (!Thread.interrupted()) { int n = tin.read(pkt); if (n <= 0) { Thread.sleep(5); continue; }
             synchronized (lock) { e.init(Cipher.ENCRYPT_MODE, k, new GCMParameterSpec(128, nonce(0, ctrOut[0]++))); byte[] ct = e.doFinal(pkt, 0, n); out.writeInt(ct.length); out.write(ct); out.flush(); } }
         } catch (Exception ex) { shutdown("conexión perdida"); }
       });
