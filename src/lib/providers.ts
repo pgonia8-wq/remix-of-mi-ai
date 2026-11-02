@@ -1,4 +1,5 @@
 import type { ProviderKind } from "./db/repo";
+import { azureKindOf, parseAzureUrl, type AzureDeploymentKind } from "./azure-url";
 
 export const PROVIDER_KINDS: { kind: ProviderKind; label: string; endpoint: string; model: string; needsDeployment?: boolean; needsVersion?: boolean }[] = [
   { kind: "openai", label: "OpenAI", endpoint: "https://api.openai.com/v1", model: "gpt-4o-mini" },
@@ -63,7 +64,13 @@ function buildRequest(p: ProviderCall, messages: ChatMsg[], tools?: unknown[]): 
   const defaults = PROVIDER_KINDS.find((k) => k.kind === p.kind);
   if (!defaults) throw new ProviderError("endpoint", "Endpoint incorrecto: proveedor desconocido.");
   const azure = p.kind === "azure" || p.kind === "azure_openai";
-  const ep = trim(p.endpoint?.trim() || defaults.endpoint);
+  let ep = trim(p.endpoint?.trim() || defaults.endpoint);
+  // Azure: any URL copied from the portal collapses to the resource (classic) or /openai/v1 (GA) contract.
+  const az = azure ? parseAzureUrl(ep) : null;
+  if (azure && !az) {
+    if (/^https:\/\//i.test(ep)) throw new ProviderError("endpoint", "URL de Azure incorrecta: usa la URL del recurso, /openai/v1 o la URL completa del deployment (por ejemplo …/openai/deployments/NOMBRE/chat/completions).");
+  }
+  if (az) { ep = az.endpoint; if (!az.v1 && !p.apiVersion?.trim() && az.apiVersion) p = { ...p, apiVersion: az.apiVersion }; }
   let endpoint: URL;
   try {
     endpoint = new URL(ep);
@@ -73,7 +80,7 @@ function buildRequest(p: ProviderCall, messages: ChatMsg[], tools?: unknown[]): 
     throw new ProviderError("endpoint", "Endpoint incorrecto: utiliza una URL HTTP o HTTPS sin credenciales ni parámetros.");
   }
   const azurePath = trim(endpoint.pathname);
-  const azureV1 = azure && (azurePath === "/openai/v1" || azurePath === "/openai/v1/chat/completions");
+  const azureV1 = azure && azurePath === "/openai/v1";
   if ((!azure && !p.model.trim()) || (azure && !p.deployment?.trim())) throw new ProviderError("model", "Modelo o deployment inexistente: completa el identificador.");
   if (p.kind === "azure_openai" && !azureV1 && !p.apiVersion?.trim()) throw new ProviderError("parameters", "Versión de API requerida: introduce la versión de Azure OpenAI.");
   if (!["custom", "openai_compatible"].includes(p.kind) && !p.apiKey?.trim()) throw new ProviderError("key", "API Key inválida: falta la credencial.");
@@ -120,17 +127,12 @@ function buildRequest(p: ProviderCall, messages: ChatMsg[], tools?: unknown[]): 
   if (azure) {
     // Accept a resource URL or a copied deployment chat-completions URL.
     // Explicit form fields remain authoritative; never duplicate the route.
-    const path = azurePath;
-    let base: string;
     if (azureV1) {
       // Azure v1 selects deployment through model, not through the URL.
       // Dated api-version is not part of this GA endpoint contract.
       url = `${endpoint.origin}/openai/v1/chat/completions`;
     } else {
-    if (path === "" || path === "/openai") base = endpoint.origin;
-    else if (/^\/openai\/deployments\/[^/]+\/chat\/completions$/.test(path)) base = endpoint.origin;
-    else throw new ProviderError("endpoint", "URL de Azure incorrecta: usa la URL del recurso, /openai/v1/chat/completions o la URL completa del deployment.");
-    url = `${base}/openai/deployments/${encodeURIComponent(p.deployment?.trim() || p.model)}/chat/completions?api-version=${encodeURIComponent(p.apiVersion?.trim() || "2024-10-21")}`;
+    url = `${endpoint.origin}/openai/deployments/${encodeURIComponent(p.deployment?.trim() || p.model)}/chat/completions?api-version=${encodeURIComponent(p.apiVersion?.trim() || "2024-10-21")}`;
     }
     headers["api-key"] = key;
   } else if (key) headers["authorization"] = `Bearer ${key}`;
