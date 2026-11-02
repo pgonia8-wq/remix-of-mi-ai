@@ -49,7 +49,10 @@ export function mono16k(a: PcmAudio): Float32Array {
 }
 
 /** 13 MFCC means/deviations over voiced frames plus median pitch (autocorrelation, 70–400 Hz). */
-export function voiceprint(x: Float32Array, sr = 16000): Voiceprint {
+export function voiceprint(input: Float32Array, sr = 16000): Voiceprint {
+  let peak = 0; for (const v of input) peak = Math.max(peak, Math.abs(v));
+  if (peak < 1e-6) throw new Error("La grabación está en silencio.");
+  const x = input.map((v) => v / peak); // level-independent
   const N = 512, hop = 160, win = 400, bands = 26, coefs = 13;
   const hamming = Float64Array.from({ length: win }, (_, i) => 0.54 - 0.46 * Math.cos(2 * Math.PI * i / (win - 1)));
   const lo = mel(80), hi = mel(7600), pts = Array.from({ length: bands + 2 }, (_, i) => Math.floor((N + 1) * imel(lo + (hi - lo) * i / (bands + 1)) / sr));
