@@ -59,7 +59,7 @@ export function ShareInbox() {
       <DialogHeader><DialogTitle className="flex items-center gap-2"><Inbox className="h-5 w-5 text-primary" />Recibido de otra app</DialogTitle>
         <DialogDescription>Elige a qué proyecto va y qué hacer con {items.length === 1 ? "esto" : "estos elementos"}.</DialogDescription></DialogHeader>
       <ul className="max-h-48 space-y-1 overflow-auto text-sm">
-        {files.map((f) => <li key={f.path} className="truncate">📄 {f.name} <span className="text-muted-foreground">{fmt(f.size)}</span></li>)}
+        {files.map((f) => <li key={f.path} className="truncate">{f.name} <span className="text-muted-foreground">{fmt(f.size)}</span></li>)}
         {texts.map((t, i) => <li key={i} className="line-clamp-3 text-muted-foreground">“{t.text}”</li>)}
       </ul>
       <label className="block text-sm">Proyecto

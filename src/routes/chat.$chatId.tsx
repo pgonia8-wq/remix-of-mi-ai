@@ -1,4 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { takeChatHandoff } from "@/lib/share-handoff";
+import { shareContent } from "@/lib/device";
 import { useEffect, useRef, useState } from "react";
 import { ArrowUp, Square, Plus, Copy, Check, ThumbsUp, ThumbsDown, RotateCcw, Pencil, FileText, X, Sparkles, ArrowDown } from "lucide-react";
 import { toast } from "sonner";
@@ -56,6 +58,7 @@ function ChatPage() {
   const [approval, setApproval] = useState<{ summary: string; resolve: (ok: boolean) => void } | null>(null);
   const running = busy || streaming !== null;
   useEffect(() => () => { abort.current?.abort(); }, [chatId]);
+  useEffect(() => { const h = takeChatHandoff(chatId); if (h) { if (h.text) setInput(h.text); if (h.files.length) setFiles(h.files.slice(0, 8)); } }, [chatId]);
   useEffect(() => { const el = composer.current; if (el) { el.style.height = "auto"; el.style.height = `${Math.min(el.scrollHeight, 180)}px`; } }, [input]);
   useEffect(() => {
     end.current?.scrollIntoView?.();
