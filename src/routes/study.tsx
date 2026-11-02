@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AdaptiveTutor } from "@/components/AdaptiveTutor";
 import { useState } from "react";
-import { BookOpen, Check, GraduationCap, Layers, ListTodo, Trash2, X } from "lucide-react";
+import { BookOpen, Sparkles, Check, GraduationCap, Layers, ListTodo, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useActiveProjectId, useCoreMutate, useCoreQuery } from "@/lib/use-app";
 import { getCore } from "@/lib/core";
@@ -30,7 +30,7 @@ const LEVELS = ["Primaria", "Secundaria", "Preparatoria", "Universidad", "Profes
 
 function Study() {
   const pid = useActiveProjectId();
-  const [mode, setMode] = useState<Mode>("explain");
+  const [mode, setMode] = useState<Mode>("tutor");
   const [topic, setTopic] = useState("");
   const [docId, setDocId] = useState("");
   const [level, setLevel] = useState("Preparatoria");
