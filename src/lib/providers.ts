@@ -154,14 +154,57 @@ const sleep = (ms: number, signal?: AbortSignal) => new Promise<void>((resolve, 
   signal?.addEventListener("abort", onAbort, { once: true });
 });
 
-/** Streams text deltas. API key is only placed in request headers — never logged. */
-export async function streamChat(p: ProviderCall, messages: ChatMsg[], onDelta: (t: string) => void, signal?: AbortSignal, opts: { tools?: unknown[] } = {}): Promise<{ toolCalls: ToolCall[] }> {
-  const { url, init, parse } = buildRequest(p, messages, opts.tools);
-  const calls: { id: string; name: string; arguments: string }[] = [];
-  let res: Response;
+/** Families that also expose the OpenAI Responses API. Newer models (for example GPT-6) only accept function tools there. */
+const RESPONSES_KINDS: ProviderKind[] = ["openai", "azure", "azure_openai"];
+const responsesKey = (p: ProviderCall) => `${p.kind}|${(p.endpoint ?? "").trim()}|${(p.deployment || p.model || "").trim()}`;
+/** Providers that rejected tools on chat/completions this session go straight to /responses (no wasted request per turn). */
+const responsesForTools = new Set<string>();
+/** A chat/completions 400 caused by function tools (not by anything else) on a Responses-capable family. */
+export const isToolRejection = (status: number | undefined, technical: string | undefined) =>
+  status === 400 && /tool|function/i.test(technical ?? "");
+
+/** Same endpoint/credentials as chat/completions, routed to the Responses API with native function tools. */
+export function buildResponsesRequest(p: ProviderCall, messages: ChatMsg[], tools: unknown[]): { url: string; init: RequestInit } {
+  const base = buildRequest(p, messages.filter((m) => m.role !== "tool" && !m.tool_calls?.length)); // validates URL, model and key
+  const azure = p.kind === "azure" || p.kind === "azure_openai";
+  const u = new URL(base.url);
+  let url: string; let model: string;
+  if (!azure) { url = base.url.replace(/\/chat\/completions$/, "/responses"); model = p.model; }
+  else if (u.pathname === "/openai/v1/chat/completions") { url = `${u.origin}/openai/v1/responses`; model = p.deployment!.trim(); }
+  else {
+    const v = (p.apiVersion ?? "").trim();
+    url = `${u.origin}/openai/responses?api-version=${encodeURIComponent(v >= "2025-03-01" ? v : "2025-04-01-preview")}`;
+    model = p.deployment!.trim();
+  }
+  const input: unknown[] = [];
+  for (const m of messages) {
+    if (m.role === "tool") { input.push({ type: "function_call_output", call_id: m.tool_call_id, output: m.content }); continue; }
+    if (m.tool_calls?.length) {
+      if (m.content) input.push({ role: "assistant", content: m.content });
+      for (const c of m.tool_calls) input.push({ type: "function_call", call_id: c.id, name: c.name, arguments: c.arguments || "{}" });
+      continue;
+    }
+    if (m.role === "user" && m.images?.length) input.push({ role: "user", content: [{ type: "input_text", text: m.content }, ...m.images.map((i) => ({ type: "input_image", image_url: `data:${i.mime};base64,${i.data}` }))] });
+    else input.push({ role: m.role, content: m.content });
+  }
+  // Chat-completions style tools → flat Responses tools. strict:false keeps optional parameters optional.
+  const flat = tools.map((t) => { const f = (t as { function?: { name: string; description?: string; parameters?: unknown } }).function; return f ? { type: "function", name: f.name, description: f.description, parameters: f.parameters, strict: false } : t; });
+  // Map the few extra parameters that differ between both APIs; chat-only ones are dropped instead of failing.
+  const x: Record<string, unknown> = {};
+  if (p.kind !== "azure_openai") {
+    const e = extra(p);
+    for (const k of ["temperature", "top_p", "parallel_tool_calls"]) if (k in e) x[k] = e[k];
+    const cap = e["max_output_tokens"] ?? e["max_completion_tokens"] ?? e["max_tokens"]; if (cap !== undefined) x["max_output_tokens"] = cap;
+    if (typeof e["reasoning_effort"] === "string") x["reasoning"] = { effort: e["reasoning_effort"] };
+  }
+  const headers = { ...(base.init.headers as Record<string, string>) };
+  return { url, init: { method: "POST", headers, body: JSON.stringify({ model, stream: true, store: false, input, tools: flat, tool_choice: "auto", ...x }) } };
+}
+
+async function openStream(url: string, init: RequestInit, p: ProviderCall, signal?: AbortSignal): Promise<Response> {
   for (let attempt = 0; ; attempt++) {
-    res = await fetch(url, { ...init, signal: signal ?? null });
-    if (res.ok && res.body) break;
+    const res = await fetch(url, { ...init, signal: signal ?? null });
+    if (res.ok && res.body) return res;
     const body = await res.text().catch(() => "");
     if (res.status === 429 && attempt < RATE_LIMIT_RETRIES) {
       const wait = rateLimitWaitMs(res, body, attempt);
@@ -169,7 +212,10 @@ export async function streamChat(p: ProviderCall, messages: ChatMsg[], onDelta: 
     }
     throw responseError(res.status, body, p.apiKey);
   }
-  const reader = res.body.getReader();
+}
+
+async function readSse(res: Response, p: ProviderCall, onEvent: (parsed: any) => void) {
+  const reader = res.body!.getReader();
   const dec = new TextDecoder();
   let buf = "";
   const consume = (line: string) => {
@@ -179,16 +225,8 @@ export async function streamChat(p: ProviderCall, messages: ChatMsg[], onDelta: 
     let parsed: any;
     try { parsed = JSON.parse(data); } catch { throw new ProviderError("parameters", "Respuesta inválida: el proveedor no devolvió JSON válido."); }
     if (parsed.error || parsed.type === "error") throw responseError(res.status, JSON.stringify(parsed.error ?? parsed), p.apiKey);
-    const text = parse(parsed);
-    if (typeof text === "string" && text) onDelta(text);
-    const deltas = parsed.choices?.[0]?.delta?.tool_calls;
-    if (Array.isArray(deltas)) for (const d of deltas) {
-      const i = typeof d?.index === "number" ? d.index : calls.length;
-      const c = (calls[i] ??= { id: "", name: "", arguments: "" });
-      if (typeof d.id === "string" && d.id) c.id = d.id;
-      if (typeof d.function?.name === "string") c.name += d.function.name;
-      if (typeof d.function?.arguments === "string") c.arguments += d.function.arguments;
-    }
+    if (parsed.type === "response.failed") throw responseError(res.status, JSON.stringify(parsed.response?.error ?? parsed), p.apiKey);
+    onEvent(parsed);
   };
   try { for (;;) {
     const { done, value } = await reader.read();
@@ -201,7 +239,64 @@ export async function streamChat(p: ProviderCall, messages: ChatMsg[], onDelta: 
       consume(line);
     }
   } } finally { await reader.cancel().catch(() => undefined); reader.releaseLock(); }
-  return { toolCalls: calls.filter((c) => c && c.name).map((c, i) => ({ id: c.id || `call_${i}`, name: c.name, arguments: c.arguments || "{}" })) };
+}
+
+const finishCalls = (calls: { id: string; name: string; arguments: string }[]): ToolCall[] =>
+  calls.filter((c) => c && c.name).map((c, i) => ({ id: c.id || `call_${i}`, name: c.name, arguments: c.arguments || "{}" }));
+
+async function streamResponses(p: ProviderCall, messages: ChatMsg[], tools: unknown[], onDelta: (t: string) => void, signal?: AbortSignal): Promise<{ toolCalls: ToolCall[] }> {
+  const { url, init } = buildResponsesRequest(p, messages, tools);
+  const res = await openStream(url, init, p, signal);
+  const byItem = new Map<string, { id: string; name: string; arguments: string }>();
+  const order: string[] = [];
+  const item = (key: string) => { let c = byItem.get(key); if (!c) { c = { id: "", name: "", arguments: "" }; byItem.set(key, c); order.push(key); } return c; };
+  await readSse(res, p, (e) => {
+    if (e.type === "response.output_text.delta" && typeof e.delta === "string" && e.delta) onDelta(e.delta);
+    else if ((e.type === "response.output_item.added" || e.type === "response.output_item.done") && e.item?.type === "function_call") {
+      const c = item(String(e.item.id ?? e.output_index));
+      if (e.item.call_id) c.id = e.item.call_id;
+      if (e.item.name) c.name = e.item.name;
+      if (e.type === "response.output_item.done" && typeof e.item.arguments === "string") c.arguments = e.item.arguments; // authoritative
+    } else if (e.type === "response.function_call_arguments.delta" && typeof e.delta === "string") item(String(e.item_id ?? e.output_index)).arguments += e.delta;
+    else if (e.type === "response.function_call_arguments.done" && typeof e.arguments === "string") item(String(e.item_id ?? e.output_index)).arguments = e.arguments;
+  });
+  return { toolCalls: finishCalls(order.map((k) => byItem.get(k)!)) };
+}
+
+/** Streams text deltas. API key is only placed in request headers — never logged.
+ *  With tools on OpenAI/Azure: models that refuse function tools on chat/completions are retried once on /responses. */
+export async function streamChat(p: ProviderCall, messages: ChatMsg[], onDelta: (t: string) => void, signal?: AbortSignal, opts: { tools?: unknown[] } = {}): Promise<{ toolCalls: ToolCall[] }> {
+  const tools = opts.tools?.length ? opts.tools : undefined;
+  const viaResponses = !!tools && RESPONSES_KINDS.includes(p.kind);
+  if (viaResponses && responsesForTools.has(responsesKey(p))) return streamResponses(p, messages, tools!, onDelta, signal);
+  const { url, init, parse } = buildRequest(p, messages, tools);
+  const calls: { id: string; name: string; arguments: string }[] = [];
+  let res: Response;
+  try { res = await openStream(url, init, p, signal); }
+  catch (err) {
+    if (!viaResponses || !(err instanceof ProviderError) || !isToolRejection(err.httpStatus, err.technical)) throw err;
+    try {
+      const out = await streamResponses(p, messages, tools!, onDelta, signal);
+      responsesForTools.add(responsesKey(p));
+      return out;
+    } catch (second) {
+      if ((second as Error)?.name === "AbortError") throw second;
+      throw err; // Responses not available either: keep the original tool rejection for the caller's text-only fallback.
+    }
+  }
+  await readSse(res, p, (parsed) => {
+    const text = parse(parsed);
+    if (typeof text === "string" && text) onDelta(text);
+    const deltas = parsed.choices?.[0]?.delta?.tool_calls;
+    if (Array.isArray(deltas)) for (const d of deltas) {
+      const i = typeof d?.index === "number" ? d.index : calls.length;
+      const c = (calls[i] ??= { id: "", name: "", arguments: "" });
+      if (typeof d.id === "string" && d.id) c.id = d.id;
+      if (typeof d.function?.name === "string") c.name += d.function.name;
+      if (typeof d.function?.arguments === "string") c.arguments += d.function.arguments;
+    }
+  });
+  return { toolCalls: finishCalls(calls) };
 }
 
 export type DiagnosticCode = "key" | "auth" | "endpoint" | "model" | "unavailable" | "network" | "timeout" | "parameters";

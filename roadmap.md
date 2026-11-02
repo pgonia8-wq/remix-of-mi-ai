@@ -219,4 +219,5 @@
 
 ## Solicitud actual — herramientas del chat
 - [x] El chat ya no deja la lista de herramientas cuando el modelo las rechaza; muestra el motivo y cuántas herramientas están conectadas.
+- [x] Modelos GPT nuevos (OpenAI/Azure) que solo aceptan herramientas por Responses: la app cambia de vía sola; probado con un modelo GPT-6 real.
 - [ ] Firma Release del APK: pospuesta por Fer (falta decidir Play Store/APK directa y llave).
