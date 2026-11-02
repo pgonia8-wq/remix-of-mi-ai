@@ -17,9 +17,11 @@ export const onDevice = () => Capacitor.isNativePlatform();
 
 export const CHUNK = 1 << 20; // 1 MB pieces
 
+const readBlob = (b: Blob): Promise<ArrayBuffer> => typeof b.arrayBuffer === "function" ? b.arrayBuffer()
+  : new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result as ArrayBuffer); r.onerror = () => rej(r.error); r.readAsArrayBuffer(b); });
 /** Reads a Blob/File in bounded pieces (never the whole file at once). */
 export async function* blobChunks(b: Blob, size = CHUNK): AsyncGenerator<Uint8Array> {
-  for (let o = 0; o < b.size; o += size) yield new Uint8Array(await b.slice(o, Math.min(b.size, o + size)).arrayBuffer());
+  for (let o = 0; o < b.size; o += size) yield new Uint8Array(await readBlob(b.slice(o, Math.min(b.size, o + size))));
 }
 export async function* bytesChunks(b: Uint8Array, size = CHUNK): AsyncGenerator<Uint8Array> {
   for (let o = 0; o < b.length; o += size) yield b.subarray(o, o + size);
