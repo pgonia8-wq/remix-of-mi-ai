@@ -75,3 +75,11 @@ export const AZURE_KIND_LABEL: Record<AzureDeploymentKind, string> = {
   embedding: "Modelo de embeddings: se prueba generando un vector real y se usará para búsquedas en tus documentos.",
   image: "Modelo de imágenes: no se genera una imagen de prueba para no cobrarte; se comprueba que la URL, la clave y el deployment existen.",
 };
+
+const KINDS = new Set<AzureDeploymentKind>(["chat", "realtime", "tts", "transcribe", "audio-chat", "embedding", "image"]);
+/** Azure OpenAI rows store the chosen kind as {"miai_kind": …} in extra_params (never sent to Azure); otherwise it is inferred from the name. */
+export function azureKindOf(p: { deployment?: string | null; extraParams?: string | null }): AzureDeploymentKind {
+  try { const k = JSON.parse(p.extraParams || "{}")?.miai_kind; if (KINDS.has(k)) return k; } catch { /* inferred below */ }
+  return azureDeploymentKind(p.deployment);
+}
+export const azureKindParams = (kind: AzureDeploymentKind) => JSON.stringify({ miai_kind: kind });
