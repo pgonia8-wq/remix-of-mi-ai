@@ -36,7 +36,7 @@ beforeEach(async () => {
   ctx = { core, projectId: p, runId, taskId: null, agent: "chat" };
 });
 
-describe("Herramientas del chat", () => {
+
 it("entradas como las de DeepSeek", async () => {
   const res: Record<string, string> = {};
   const t = async (tool: string, input: unknown) => { const r = await call(tool, input); res[tool + " " + JSON.stringify(input).slice(0, 60)] = r.status === "ok" ? "OK " + r.output.slice(0, 80) : JSON.stringify(r).slice(0, 300); return r; };
