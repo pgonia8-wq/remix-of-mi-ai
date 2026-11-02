@@ -16,12 +16,14 @@ import { NeedProject, inputCls } from "@/components/AppShell";
 import { ModelPicker } from "@/components/ModelPicker";
 import { Markdown } from "@/components/Markdown";
 import { Button } from "@/components/ui/button";
+import { OfficeEditor } from "@/components/OfficeEditor";
+import { SheetEditor } from "@/components/SheetEditor";
 
 export const Route = createFileRoute("/documents")({
   head: () => ({
     meta: [
       { title: "Documentos — MI AI" },
-      { name: "description", content: "Analiza PDF, Word y Excel en tu teléfono, y crea documentos exportables a PDF, Word y Excel." },
+      { name: "description", content: "Analiza, crea y edita Word, PowerPoint, hojas con fórmulas, ODT y RTF en tu teléfono." },
       { property: "og:title", content: "Documentos — MI AI" },
       { property: "og:description", content: "Resumir, preguntar, extraer tablas y crear documentos con tus modelos." },
       { property: "og:type", content: "website" },
@@ -40,15 +42,15 @@ const ACTIONS = [
 
 function Documents() {
   const pid = useActiveProjectId();
-  const [tab, setTab] = useState<"analyze" | "create" | "compare">("analyze");
+  const [tab, setTab] = useState<"analyze" | "create" | "edit" | "sheet" | "compare">("analyze");
   if (!pid) return <NeedProject />;
   return (
     <div className="space-y-4 p-4">
       <h1 className="text-2xl font-bold">Documentos</h1>
       <div className="flex gap-1">
-        {(["analyze", "create", "compare"] as const).map((t) => <button key={t} onClick={() => setTab(t)} className={`flex-1 rounded-lg border px-2 py-1.5 text-xs ${tab === t ? "border-primary bg-primary text-primary-foreground" : ""}`}>{t === "analyze" ? "Analizar" : t === "create" ? "Crear" : "Comparar"}</button>)}
+        {(["analyze", "create", "edit", "sheet", "compare"] as const).map((t) => <button key={t} onClick={() => setTab(t)} className={`flex-1 rounded-lg border px-2 py-1.5 text-xs ${tab === t ? "border-primary bg-primary text-primary-foreground" : ""}`}>{{ analyze: "Analizar", create: "Crear", edit: "Editar", sheet: "Hoja", compare: "Comparar" }[t]}</button>)}
       </div>
-      {tab === "analyze" ? <Analyze pid={pid} /> : tab === "create" ? <Create pid={pid} /> : <Compare pid={pid} />}
+      {tab === "analyze" ? <Analyze pid={pid} /> : tab === "create" ? <Create pid={pid} /> : tab === "edit" ? <OfficeEditor pid={pid} /> : tab === "sheet" ? <SheetEditor pid={pid} /> : <Compare pid={pid} />}
     </div>
   );
 }
