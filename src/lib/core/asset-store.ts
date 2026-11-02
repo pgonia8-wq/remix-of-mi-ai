@@ -25,6 +25,9 @@ export type NewAsset = {
 };
 
 export class AssetError extends Error {}
+/** Listeners for newly stored assets (automatic reactions). Errors in listeners never affect the write. */
+const addedListeners = new Set<(a: Asset) => void>();
+export function onAssetAdded(cb: (a: Asset) => void) { addedListeners.add(cb); return () => { addedListeners.delete(cb); }; }
 const now = () => Date.now();
 function need(projectId: string) { if (!projectId) throw new AssetError("projectId requerido"); }
 const kindOf = (mime: string) => mime.split("/")[0] === "application" ? "document" : mime.split("/")[0]!;
@@ -77,6 +80,7 @@ export class AssetStore {
         [row.id, row.project_id, row.kind, row.mime, row.format, row.size, row.path, row.key_id, row.wrapped_dek, row.enc_state, row.provider_id, row.model_id, row.capability_id, row.prompt, row.params, row.job_id, row.parent_id, row.version, row.name, row.created_at],
       );
       if (meta.parentId) await this.relate(projectId, meta.parentId, id, "version", meta.jobId ?? null);
+      for (const l of addedListeners) queueMicrotask(() => { try { l(row); } catch { /* reactions never break storage */ } });
       return row;
     } catch (e) {
       // Roll back the row too (e.g. relate failed after INSERT) so no metadata points at a deleted file.
