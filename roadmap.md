@@ -220,6 +220,7 @@
 ## Solicitud actual — herramientas del chat
 - [x] El chat ya no deja la lista de herramientas cuando el modelo las rechaza; muestra el motivo y cuántas herramientas están conectadas.
 - [x] Modelos GPT nuevos (OpenAI/Azure) que solo aceptan herramientas por Responses: la app cambia de vía sola; probado con un modelo GPT-6 real.
+- [x] build.15 compilada (herramientas por Responses, razonamiento DeepSeek/Kimi).
 - [ ] Firma Release del APK: pospuesta por Fer (falta decidir Play Store/APK directa y llave).
 - [x] DeepSeek/Kimi con razonamiento: la app guarda y reenvía su razonamiento al usar herramientas (lo exigen sus APIs).
 - [ ] Verificación con cuentas reales de DeepSeek, Qwen y Kimi: Fer no quiso cargar claves aquí; probar en el teléfono.
