@@ -46,11 +46,13 @@ it("entradas como las de DeepSeek", async () => {
   await t("fs.move", { from: "notas/b.txt", to: "notas/c.txt", copy: null });
   await t("fs.versions", { path: "notas/a.txt", restore: null });
   await t("ws.snapshot", { label: "antes" });
-  const doc = await t("doc.create", { title: "Informe", format: "docx", content: "# Hola\n\nTexto" });
+  const doc = await t("doc.create", { title: "Informe", format: "docx", markdown: "# Hola\n\nTexto" });
   const docId = doc.status === "ok" ? (doc.assets?.[0]?.id ?? "") : "";
   await t("doc.read", { assetId: docId });
   await t("doc.outline", { assetId: docId });
-  await t("doc.edit", { assetId: docId, ops: [{ op: "replace", find: "Texto", replace: "Nuevo" }] });
+  await t("doc.edit", { assetId: docId, ops: [{ op: "replace", find: "Texto", text: "Nuevo", replace: "Nuevo" }] });
+  await t("ws.snapshot", { label: "despues" });
+  const snaps = await t("assets.list", {});
   await t("qr.generate", { text: "https://example.com" });
   await t("sheet.compute", { cells: { A1: 10, A2: 20, A3: "=SUM(A1:A2)" } });
   const ar = await t("archive.create", { format: "zip", name: "pack", paths: ["notas/a.txt"], assetIds: null, all: null });
