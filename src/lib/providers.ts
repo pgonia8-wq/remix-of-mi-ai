@@ -372,14 +372,34 @@ async function testRealtime(p: ProviderCall, signal: AbortSignal): Promise<void>
   const value = typeof token?.value === "string" ? token.value : typeof token?.client_secret?.value === "string" ? token.client_secret.value : null;
   if (!value) throw new ProviderError("parameters", "Respuesta inválida: Azure no devolvió una sesión de voz válida.", res.status);
 }
+/** Non-chat Azure deployments (voice, transcription, embeddings, images) are verified with a real request of their own kind. */
+async function testAzureKind(p: ProviderCall, kind: Exclude<AzureDeploymentKind, "chat" | "realtime">, signal: AbortSignal): Promise<void> {
+  const deployment = p.deployment?.trim();
+  if (!deployment) throw new ProviderError("model", "Modelo o deployment inexistente: completa el deployment.");
+  if (!p.apiKey?.trim()) throw new ProviderError("key", "API Key inválida: falta la credencial.");
+  const { azureAdapter } = await import("./core/adapters/azure");
+  const { testWav } = await import("./core/adapters/audio");
+  const creds = { kind: p.kind, endpoint: p.endpoint, apiKey: p.apiKey, deployment, apiVersion: p.apiVersion ?? null, model: deployment, extraParams: p.extraParams ?? null };
+  const out = kind === "tts" || kind === "audio-chat" ? await azureAdapter.run(creds, { capability: "audio.tts", model: deployment, prompt: "OK", signal })
+    : kind === "transcribe" ? await azureAdapter.run(creds, { capability: "audio.transcribe", model: deployment, files: [{ bytes: testWav(), mime: "audio/wav", name: "prueba.wav" }], params: { allowEmpty: true }, signal })
+    : kind === "embedding" ? await azureAdapter.run(creds, { capability: "embedding", model: deployment, prompt: "prueba", signal })
+    : await azureAdapter.run(creds, { capability: "image.generate", model: deployment, prompt: "A small blue circle on a white background", params: /gpt-image/i.test(deployment) ? { quality: "low", n: 1 } : { n: 1 }, signal });
+  const real = (out.kind === "files" && out.files.some((f) => f.bytes.length > 100)) || (out.kind === "text" && typeof out.text === "string") || (out.kind === "vectors" && (out.vectors[0]?.length ?? 0) > 0);
+  if (!real) throw new ProviderError("parameters", "Respuesta inválida: el modelo no devolvió un resultado real.", 200);
+}
 /** Draft credentials stay only in memory. Success requires actual generated model text. */
 export async function testProvider(p: ProviderCall, timeoutMs = 20000): Promise<ConnectionResult> {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => { controller.abort(); reject(new ProviderError("timeout", "Error de red o timeout: se agotó el tiempo de espera.")); }, timeoutMs); });
   try {
-    if (p.kind === "azure_openai" && isRealtimeDeployment(p.deployment)) {
+    const kind = p.kind === "azure_openai" ? azureKindOf(p) : "chat";
+    if (kind === "realtime") {
       await Promise.race([testRealtime(p, controller.signal), timeout]);
+      return { ok: true, checkedAt: Date.now() };
+    }
+    if (kind !== "chat") {
+      await Promise.race([testAzureKind(p, kind, controller.signal), timeout]);
       return { ok: true, checkedAt: Date.now() };
     }
     let out = "";
