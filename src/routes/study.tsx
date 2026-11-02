@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { AdaptiveTutor } from "@/components/AdaptiveTutor";
 import { useState } from "react";
 import { BookOpen, Check, GraduationCap, Layers, ListTodo, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
@@ -24,7 +25,7 @@ export const Route = createFileRoute("/study")({
   component: Study,
 });
 
-type Mode = "explain" | "quiz" | "cards" | "plan" | "review";
+type Mode = "tutor" | "explain" | "quiz" | "cards" | "plan" | "review";
 const LEVELS = ["Primaria", "Secundaria", "Preparatoria", "Universidad", "Profesional"];
 
 function Study() {
@@ -66,14 +67,14 @@ function Study() {
   }
 
   const MODES: { id: Mode; label: string; icon: typeof BookOpen }[] = [
-    { id: "explain", label: "Explicar", icon: BookOpen }, { id: "quiz", label: "Cuestionario", icon: GraduationCap },
+    { id: "tutor", label: "Tutor", icon: Sparkles }, { id: "explain", label: "Explicar", icon: BookOpen }, { id: "quiz", label: "Cuestionario", icon: GraduationCap },
     { id: "cards", label: "Tarjetas", icon: Layers }, { id: "plan", label: "Plan", icon: ListTodo }, { id: "review", label: "Repasar", icon: Check },
   ];
   return (
     <div className="space-y-4 p-4">
       <h1 className="text-2xl font-bold">Estudiar</h1>
       <div className="flex flex-wrap gap-1">{MODES.map(({ id, label, icon: I }) => <button key={id} onClick={() => setMode(id)} className={`flex flex-1 items-center justify-center gap-1 rounded-lg border px-2 py-1.5 text-xs ${mode === id ? "border-primary bg-primary text-primary-foreground" : ""}`}><I className="h-3.5 w-3.5" />{label}</button>)}</div>
-      {mode === "review" ? <Review pid={pid} /> : (
+      {mode === "tutor" ? <AdaptiveTutor pid={pid} material={(() => { const d = docs.find((x) => x.id === docId); return d?.text_content ? `\nUsa este material «${d.name}»:\n"""\n${clipSource(d.text_content, 20_000)}\n"""` : ""; })()} /> : mode === "review" ? <Review pid={pid} /> : (
         <section className="space-y-2 rounded-xl border bg-card p-3">
           <input className={inputCls} placeholder="Tema (p. ej. fotosíntesis, derivadas, Revolución Mexicana)" value={topic} onChange={(e) => setTopic(e.target.value)} />
           <div className="flex gap-2">
