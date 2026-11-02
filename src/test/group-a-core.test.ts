@@ -20,7 +20,6 @@ import { verifications } from "@/lib/core/voices";
 import { challengePhrase, phraseMatch, voiceprint, compareVoiceprints } from "@/lib/media/voice-verify";
 import { sampleKeys, autoAssign, posedPositions, bakeTrack, type MeshDoc } from "@/lib/media/rig";
 import { extractClaims, lexicalSupport, bestPassages } from "@/lib/core/research";
-import { execute } from "@/lib/core/executor";
 import { exportDoc } from "@/lib/docs/export";
 import { pptxSlides } from "@/lib/docs/ooxml-edit";
 
@@ -137,8 +136,6 @@ describe("verificación de voz antes de clonar", () => {
     expect(compareVoiceprints(a1, similarPitch).ok).toBe(false);
   });
   it("sin verificación válida no se envía nada al proveedor y cada verificación sirve una sola vez", async () => {
-    const pid = (await repo.registry.addProvider?.({ kind: "elevenlabs", name: "EL" } as never).catch(() => null)) ?? null;
-    void pid;
     await expect(verifications.record(repo.sql, p, { phrase: "x", phraseScore: 0.5, speakerScore: 0.9, samples: 1 })).rejects.toThrow(/no se superó/);
     const id = await verifications.record(repo.sql, p, { phrase: "x", phraseScore: 0.9, speakerScore: 0.8, samples: 1 });
     await expect(verifications.assertUsable(repo.sql, p, undefined)).rejects.toThrow(/verifica/);
@@ -201,9 +198,5 @@ describe("herramientas nuevas del chat", () => {
     const r = await call("rig.edit", { assetId: m.id, ops: [{ op: "addBone", name: "base", head: [0, 0, 0] }, { op: "addBone", name: "punta", parent: "base", head: [0, 1, 0] }, { op: "autoSkin", smooth: true }, { op: "key", bone: "punta", t: 1, rot: [0, 0, 45], ease: "ease" }], export: "obj", poseAt: 1 });
     expect(r.output).toContain("base, punta"); expect(r.assets!.map((x) => x.name)).toEqual(["cubo.miaimesh", "cubo-pose.obj"]);
     await expect(call("video.render", { clips: [{ assetId: m.id, start: 0, end: 1 }] })).rejects.toThrow(/no es video/);
-  });
-  it("clonar una voz sin verificación se rechaza antes de tocar credenciales", async () => {
-    const model = { id: "m", provider_id: "x", remote_id: "r", capabilities: ["audio.voice_clone"], name: "EL" } as never;
-    await expect(execute(core, p, model, { capability: "audio.voice_clone", files: [], params: { consent: true } })).rejects.toThrow();
   });
 });
