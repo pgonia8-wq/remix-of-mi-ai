@@ -216,12 +216,47 @@ export function responseError(status: number, body: string, key?: string | null)
   }
   return new ProviderError(code, labels[code], status, technical);
 }
+/** Realtime deployments are voice-only: they never answer chat completions. */
+export const isRealtimeDeployment = (name: string | null | undefined) => /realtime/i.test(name ?? "");
+/**
+ * Accepts the Azure "wss://…/openai/v1/realtime?model=…" URL copied from the portal.
+ * Returns the HTTPS resource URL (/openai/v1) and the deployment named in ?model= / ?deployment=.
+ * Returns null for anything that is not a realtime URL; insecure ws:// is rejected.
+ */
+export function parseRealtimeUrl(raw: string): { endpoint: string; deployment: string } | null {
+  let u: URL;
+  try { u = new URL(raw.trim()); } catch { return null; }
+  const path = u.pathname.replace(/\/+$/, "");
+  if (!["wss:", "https:"].includes(u.protocol) || !/\/realtime$/.test(path)) return null;
+  if (u.username || u.password) return null;
+  return { endpoint: `https://${u.host}/openai/v1`, deployment: (u.searchParams.get("model") ?? u.searchParams.get("deployment") ?? "").trim() };
+}
+/** Verifies a realtime deployment by minting a real short-lived session token with the user's key. */
+async function testRealtime(p: ProviderCall, signal: AbortSignal): Promise<void> {
+  const deployment = p.deployment?.trim();
+  if (!deployment) throw new ProviderError("model", "Modelo o deployment inexistente: completa el deployment de voz.");
+  if (!p.apiKey?.trim()) throw new ProviderError("key", "API Key inválida: falta la credencial.");
+  const { realtimeEndpoints, realtimeConfig } = await import("./realtime-voice");
+  const ep = realtimeEndpoints(p.kind === "openai" ? "openai" : "azure_openai", p.endpoint);
+  const headers: Record<string, string> = { "content-type": "application/json", ...(ep.auth === "bearer" ? { authorization: `Bearer ${p.apiKey}` } : { "api-key": p.apiKey }) };
+  const res = await fetch(ep.secrets, { method: "POST", headers, body: JSON.stringify({ session: realtimeConfig(deployment, "Prueba de conexión de MI AI.", "alloy") }), signal });
+  const body = await res.text().catch(() => "");
+  if (!res.ok) throw responseError(res.status, body, p.apiKey);
+  let token: any = null;
+  try { token = JSON.parse(body); } catch { /* invalid below */ }
+  const value = typeof token?.value === "string" ? token.value : typeof token?.client_secret?.value === "string" ? token.client_secret.value : null;
+  if (!value) throw new ProviderError("parameters", "Respuesta inválida: Azure no devolvió una sesión de voz válida.", res.status);
+}
 /** Draft credentials stay only in memory. Success requires actual generated model text. */
 export async function testProvider(p: ProviderCall, timeoutMs = 20000): Promise<ConnectionResult> {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => { controller.abort(); reject(new ProviderError("timeout", "Error de red o timeout: se agotó el tiempo de espera.")); }, timeoutMs); });
   try {
+    if (p.kind === "azure_openai" && isRealtimeDeployment(p.deployment)) {
+      await Promise.race([testRealtime(p, controller.signal), timeout]);
+      return { ok: true, checkedAt: Date.now() };
+    }
     let out = "";
     await Promise.race([streamChat(p, [{ role: "user", content: "Responde solo: OK" }], (t) => { out += t; }, controller.signal), timeout]);
     if (!out.trim()) throw new ProviderError("parameters", "Respuesta inválida: no se recibió texto generado por el modelo.", 200);

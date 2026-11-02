@@ -66,7 +66,9 @@ export class Registry {
       const remote = (p.kind === "azure_openai" || p.kind === "azure" ? p.deployment : p.model)?.trim();
       if (remote && !["elevenlabs", "tavily", "searxng", "meshy", "runway"].includes(p.kind)) {
         const mid = await this.upsertModel({ providerId: p.id, remoteId: remote, name: remote, source: "legacy" });
-        await this.db.run(`INSERT OR IGNORE INTO model_capabilities (model_id, capability_id) VALUES (?, 'chat')`, [mid]);
+        // Default capability only when the model has none yet, so user/voice choices survive every resync.
+        const cap = /realtime/i.test(remote) ? "speech.realtime" : "chat";
+        await this.db.run(`INSERT INTO model_capabilities (model_id, capability_id) SELECT ?, ? WHERE NOT EXISTS (SELECT 1 FROM model_capabilities WHERE model_id=?)`, [mid, cap, mid]);
       }
     }
     // Registry rows whose legacy provider was deleted are removed with their models.
