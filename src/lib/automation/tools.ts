@@ -12,6 +12,7 @@ import { folders, pcFiles } from "../nodes/storage";
 import { tunnels } from "../nodes/tunnels";
 import { approvals, canonical, fingerprintAction, sha256Hex } from "./approvals";
 import { workingMemory } from "./working-memory";
+import { localWs } from "./local-workspace";
 import { scrubSecrets } from "../db/repo";
 
 export type Family = "ia" | "investigacion" | "ingenieria" | "desarrollo" | "infraestructura" | "datos" | "multimedia" | "productividad";
@@ -19,7 +20,7 @@ export type Permission = "provider" | "network" | "local.write" | "pc.read" | "p
 export type Risk = "low" | "medium" | "high";
 export type ToolCtx = { core: Core; projectId: string; runId: string; taskId: string | null; agent: string; nodeId?: string | null; folderId?: string | null; signal?: AbortSignal; opKey?: string };
 export type ToolAsset = { id: string; mime: string; name: string };
-export type ToolOut = { output: string; trusted: boolean; assets?: ToolAsset[]; evidence?: { kind: string; status: EvidenceStatus; command: string; output: string }; costUsd?: number | null };
+export type ToolOut = { output: string; trusted: boolean; assets?: ToolAsset[]; runId?: string; evidence?: { kind: string; status: EvidenceStatus; command: string; output: string }; costUsd?: number | null };
 export type EvidenceStatus = "passed" | "failed" | "not_run" | "blocked" | "simulated";
 export type ToolDef = {
   id: string; name: string; description: string; family: Family; input: z.ZodTypeAny; output: string;
@@ -62,6 +63,20 @@ async function folderReady(ctx: ToolCtx) {
   const f = await folders.get(ctx.core.repo, ctx.projectId, ctx.folderId);
   return f && f.node_id === ctx.nodeId ? { ok: true } : { ok: false, reason: "Carpeta ajena al proyecto o al nodo." };
 }
+async function sshReady(ctx: ToolCtx) {
+  const { Capacitor } = await import("@capacitor/core");
+  if (!Capacitor.isNativePlatform()) return { ok: false, reason: "SSH a servidores/VM solo funciona dentro de la APK Android." };
+  const [{ n }] = await ctx.core.repo.sql.all<{ n: number }>("SELECT COUNT(*) n FROM connections WHERE project_id=? AND kind='ssh'", [ctx.projectId]) as [{ n: number }];
+  return n ? { ok: true } : { ok: false, reason: "No hay servidores ni VM guardados en Servidores para este proyecto." };
+}
+/** Phone workspace when no PC folder is assigned; an assigned PC folder must be online and owned by the project. */
+const onPhone = (ctx: ToolCtx) => !ctx.folderId && !ctx.nodeId;
+async function wsReady(ctx: ToolCtx) { return onPhone(ctx) ? { ok: true } : folderReady(ctx); }
+async function readWsText(ctx: ToolCtx, path: string) {
+  if (onPhone(ctx)) return (await localWs.read(ctx.core.repo, ctx.projectId, path)).text;
+  return new TextDecoder().decode((await pcFiles.read(ctx.core.repo, ctx.projectId, ctx.folderId!, path)).bytes);
+}
+const hasWorker = async () => typeof Worker === "undefined" ? { ok: false, reason: "Este entorno no tiene workers para el sandbox." } : { ok: true };
 async function folderOf(ctx: ToolCtx) { const f = await folders.get(ctx.core.repo, ctx.projectId, ctx.folderId!); if (!f) throw new ToolRejected("Carpeta no autorizada"); return f; }
 async function runJob(ctx: ToolCtx, argv: string[], cwd: string, opKey: string, extra: Record<string, unknown> = {}) {
   const f = await folderOf(ctx);
@@ -118,37 +133,62 @@ export const TOOL_REGISTRY: ToolDef[] = [
     availability: providerAvail("research.web"), run: async (ctx, i) => { const { runResearch } = await import("../core/research"); const r = await runResearch(ctx.core, ctx.projectId, i.text, { deep: true }); return { output: `${r.report}\n\nFuentes:\n${r.sources.map((s, n) => `[${n + 1}] ${s.url} ${s.read ? "(leída)" : "(fragmento)"}`).join("\n")}`.slice(0, 20_000), trusted: false }; } },
   declared("research.browser", "Navegación web automatizada", "investigacion", "Requiere un navegador controlado; no incluido en el teléfono. Use el PC Node con Playwright instalado mediante dev.npx."),
   // C/D. Ingeniería y desarrollo (PC Node)
-  { id: "fs.list", name: "Listar archivos", description: "Lista el espacio del proyecto en la PC.", family: "ingenieria", input: z.object({ path: z.string().max(400).default("") }).strict(), output: "lista", permissions: ["pc.read"], network: false, cost: "none", maxCalls: 60, timeoutMs: 30_000, parallel: true, env: ["pc"], risk: "low", approval: "never", sideEffect: false, roles: "all",
-    availability: folderReady, run: async (ctx, i) => { const r = await pcFiles.list(ctx.core.repo, ctx.projectId, ctx.folderId!, i.path); return { output: JSON.stringify(r.files.slice(0, 500)), trusted: true }; } },
-  { id: "fs.read", name: "Leer archivo", description: "Lee un archivo del proyecto con verificación de hash.", family: "ingenieria", input: z.object({ path: relPath }).strict(), output: "contenido", permissions: ["pc.read"], network: false, cost: "none", maxCalls: 120, timeoutMs: 30_000, parallel: true, env: ["pc"], risk: "low", approval: "never", sideEffect: false, roles: "all",
-    availability: folderReady, run: async (ctx, i) => { const r = await pcFiles.read(ctx.core.repo, ctx.projectId, ctx.folderId!, i.path); return { output: `hash=${r.hash}\n${new TextDecoder().decode(r.bytes).slice(0, 30_000)}`, trusted: false }; } },
-  { id: "fs.write", name: "Escribir archivo", description: "Escribe en el proyecto; exige el hash de la versión editada (null si es nuevo) y respeta bloqueos.", family: "ingenieria", input: z.object({ path: relPath, content: z.string().max(400_000), baseHash: z.string().regex(/^[0-9a-f]{64}$/).nullable() }).strict(), output: "hash nuevo o conflicto", permissions: ["pc.write"], network: false, cost: "none", maxCalls: 200, timeoutMs: 30_000, parallel: true, env: ["pc"], risk: "low", approval: "never", sideEffect: true, roles: ENG.concat("documenter", "analyst"),
-    availability: folderReady, run: async (ctx, i) => {
+  // Files: the run's workspace is the phone (encrypted app database) unless a PC/VM folder was assigned.
+  { id: "fs.list", name: "Listar archivos", description: "Lista el espacio de trabajo del proyecto (teléfono o PC).", family: "ingenieria", input: z.object({ path: z.string().max(400).default("") }).strict(), output: "lista", permissions: ["pc.read"], network: false, cost: "none", maxCalls: 60, timeoutMs: 30_000, parallel: true, env: ["android", "pc"], risk: "low", approval: "never", sideEffect: false, roles: "all",
+    availability: wsReady, run: async (ctx, i) => {
+      if (onPhone(ctx)) return { output: JSON.stringify((await localWs.list(ctx.core.repo, ctx.projectId, i.path)).slice(0, 500).map((f) => ({ path: f.path, size: f.size, dir: false }))), trusted: true };
+      const r = await pcFiles.list(ctx.core.repo, ctx.projectId, ctx.folderId!, i.path); return { output: JSON.stringify(r.files.slice(0, 500)), trusted: true };
+    } },
+  { id: "fs.read", name: "Leer archivo", description: "Lee un archivo del espacio de trabajo con verificación de hash.", family: "ingenieria", input: z.object({ path: relPath }).strict(), output: "contenido", permissions: ["pc.read"], network: false, cost: "none", maxCalls: 120, timeoutMs: 30_000, parallel: true, env: ["android", "pc"], risk: "low", approval: "never", sideEffect: false, roles: "all",
+    availability: wsReady, run: async (ctx, i) => {
+      if (onPhone(ctx)) { const r = await localWs.read(ctx.core.repo, ctx.projectId, i.path); return { output: `hash=${r.hash}\n${r.text.slice(0, 30_000)}`, trusted: false }; }
+      const r = await pcFiles.read(ctx.core.repo, ctx.projectId, ctx.folderId!, i.path); return { output: `hash=${r.hash}\n${new TextDecoder().decode(r.bytes).slice(0, 30_000)}`, trusted: false };
+    } },
+  { id: "fs.write", name: "Escribir archivo", description: "Escribe en el espacio de trabajo; exige el hash de la versión editada (null si es nuevo) y respeta bloqueos.", family: "ingenieria", input: z.object({ path: relPath, content: z.string().max(400_000), baseHash: z.string().regex(/^[0-9a-f]{64}$/).nullable() }).strict(), output: "hash nuevo o conflicto", permissions: ["pc.write"], network: false, cost: "none", maxCalls: 200, timeoutMs: 30_000, parallel: true, env: ["android", "pc"], risk: "low", approval: "never", sideEffect: true, roles: ENG.concat("documenter", "analyst"),
+    availability: wsReady, run: async (ctx, i) => {
       await assertLock(ctx, i.path);
-      const r = await pcFiles.write(ctx.core.repo, ctx.projectId, ctx.folderId!, i.path, new TextEncoder().encode(i.content), i.baseHash);
+      const r = onPhone(ctx) ? await localWs.write(ctx.core.repo, ctx.projectId, i.path, i.content, i.baseHash) : await pcFiles.write(ctx.core.repo, ctx.projectId, ctx.folderId!, i.path, new TextEncoder().encode(i.content), i.baseHash);
       if (r.conflict) return { output: `CONFLICTO: el archivo cambió (hash actual ${r.currentHash}). Lee de nuevo y combina.`, trusted: true };
       await workingMemory.add(ctx.core.repo, ctx.projectId, ctx.runId, "file", `${i.path} → ${r.hash}`);
       await ctx.core.repo.sql.run("INSERT INTO auto_observations VALUES (?,?,?,?,?,'file','fs.write',?,?,1,NULL,0,0,?)", [crypto.randomUUID(), ctx.projectId, ctx.runId, ctx.taskId, ctx.agent, i.path, r.hash, Date.now()]);
-      return { output: `escrito ${i.path} hash=${r.hash}`, trusted: true };
+      return { output: `escrito ${i.path} hash=${r.hash}${onPhone(ctx) ? " (teléfono)" : ""}`, trusted: true };
     } },
-  { id: "fs.delete", name: "Eliminar archivo", description: "Elimina guardando una versión recuperable.", family: "ingenieria", input: z.object({ path: relPath }).strict(), output: "versión previa", permissions: ["pc.write"], network: false, cost: "none", maxCalls: 30, timeoutMs: 30_000, parallel: false, env: ["pc"], risk: "medium", approval: "always", sideEffect: true, roles: ENG,
-    target: (i, ctx) => `${ctx.folderId}:${i.path}`, availability: folderReady, run: async (ctx, i) => { await assertLock(ctx, i.path); await pcFiles.remove(ctx.core.repo, ctx.projectId, ctx.folderId!, i.path); return { output: `eliminado ${i.path} (versión conservada)`, trusted: true }; } },
-  { id: "fs.search", name: "Buscar en el código", description: "Busca texto en los archivos del proyecto.", family: "ingenieria", input: z.object({ query: z.string().min(1).max(200) }).strict(), output: "coincidencias", permissions: ["pc.read"], network: false, cost: "none", maxCalls: 60, timeoutMs: 60_000, parallel: true, env: ["pc"], risk: "low", approval: "never", sideEffect: false, roles: "all",
-    availability: folderReady, run: async (ctx, i) => { const f = await folderOf(ctx); const r = await rpc<unknown[]>(ctx.core.repo, ctx.nodeId!, "fs.search", { rootIndex: f.root_index, projectId: ctx.projectId, query: i.query }); return { output: JSON.stringify(r).slice(0, 20_000), trusted: false }; } },
-  { id: "fs.versions", name: "Versiones de archivo", description: "Lista y recupera versiones anteriores.", family: "ingenieria", input: z.object({ path: relPath, restore: z.string().regex(/^\d+-[0-9a-f]{12}$/).optional() }).strict(), output: "versiones", permissions: ["pc.write"], network: false, cost: "none", maxCalls: 30, timeoutMs: 30_000, parallel: false, env: ["pc"], risk: "medium", approval: "never", sideEffect: true, roles: ENG,
-    availability: folderReady, run: async (ctx, i) => i.restore ? { output: JSON.stringify(await pcFiles.restore(ctx.core.repo, ctx.projectId, ctx.folderId!, i.path, i.restore)), trusted: true } : { output: JSON.stringify(await pcFiles.versions(ctx.core.repo, ctx.projectId, ctx.folderId!, i.path)), trusted: true } },
+  { id: "fs.delete", name: "Eliminar archivo", description: "Elimina guardando una versión recuperable.", family: "ingenieria", input: z.object({ path: relPath }).strict(), output: "versión previa", permissions: ["pc.write"], network: false, cost: "none", maxCalls: 30, timeoutMs: 30_000, parallel: false, env: ["android", "pc"], risk: "medium", approval: "always", sideEffect: true, roles: ENG,
+    target: (i, ctx) => `${ctx.folderId ?? "teléfono"}:${i.path}`, availability: wsReady, run: async (ctx, i) => {
+      await assertLock(ctx, i.path);
+      if (onPhone(ctx)) await localWs.remove(ctx.core.repo, ctx.projectId, i.path); else await pcFiles.remove(ctx.core.repo, ctx.projectId, ctx.folderId!, i.path);
+      return { output: `eliminado ${i.path} (versión conservada)`, trusted: true };
+    } },
+  { id: "fs.search", name: "Buscar en el código", description: "Busca texto en los archivos del espacio de trabajo.", family: "ingenieria", input: z.object({ query: z.string().min(1).max(200) }).strict(), output: "coincidencias", permissions: ["pc.read"], network: false, cost: "none", maxCalls: 60, timeoutMs: 60_000, parallel: true, env: ["android", "pc"], risk: "low", approval: "never", sideEffect: false, roles: "all",
+    availability: wsReady, run: async (ctx, i) => {
+      if (onPhone(ctx)) return { output: JSON.stringify(await localWs.search(ctx.core.repo, ctx.projectId, i.query)).slice(0, 20_000), trusted: false };
+      const f = await folderOf(ctx); const r = await rpc<unknown[]>(ctx.core.repo, ctx.nodeId!, "fs.search", { rootIndex: f.root_index, projectId: ctx.projectId, query: i.query }); return { output: JSON.stringify(r).slice(0, 20_000), trusted: false };
+    } },
+  { id: "fs.versions", name: "Versiones de archivo", description: "Lista y recupera versiones anteriores.", family: "ingenieria", input: z.object({ path: relPath, restore: z.string().regex(/^\d+-[0-9a-f]{12}$/).optional() }).strict(), output: "versiones", permissions: ["pc.write"], network: false, cost: "none", maxCalls: 30, timeoutMs: 30_000, parallel: false, env: ["android", "pc"], risk: "medium", approval: "never", sideEffect: true, roles: ENG,
+    availability: wsReady, run: async (ctx, i) => {
+      if (onPhone(ctx)) return i.restore ? { output: JSON.stringify(await localWs.restore(ctx.core.repo, ctx.projectId, i.path, i.restore)), trusted: true } : { output: JSON.stringify(await localWs.versions(ctx.core.repo, ctx.projectId, i.path)), trusted: true };
+      return i.restore ? { output: JSON.stringify(await pcFiles.restore(ctx.core.repo, ctx.projectId, ctx.folderId!, i.path, i.restore)), trusted: true } : { output: JSON.stringify(await pcFiles.versions(ctx.core.repo, ctx.projectId, ctx.folderId!, i.path)), trusted: true };
+    } },
   execTool("shell.exec", "Terminal (proceso sin shell)", "ingenieria", null, ENG),
   execTool("git", "Git local (estado, ramas, commits, diffs, versiones)", "ingenieria", "git", ENG.concat("documenter")),
   ...LANGS.map(([id, name, bin]) => execTool(id, name, "desarrollo", bin, ENG)),
   { id: "repo.push", name: "Publicar en repositorio remoto", description: "git push: siempre requiere aprobación expresa.", family: "ingenieria", input: z.object({ remote: z.string().regex(/^[\w.-]{1,60}$/), branch: z.string().regex(/^[\w./-]{1,120}$/) }).strict(), output: "resultado", permissions: ["remote", "network"], network: true, cost: "none", maxCalls: 3, timeoutMs: 120_000, parallel: false, env: ["pc"], risk: "high", approval: "always", sideEffect: true, roles: ["integrator", "coordinator"],
     target: (i, ctx) => `${ctx.nodeId}:${i.remote}/${i.branch}`, availability: (ctx) => nodeReady(ctx, "git").then((r) => r.ok ? folderReady(ctx) : r),
     run: async (ctx, i) => { const j = await runJob(ctx, ["git", "push", i.remote, i.branch], "", await sha256Hex(canonical([ctx.runId, ctx.opKey ?? "push", "push", i])), { remoteApproved: true, network: true }); return { output: `estado=${j.status}\n${j.output}`, trusted: true }; } },
-  { id: "quality.run", name: "Verificación de calidad", description: "Ejecuta compilación, tipos, lint, pruebas y auditoría de dependencias detectadas.", family: "ingenieria", input: z.object({ checks: z.array(z.enum(["build", "typecheck", "lint", "test", "e2e", "audit"])).min(1).max(6) }).strict(), output: "evidencias", permissions: ["pc.exec"], network: false, cost: "none", maxCalls: 20, timeoutMs: 1_800_000, parallel: false, env: ["pc"], risk: "medium", approval: "always", sideEffect: true, roles: ["tester", "auditor", "debugger", "integrator", "security"],
-    target: (i, ctx) => `${ctx.nodeId}:${i.checks.join(",")}`, availability: folderReady,
-    run: async (ctx, i) => { const { runQuality } = await import("./quality"); return runQuality(ctx, i.checks, runJob); } },
+  { id: "quality.run", name: "Verificación de calidad", description: "Ejecuta compilación, tipos, lint, pruebas y auditoría de dependencias detectadas.", family: "ingenieria", input: z.object({ checks: z.array(z.enum(["build", "typecheck", "lint", "test", "e2e", "audit"])).min(1).max(6) }).strict(), output: "evidencias", permissions: ["pc.exec"], network: false, cost: "none", maxCalls: 20, timeoutMs: 1_800_000, parallel: false, env: ["android", "pc"], risk: "medium", approval: "always", sideEffect: true, roles: ["tester", "auditor", "debugger", "integrator", "security"],
+    target: (i, ctx) => `${ctx.nodeId ?? "teléfono"}:${i.checks.join(",")}`, availability: (ctx) => onPhone(ctx) ? hasWorker() : folderReady(ctx),
+    run: async (ctx, i) => { const q = await import("./quality"); return onPhone(ctx) ? q.runLocalQuality(ctx, i.checks) : q.runQuality(ctx, i.checks, runJob); } },
   { id: "code.js", name: "JavaScript ligero aislado (QuickJS)", description: "Evalúa JavaScript sin red, almacenamiento ni claves.", family: "desarrollo", input: z.object({ source: z.string().min(1).max(60_000), input: z.string().max(60_000).default("") }).strict(), output: "salida", permissions: [], network: false, cost: "none", maxCalls: 30, timeoutMs: 10_000, parallel: true, env: ["sandbox"], risk: "low", approval: "never", sideEffect: false, roles: "all",
     availability: async () => typeof Worker === "undefined" ? { ok: false, reason: "Este entorno no tiene workers para el sandbox." } : { ok: true },
     run: async (_c, i) => { const { runCode } = await import("../code/run"); const r = await runCode(i.source, i.input); return { output: r.ok ? r.output : `Error: ${r.error}`, trusted: true, evidence: { kind: "exec", status: r.ok ? "passed" : "failed", command: "quickjs", output: (r.output || r.error || "").slice(0, 4000) } }; } },
+  { id: "code.run", name: "Ejecutar archivo JavaScript del espacio (QuickJS)", description: "Ejecuta en el sandbox aislado un archivo .js autocontenido del espacio de trabajo (sin import/require, red ni almacenamiento). Úsalo para probar lógica y pruebas en el teléfono; lanza un error si falla.", family: "desarrollo",
+    input: z.object({ path: relPath.refine((x) => /\.(m?js)$/.test(x), "Solo archivos .js"), input: z.string().max(60_000).default("") }).strict(), output: "salida y estado", permissions: [], network: false, cost: "none", maxCalls: 40, timeoutMs: 15_000, parallel: true, env: ["sandbox"], risk: "low", approval: "never", sideEffect: false, roles: "all",
+    availability: async (ctx) => { const w = await hasWorker(); return w.ok ? wsReady(ctx) : w; },
+    run: async (ctx, i) => {
+      const source = await readWsText(ctx, i.path);
+      const { runCode } = await import("../code/run"); const r = await runCode(source, i.input, ctx.signal);
+      return { output: r.ok ? `estado=ok\n${r.output}` : `estado=error\n${r.error}\n${r.output}`, trusted: true, evidence: { kind: "exec", status: r.ok ? "passed" : "failed", command: `quickjs ${i.path}`, output: (r.ok ? r.output : `${r.error}\n${r.output}`).slice(0, 4000) } };
+    } },
   // E. Infraestructura
   { id: "node.info", name: "Recursos de la PC", description: "CPU, RAM, discos, aislamiento y toolchains reales.", family: "infraestructura", input: z.object({}).strict(), output: "JSON", permissions: ["pc.read"], network: false, cost: "none", maxCalls: 20, timeoutMs: 10_000, parallel: true, env: ["pc"], risk: "low", approval: "never", sideEffect: false, roles: "all",
     availability: (ctx) => nodeReady(ctx), run: async (ctx) => ({ output: JSON.stringify(await rpc(ctx.core.repo, ctx.nodeId!, "info", {})), trusted: true }) },
@@ -160,10 +200,23 @@ export const TOOL_REGISTRY: ToolDef[] = [
     run: async (ctx, i) => { const id = await tunnels.open(ctx.core.repo, ctx.projectId, { kind: i.kind, nodeId: ctx.nodeId ?? undefined, connectionId: i.connectionId, target: i.target, remotePort: i.remotePort, allow: i.allow, subnets: i.subnets, ttlMs: i.ttlMinutes * 60_000, agent: ctx.agent }); return { output: `túnel ${id}`, trusted: true }; } },
   { id: "tunnel.close", name: "Cerrar túnel", description: "Cierra un túnel del proyecto.", family: "infraestructura", input: z.object({ id: z.string().uuid() }).strict(), output: "estado", permissions: ["tunnel"], network: false, cost: "none", maxCalls: 10, timeoutMs: 30_000, parallel: false, env: ["pc"], risk: "low", approval: "never", sideEffect: true, roles: "all",
     availability: ok, run: async (ctx, i) => { await tunnels.close(ctx.core.repo, ctx.projectId, i.id); return { output: "cerrado", trusted: true }; } },
-  declared("ssh.exec", "SSH remoto", "infraestructura", "Disponible desde Servidores con confirmación nativa por comando; los agentes solo pueden preparar el comando."),
+  { id: "ssh.exec", name: "SSH a servidor o VM", description: "Ejecuta un comando en un servidor o máquina virtual guardado en Servidores del proyecto (usa vm.list para ver los ids). El teléfono verifica la clave del host y pide confirmación nativa en cada comando.", family: "infraestructura",
+    input: z.object({ connectionId: z.string().uuid(), command: z.string().min(1).max(4000) }).strict(), output: "salida y código de salida", permissions: ["remote", "network"], network: true, cost: "none", maxCalls: 30, timeoutMs: 600_000, parallel: false, env: ["vm"], risk: "high", approval: "always", sideEffect: true, roles: ENG,
+    target: (i) => `${i.connectionId}: ${i.command}`, availability: sshReady,
+    run: async (ctx, i) => {
+      const { connections } = await import("../connections");
+      const r = await connections.call(ctx.core.repo, ctx.projectId, i.connectionId, { command: i.command }) as { output: string; exitCode: number };
+      return { output: `código=${r.exitCode}\n${r.output}`.slice(0, 20_000), trusted: false, evidence: { kind: "exec", status: r.exitCode === 0 ? "passed" : "failed", command: `ssh ${i.command}`.slice(0, 500), output: r.output.slice(-8000) } };
+    } },
   declared("sftp.transfer", "SFTP", "infraestructura", "Disponible desde Servidores con confirmación nativa; no delegable a agentes."),
   declared("docker.manage", "Docker", "infraestructura", "Docker se usa como aislamiento del PC Node; administrarlo directamente no está permitido a los agentes."),
-  declared("vm.connect", "Máquina virtual", "infraestructura", "Conecta una VM como servidor SSH o instala allí el PC Node."),
+  { id: "vm.list", name: "Servidores y VM del proyecto", description: "Lista los servidores/VM SSH guardados en el proyecto (id, nombre, host); nunca incluye credenciales. Para trabajar con archivos en una VM también puede instalarse allí el PC Node.", family: "infraestructura",
+    input: z.object({}).strict(), output: "lista", permissions: ["remote"], network: false, cost: "none", maxCalls: 10, timeoutMs: 10_000, parallel: true, env: ["android"], risk: "low", approval: "never", sideEffect: false, roles: "all",
+    availability: sshReady, run: async (ctx) => {
+      const { connections } = await import("../connections");
+      const list = (await connections.list(ctx.core.repo, ctx.projectId)).filter((c) => c.kind === "ssh").map((c) => { const cfg = JSON.parse(c.config) as { host: string; port: number; user: string }; return { id: c.id, name: c.name, host: cfg.host, port: cfg.port, user: cfg.user }; });
+      return { output: JSON.stringify(list), trusted: true };
+    } },
   // F. Datos
   { id: "data.sql", name: "SQL sobre SQLite del proyecto (solo lectura)", description: "Consulta de solo lectura sobre una base SQLite del espacio del proyecto en la PC.", family: "datos", input: z.object({ db: relPath, query: z.string().min(1).max(4000).refine((q) => /^\s*(select|with|pragma table_info)\b/i.test(q) && !/;\s*\S/.test(q), "Solo lectura y una sentencia") }).strict(), output: "filas", permissions: ["pc.exec"], network: false, cost: "none", maxCalls: 40, timeoutMs: 60_000, parallel: true, env: ["pc"], risk: "low", approval: "never", sideEffect: false, roles: "all",
     availability: (ctx) => nodeReady(ctx, "sqlite3").then((r) => r.ok ? folderReady(ctx) : r),
@@ -197,6 +250,24 @@ export const TOOL_REGISTRY: ToolDef[] = [
     target: (i) => i.text.slice(0, 120), availability: ok, run: async (ctx, i) => { await ctx.core.repo.addMemory(ctx.projectId, "hecho", i.text); return { output: "guardado", trusted: true }; } },
   { id: "reminder.add", name: "Recordatorio de revisión", description: "Programa una alarma que solo abre la revisión.", family: "productividad", input: z.object({ minutes: z.number().int().min(1).max(60 * 24 * 30), note: z.string().max(300) }).strict(), output: "id", permissions: ["local.write"], network: false, cost: "none", maxCalls: 5, timeoutMs: 5000, parallel: false, env: ["android"], risk: "low", approval: "never", sideEffect: true, roles: "all",
     availability: ok, run: async (ctx, i) => { const { scheduleReview } = await import("./triggers"); const id = await scheduleReview(ctx.core.repo, ctx.projectId, ctx.runId, Date.now() + i.minutes * 60_000, "reminder", i.note); return { output: `recordatorio ${id}`, trusted: true }; } },
+  // I. Delegación desde el chat: crea una ejecución autónoma independiente (teléfono por defecto).
+  { id: "agents.delegate", name: "Delegar al equipo de agentes", description: "Crea una ejecución autónoma (equipo de agentes o AI Builder) que planifica, reparte subtareas, usa herramientas y pasa auditoría. Trabaja en el teléfono sin PC; usa la carpeta de PC/VM solo si la persona la eligió en Sistema autónomo.", family: "productividad",
+    input: z.object({ goal: z.string().min(3).max(8000), mode: z.enum(["team", "builder"]).default("team"), kind: z.enum(["web", "android", "api", "backend", "desktop", "script", "automation", "database", "multi-module", "multi-service"]).default("script"), acceptance: z.array(z.string().min(1).max(300)).max(10).default([]) }).strict(),
+    output: "id de la ejecución", permissions: ["provider", "local.write"], network: true, cost: "none", maxCalls: 3, timeoutMs: 30_000, parallel: false, env: ["android"], risk: "medium", approval: "always", sideEffect: true, roles: ["chat"],
+    target: (i) => `${i.mode === "builder" ? `AI Builder (${i.kind})` : "Equipo de agentes"} en el teléfono: ${i.goal.slice(0, 300)}`,
+    availability: async (ctx) => { const m = await modelFor(ctx, "chat"); return m.ok ? { ok: true } : { ok: false, reason: m.reason }; },
+    run: async (ctx, i) => {
+      const { createRun } = await import("./orchestrator");
+      const { createBuilderRun } = await import("./builder");
+      const { driveRun } = await import("./drive");
+      // The person approved this delegation in the chat; unknown prices proceed, project budgets still apply.
+      const limits = { unknownCost: "allow" as const, concurrency: 2 };
+      const id = i.mode === "builder"
+        ? await createBuilderRun(ctx.core, ctx.projectId, { requirements: i.goal, kind: i.kind, nodeId: null, folderId: null, limits })
+        : await createRun(ctx.core, ctx.projectId, { goal: i.goal, acceptance: i.acceptance, limits, nodeId: null, folderId: null });
+      driveRun(ctx.core, ctx.projectId, id);
+      return { output: `Ejecución autónoma ${id} iniciada en el teléfono. Su avance, aprobaciones y resultado aparecen en esta conversación y en Sistema autónomo. No inventes resultados: explica que el equipo está trabajando.`, trusted: true, runId: id };
+    } },
 ];
 export const TOOL_IDS = TOOL_REGISTRY.map((t) => t.id);
 export const getTool = (id: string) => TOOL_REGISTRY.find((t) => t.id === id) ?? null;
@@ -223,7 +294,7 @@ export const fileLocks = {
 
 export type Limits = { maxUsd: number | null; maxCalls: number; maxTokens: number; maxMs: number; concurrency: number; maxTurnsPerTask: number; perAgentCalls: number; perToolCalls: Record<string, number>; unknownCost: "ask" | "deny" | "allow"; maxReplans: number };
 export const DEFAULT_LIMITS: Limits = { maxUsd: null, maxCalls: 60, maxTokens: 400_000, maxMs: 6 * 3600_000, concurrency: 2, maxTurnsPerTask: 12, perAgentCalls: 30, perToolCalls: {}, unknownCost: "ask", maxReplans: 2 };
-export type InvokeResult = { status: "ok"; output: string; trusted: boolean; assets?: ToolAsset[] } | { status: "approval"; approvalId: string; summary: string } | { status: "review"; reason: string } | { status: "rejected"; reason: string };
+export type InvokeResult = { status: "ok"; output: string; trusted: boolean; assets?: ToolAsset[]; runId?: string } | { status: "approval"; approvalId: string; summary: string } | { status: "review"; reason: string } | { status: "rejected"; reason: string };
 
 /** The single gate for every tool call. */
 export async function invokeTool(ctx: ToolCtx, toolId: string, raw: unknown, opts: { allowed: string[]; limits: Limits; opKey: string }): Promise<InvokeResult> {
@@ -298,7 +369,7 @@ export async function invokeTool(ctx: ToolCtx, toolId: string, raw: unknown, opt
   await repo.sql.run("UPDATE auto_runs SET spent_usd=spent_usd+?, unknown_cost_calls=unknown_cost_calls+?, updated_at=? WHERE project_id=? AND id=?", [costUsd ?? 0, costUsd === null && def.cost !== "none" ? 1 : 0, Date.now(), p, ctx.runId]);
   if (out.evidence) await repo.sql.run("INSERT INTO auto_evidence VALUES (?,?,?,?,?,?,?,?,?,?,?)", [crypto.randomUUID(), p, ctx.runId, ctx.taskId, out.evidence.kind, out.evidence.status, out.evidence.command.slice(0, 500), out.evidence.output.slice(0, 8000), await sha256Hex(out.evidence.output), ctx.nodeId ?? "android", Date.now()]);
   await workingMemory.add(repo, p, ctx.runId, out.trusted ? "observation" : "external", `${toolId}: ${output.slice(0, 1500)}`);
-  return { status: "ok", output, trusted: out.trusted, ...(out.assets?.length ? { assets: out.assets } : {}) };
+  return { status: "ok", output, trusted: out.trusted, ...(out.assets?.length ? { assets: out.assets } : {}), ...(out.runId ? { runId: out.runId } : {}) };
 }
 async function observe(ctx: ToolCtx, kind: string, tool: string, input: unknown, output: string, trusted: boolean, cost: number | null, ms: number) {
   await ctx.core.repo.sql.run("INSERT INTO auto_observations VALUES (?,?,?,?,?,?,?,?,?,?,?,0,?,?)", [crypto.randomUUID(), ctx.projectId, ctx.runId, ctx.taskId, ctx.agent, kind, tool,

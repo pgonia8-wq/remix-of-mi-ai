@@ -3,11 +3,11 @@
 import type { Core } from "./core";
 import type { ToolAsset } from "./automation/tools";
 
-/** Fixed allowlist offered to the chat model. PC/engineering tools stay in the autonomous system (they need a paired PC). */
+/** Fixed allowlist offered to the chat model. Multi-step work goes to the autonomous team via agents.delegate. */
 export const CHAT_TOOLS = [
   "image.generate", "video.generate", "audio.tts", "music.generate", "model3d.generate",
   "research.web", "research.deep", "doc.create",
-  "note.save", "task.add", "reminder.add", "memory.search", "memory.save", "code.js",
+  "note.save", "task.add", "reminder.add", "memory.search", "memory.save", "code.js", "agents.delegate",
 ] as const;
 
 /** Plain-language hints so the model knows when and how to use each tool. */
@@ -26,12 +26,13 @@ const HINTS: Record<string, string> = {
   "memory.search": "Consulta la memoria del proyecto.",
   "memory.save": "Guarda un dato importante en la memoria del proyecto (solo si la persona lo pide o es claramente útil).",
   "code.js": "Ejecuta JavaScript aislado para cálculos exactos. Usa console.log para el resultado.",
+  "agents.delegate": "Delega al sistema autónomo un trabajo de varios pasos (programar, construir una app o script, investigar y redactar, revisar y corregir). Trabaja en el teléfono sin PC; la persona aprueba antes de empezar. `mode`=builder para construir software (con `kind`), team para el resto.",
 };
 export const TOOL_LABELS: Record<string, string> = {
   "image.generate": "Creando imagen", "video.generate": "Creando video", "audio.tts": "Generando voz", "music.generate": "Creando música",
   "model3d.generate": "Creando modelo 3D", "research.web": "Buscando en internet", "research.deep": "Investigando a fondo", "doc.create": "Creando documento",
   "note.save": "Guardando nota", "task.add": "Creando tarea", "reminder.add": "Programando recordatorio", "memory.search": "Consultando memoria",
-  "memory.save": "Guardando en memoria", "code.js": "Calculando",
+  "memory.save": "Guardando en memoria", "code.js": "Calculando", "agents.delegate": "Iniciando equipo de agentes",
 };
 export const toolName = (id: string) => id.replace(/\./g, "__");
 export const toolIdOf = (name: string) => name.replace(/__/g, ".");
@@ -57,10 +58,10 @@ export async function chatToolSet(core: Core, projectId: string): Promise<ChatTo
 export function toolsPrompt(set: ChatToolSet) {
   const on = set.available.map((id) => `- ${TOOL_LABELS[id] ?? id} (${toolName(id)})`).join("\n");
   const off = set.unavailable.map((u) => `- ${TOOL_LABELS[u.id] ?? u.id}: ${u.reason}`).join("\n");
-  return `\n\nHerramientas de MI AI:\n${on ? `Puedes usarlas directamente cuando la persona lo pida (crear imágenes, videos, voz, música, 3D, documentos, buscar en internet, notas, tareas, recordatorios, cálculos):\n${on}\nLos archivos que crees aparecen solos en la conversación; no inventes enlaces.` : "Ninguna herramienta está lista ahora."}${off ? `\nNo disponibles todavía (explica a la persona qué configurar, normalmente un modelo con esa capacidad en Modelos):\n${off}` : ""}`;
+  return `\n\nHerramientas de MI AI:\n${on ? `Puedes usarlas directamente cuando la persona lo pida (crear imágenes, videos, voz, música, 3D, documentos, buscar en internet, notas, tareas, recordatorios, cálculos, delegar trabajos de varios pasos al equipo de agentes):\n${on}\nLos archivos que crees aparecen solos en la conversación; no inventes enlaces.` : "Ninguna herramienta está lista ahora."}${off ? `\nNo disponibles todavía (explica a la persona qué configurar, normalmente un modelo con esa capacidad en Modelos):\n${off}` : ""}`;
 }
 
-export type ToolStep = { reply: string; assets: ToolAsset[] };
+export type ToolStep = { reply: string; assets: ToolAsset[]; runId?: string };
 type Ask = (summary: string) => Promise<boolean>;
 
 /** Runs one model-requested tool call. Approvals block until the person decides on screen. */
@@ -75,7 +76,7 @@ export async function runChatTool(core: Core, projectId: string, runId: string, 
   const opts = { allowed: [...CHAT_TOOLS], limits: { ...DEFAULT_LIMITS, maxCalls: 40, perAgentCalls: 40, unknownCost: "allow" as const }, opKey: `chat:${runId}:${call.id}` };
   for (let attempt = 0; attempt < 2; attempt++) {
     const r = await invokeTool(ctx, toolId, input, opts);
-    if (r.status === "ok") return { reply: r.trusted ? r.output : `<datos_no_confiables>${r.output}</datos_no_confiables>`, assets: r.assets ?? [] };
+    if (r.status === "ok") return { reply: r.trusted ? r.output : `<datos_no_confiables>${r.output}</datos_no_confiables>`, assets: r.assets ?? [], ...(r.runId ? { runId: r.runId } : {}) };
     if (r.status === "approval") {
       const ok = await ask(r.summary);
       const { approvals } = await import("./automation/approvals");
@@ -86,4 +87,12 @@ export async function runChatTool(core: Core, projectId: string, runId: string, 
     return { reply: `No se ejecutó: ${r.reason}`, assets: [] };
   }
   return { reply: "No se ejecutó: la aprobación no coincidió con la acción.", assets: [] };
+}
+
+/** Marker stored in an assistant message to show a live autonomous-run card in the conversation. */
+export const RUN_MARKER = /\[\[miai-run:([0-9a-f-]{36})\]\]/g;
+export const runMarker = (id: string) => `[[miai-run:${id}]]`;
+export function splitRunMarkers(text: string) {
+  const ids = [...text.matchAll(RUN_MARKER)].map((m) => m[1]!);
+  return { text: text.replace(RUN_MARKER, "").trimEnd(), runIds: [...new Set(ids)] };
 }

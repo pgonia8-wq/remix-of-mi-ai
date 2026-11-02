@@ -23,7 +23,8 @@ export async function chatHistory(core: Core, projectId: string, chatId: string,
   return Promise.all(history.map(async (message) => {
     const files = attachments.filter((a) => a.message_id === message.id);
     const images: NonNullable<ChatMsg["images"]> = [];
-    let content = message.content;
+    // Live run cards are UI markers; the model sees a plain note instead.
+    let content = message.content.replace(/\[\[miai-run:[0-9a-f-]{36}\]\]/g, "[Trabajo delegado al equipo de agentes]");
     for (const file of files) {
       if (message.role !== "user") content += `\n\n[Archivo creado en esta conversación: ${file.name} (${file.mime})]`;
       else if (file.mime.startsWith("image/")) {

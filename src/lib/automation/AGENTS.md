@@ -9,3 +9,6 @@
 - Working memory is scrubbed of secrets, bounded by folding old observations, and renders external content inside `<datos_no_confiables>`. Why: prompt-injection containment.
 - Triggers (`triggers.ts`) only create review items; `schedules.start` refuses `auto:` schedules. Why: alarms never execute billed actions.
 - Model access is injectable (`ModelCall`); tests use scripted responses and must say so. Why: logic is testable without credentials, and simulation is never reported as real provider validation.
+- Runs without a PC folder use the phone workspace (`local-workspace.ts`, project-scoped SQLite tables) through the same fs.* tools; phone quality runs only self-contained JS in QuickJS and records native checks as `blocked`. Why: agents work independently of a PC/VM without faking builds.
+- Planner/replanner only offer tools whose availability passes in the run's environment; `agents.delegate` is chat-only (role `chat`). Why: models must not plan around unavailable tools or recurse delegation.
+- `drive.ts` is the only background driver and calls `stepRun`; chat-delegated runs render as `[[miai-run:id]]` cards. Why: runs advance on their own while all execution stays in the orchestrator.

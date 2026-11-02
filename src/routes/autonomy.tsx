@@ -5,10 +5,15 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { NeedProject, inputCls } from "@/components/AppShell";
 import { useActiveProjectId, useCoreQuery, useCoreMutate } from "@/lib/use-app";
-import { autoRuns, createRun, stepRun, resolveReview, afterApproval, ROLES, type AutoRun } from "@/lib/automation/orchestrator";
+import { autoRuns, createRun, resolveReview, afterApproval, ROLES, type AutoRun } from "@/lib/automation/orchestrator";
 import { approvals } from "@/lib/automation/approvals";
 import { createBuilderRun, packageDeliverable, type DeliverableKind } from "@/lib/automation/builder";
 import { availabilityReport } from "@/lib/automation/tools";
+import { driveRun, onRunProgress } from "@/lib/automation/drive";
+import { localWs } from "@/lib/automation/local-workspace";
+import { zipStore } from "@/lib/zip";
+import { saveExport } from "@/lib/save-export";
+import { useQueryClient } from "@tanstack/react-query";
 import { dueReviews } from "@/lib/automation/triggers";
 import { nodes, pairNode, heartbeat, type NodeInfo } from "@/lib/nodes/client";
 import { folders, pcFiles } from "@/lib/nodes/storage";
@@ -21,7 +26,7 @@ export const Route = createFileRoute("/autonomy")({ head: () => ({ meta: [
   { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" },
 ] }), component: Page });
 function Page() { const pid = useActiveProjectId(); return pid ? <Autonomy key={pid} pid={pid} /> : <NeedProject />; }
-const TABS = [["runs", "Ejecuciones"], ["inbox", "Aprobaciones"], ["nodes", "PC Node"], ["folders", "Carpetas"], ["tunnels", "Túneles"], ["tools", "Herramientas"]] as const;
+const TABS = [["runs", "Ejecuciones"], ["inbox", "Aprobaciones"], ["phone", "Archivos del teléfono"], ["nodes", "PC Node / VM"], ["folders", "Carpetas"], ["tunnels", "Túneles"], ["tools", "Herramientas"]] as const;
 const STATUS: Record<string, string> = { active: "en curso", paused: "en pausa", waiting: "esperando aprobación", review_required: "requiere revisión", needs_human: "requiere intervención", completed: "terminada", cancelled: "detenida", failed: "fallida" };
 const gb = (n?: number | null) => n == null ? "?" : `${(n / 2 ** 30).toFixed(1)} GB`;
 
@@ -36,6 +41,7 @@ function Autonomy({ pid }: { pid: string }) {
     <div role="tablist" className="flex flex-wrap gap-2">{TABS.map(([k, l]) => <Button key={k} role="tab" aria-selected={tab === k} variant={tab === k ? "default" : "outline"} size="sm" onClick={() => setTab(k)}>{l}{k === "inbox" && pending.length ? ` (${pending.length})` : ""}</Button>)}</div>
     {tab === "runs" && <Runs pid={pid} act={act} busy={busy} />}
     {tab === "inbox" && <Inbox pid={pid} act={act} busy={busy} />}
+    {tab === "phone" && <PhoneFiles pid={pid} />}
     {tab === "nodes" && <Nodes act={act} busy={busy} />}
     {tab === "folders" && <Folders pid={pid} act={act} busy={busy} />}
     {tab === "tunnels" && <Tunnels pid={pid} act={act} busy={busy} />}
@@ -54,9 +60,9 @@ function Runs({ pid, act, busy }: { pid: string; act: Act; busy: boolean }) {
   const create = () => act(async (c) => {
     const limits = { maxUsd: usd ? Number(usd) : null, concurrency: conc };
     const id = mode === "builder"
-      ? await createBuilderRun(c, pid, { requirements: goal, kind, nodeId: f!.node_id, folderId: f!.id, limits })
+      ? await createBuilderRun(c, pid, { requirements: goal, kind, nodeId: f?.node_id ?? null, folderId: f?.id ?? null, limits })
       : await createRun(c, pid, { goal, acceptance: acc.split("\n").map((s) => s.trim()).filter(Boolean), limits, nodeId: f?.node_id ?? null, folderId: f?.id ?? null });
-    setOpen(id); setGoal(""); return id;
+    setOpen(id); setGoal(""); driveRun(c, pid, id); return id;
   }, "Ejecución creada");
   return <section className="space-y-4">
     {due.length > 0 && <div className="rounded-md border p-3 text-sm">{due.map((d) => <p key={d.id}>Recordatorio: revisar ejecución ({d.kind}) {d.note}</p>)}</div>}
@@ -65,22 +71,25 @@ function Runs({ pid, act, busy }: { pid: string; act: Act; busy: boolean }) {
       <label className="block text-sm">{mode === "builder" ? "Qué quieres construir" : "Objetivo"}<textarea className={inputCls} rows={3} value={goal} onChange={(e) => setGoal(e.target.value)} /></label>
       {mode === "team" && <label className="block text-sm">Criterios de aceptación (uno por línea)<textarea className={inputCls} rows={2} value={acc} onChange={(e) => setAcc(e.target.value)} /></label>}
       {mode === "builder" && <label className="block text-sm">Tipo de entregable<select className={inputCls} value={kind} onChange={(e) => setKind(e.target.value as DeliverableKind)}>{(["web", "android", "api", "backend", "desktop", "script", "automation", "database", "multi-module", "multi-service"] as const).map((k) => <option key={k} value={k}>{k}</option>)}</select></label>}
-      <label className="block text-sm">Carpeta de trabajo en PC {mode === "team" && "(opcional)"}<select className={inputCls} value={folder} onChange={(e) => setFolder(e.target.value)}><option value="">{mode === "team" ? "Solo teléfono" : "Elegir"}</option>{fl.map((x) => <option key={x.id} value={x.id}>{x.label} · {nodeList.find((n) => n.id === x.node_id)?.name ?? "nodo"}</option>)}</select></label>
+      <label className="block text-sm">Dónde trabajan los agentes<select className={inputCls} value={folder} onChange={(e) => setFolder(e.target.value)}><option value="">Teléfono (sin PC)</option>{fl.map((x) => <option key={x.id} value={x.id}>{x.label} · {nodeList.find((n) => n.id === x.node_id)?.name ?? "nodo"}</option>)}</select></label>
       <div className="grid grid-cols-2 gap-2">
         <label className="block text-sm">Presupuesto máx. (US$)<input className={inputCls} inputMode="decimal" value={usd} onChange={(e) => setUsd(e.target.value)} placeholder="sin límite propio" /></label>
         <label className="block text-sm">Agentes en paralelo<input className={inputCls} type="number" min={1} max={6} value={conc} onChange={(e) => setConc(Number(e.target.value))} /></label>
       </div>
-      <Button disabled={busy || !goal.trim() || (mode === "builder" && !f)} onClick={create}><Play />Crear</Button>
+      {!f && <p className="text-xs text-muted-foreground">En el teléfono los agentes escriben archivos, investigan, crean documentos y prueban JavaScript. Para compilar apps nativas usa una carpeta de un PC Node instalado en tu PC o VM.</p>}
+      <Button disabled={busy || !goal.trim()} onClick={create}><Play />Crear</Button>
     </div>
     {runs.map((r) => <RunCard key={r.id} pid={pid} r={r} open={open === r.id} toggle={() => setOpen(open === r.id ? null : r.id)} act={act} busy={busy} />)}
   </section>;
 }
 function RunCard({ pid, r, open, toggle, act, busy }: { pid: string; r: AutoRun; open: boolean; toggle: () => void; act: Act; busy: boolean }) {
+  const qc = useQueryClient();
   const { data: tasks = [] } = useCoreQuery(["auto-tasks", pid, r.id], (c) => autoRuns.tasks(c, pid, r.id), open);
   const { data: obs = [] } = useCoreQuery(["auto-obs", pid, r.id], (c) => autoRuns.observations(c, pid, r.id), open);
   const { data: ev = [] } = useCoreQuery(["auto-ev", pid, r.id], (c) => autoRuns.evidence(c, pid, r.id), open);
   const limits = JSON.parse(r.limits) as { maxCalls: number; maxUsd: number | null };
-  const step = () => act(async (c) => { let x = await stepRun(c, pid, r.id); for (let i = 0; i < 6 && x.status === "active"; i++) x = await stepRun(c, pid, r.id); return x; });
+  const step = () => act(async (c) => { driveRun(c, pid, r.id); return r; });
+  useEffect(() => onRunProgress((id) => { if (id === r.id) void qc.invalidateQueries(); }), [r.id, qc]);
   const files = obs.filter((o) => o.kind === "file");
   return <article className="space-y-2 border-t py-3">
     <button className="w-full text-left" onClick={toggle}><h2 className="break-words font-semibold">{r.kind === "builder" ? "AI Builder · " : ""}{r.goal.slice(0, 160)}</h2>
@@ -123,7 +132,7 @@ function Inbox({ pid, act, busy }: { pid: string; act: Act; busy: boolean }) {
     {a.target && <p className="break-all">Destino: {a.target}</p>}
     <details><summary className="cursor-pointer">Parámetros exactos</summary><pre className="whitespace-pre-wrap break-all text-xs">{a.params}</pre></details>
     <p className="text-xs text-muted-foreground">Si cambia cualquier parámetro, esta aprobación deja de valer.</p>
-    <div className="flex gap-2"><Button size="sm" disabled={busy} onClick={() => act(async (c) => { await approvals.decide(c.repo, pid, a.id, true); return afterApproval(c, pid, a.id); }, "Aprobada")}><Check />Aprobar</Button>
+    <div className="flex gap-2"><Button size="sm" disabled={busy} onClick={() => act(async (c) => { await approvals.decide(c.repo, pid, a.id, true); const r = await afterApproval(c, pid, a.id); driveRun(c, pid, r.run_id); return r; }, "Aprobada")}><Check />Aprobar</Button>
       <Button size="sm" variant="outline" disabled={busy} onClick={() => act(async (c) => { await approvals.decide(c.repo, pid, a.id, false); return afterApproval(c, pid, a.id); })}><X />Rechazar</Button></div>
   </article>)}</section>;
 }
@@ -210,4 +219,25 @@ function Tunnels({ pid, act, busy }: { pid: string; act: Act; busy: boolean }) {
 function Tools({ pid }: { pid: string }) {
   const { data: report = [] } = useCoreQuery(["tool-report", pid], (c) => availabilityReport({ core: c, projectId: pid, runId: "", taskId: null, agent: "coordinator" }));
   return <ul className="space-y-1 text-sm">{report.map((t) => <li key={t.id} className="break-words"><b>{t.name}</b> <span className="text-muted-foreground">({t.family} · riesgo {t.risk}{t.approval === "always" ? " · pide aprobación" : ""})</span> — {t.ok ? "disponible" : `no disponible: ${t.reason}`}</li>)}</ul>;
+}
+
+function PhoneFiles({ pid }: { pid: string }) {
+  const { data: files = [] } = useCoreQuery(["local-ws", pid], (c) => localWs.list(c.repo, pid));
+  const [view, setView] = useState<{ path: string; text: string } | null>(null);
+  const total = files.reduce((a, f) => a + f.size, 0);
+  const exportZip = async () => {
+    if (!confirm("¿Exportar una copia sin cifrar de los archivos del teléfono?")) return;
+    try {
+      const c = await (await import("@/lib/core")).getCore();
+      const entries = []; for (const f of files) entries.push({ path: f.path, data: new TextEncoder().encode((await localWs.read(c.repo, pid, f.path)).text) });
+      await saveExport(zipStore(entries), "espacio-del-proyecto.zip", "application/zip");
+    } catch (e) { toast.error(e instanceof Error ? e.message : "No se pudo exportar."); }
+  };
+  return <section className="space-y-3">
+    <p className="text-sm text-muted-foreground">Archivos que los agentes crean cuando trabajan en el teléfono. Se guardan cifrados dentro del proyecto. {files.length} archivos · {(total / 1024).toFixed(1)} KB</p>
+    {files.length > 0 && <Button size="sm" variant="outline" onClick={exportZip}><Package />Exportar ZIP</Button>}
+    {files.length > 0 && <ul className="divide-y rounded-md border">{files.map((f) => <li key={f.path}><button className="flex w-full items-center gap-2 p-2 text-left text-sm" onClick={async () => { const c = await (await import("@/lib/core")).getCore(); setView({ path: f.path, text: (await localWs.read(c.repo, pid, f.path)).text }); }}><span className="min-w-0 flex-1 truncate font-mono text-xs">{f.path}</span><span className="text-xs text-muted-foreground">{(f.size / 1024).toFixed(1)} KB</span></button></li>)}</ul>}
+    {!files.length && <p className="text-sm text-muted-foreground">Aún no hay archivos.</p>}
+    {view && <div className="space-y-2 rounded-md border p-3"><div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate font-mono text-xs">{view.path}</p><Button size="sm" variant="ghost" onClick={() => setView(null)}><X />Cerrar</Button></div><pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words text-xs">{view.text}</pre></div>}
+  </section>;
 }

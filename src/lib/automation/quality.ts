@@ -53,3 +53,35 @@ async function evidence(ctx: ToolCtx, kind: string, status: EvidenceStatus, comm
   await ctx.core.repo.sql.run("INSERT INTO auto_evidence VALUES (?,?,?,?,?,?,?,?,?,?,?)", [crypto.randomUUID(), ctx.projectId, ctx.runId, ctx.taskId, kind, status, command, output, await sha256Hex(output), ctx.nodeId ?? "", Date.now()]);
 }
 export type Evidence = { id: string; project_id: string; run_id: string; task_id: string | null; check_kind: string; status: EvidenceStatus; command: string; output: string; hash: string; env: string; created_at: number };
+
+/** Pure: self-contained JavaScript test files the phone sandbox can run (no modules, so no package tests). */
+export function localTestFiles(files: string[]) {
+  return files.filter((f) => /(^|\/)(tests?|__tests__)\/.*\.m?js$|\.(test|spec)\.m?js$/.test(f)).slice(0, 30);
+}
+/**
+ * Phone quality engine: runs self-contained JS tests in the isolated QuickJS worker and records real evidence.
+ * Build/typecheck/lint/e2e/audit need real toolchains, so they are recorded as "blocked" — never "passed".
+ */
+export async function runLocalQuality(ctx: ToolCtx, kinds: CheckKind[]): Promise<ToolOut> {
+  const { localWs } = await import("./local-workspace");
+  const { runCode } = await import("../code/run");
+  const files = (await localWs.list(ctx.core.repo, ctx.projectId)).map((f) => f.path);
+  const lines: string[] = [];
+  for (const kind of kinds) {
+    if (kind !== "test") {
+      const why = "Requiere herramientas reales (Node, Gradle, compiladores). Asigna una carpeta en un PC Node (puede estar instalado en tu VM) para ejecutarla.";
+      await evidence(ctx, kind, "blocked", kind, why); lines.push(`${kind}: bloqueada en el teléfono — ${why}`); continue;
+    }
+    const tests = localTestFiles(files);
+    if (!tests.length) { await evidence(ctx, kind, "not_run", "", "No hay archivos de prueba .test.js/.spec.js o tests/*.js autocontenidos."); lines.push("test: no ejecutada (sin archivos de prueba)"); continue; }
+    for (const path of tests) {
+      const source = (await localWs.read(ctx.core.repo, ctx.projectId, path)).text;
+      const r = await runCode(source, "", ctx.signal);
+      const status: EvidenceStatus = r.ok ? "passed" : "failed";
+      const out = r.ok ? r.output : `${r.error}\n${r.output}`;
+      await evidence(ctx, kind, status, `quickjs ${path}`, out.slice(-8000));
+      lines.push(`test ${path}: ${r.ok ? "aprobada" : "fallida"}\n${out.slice(-1500)}`);
+    }
+  }
+  return { output: lines.join("\n"), trusted: true };
+}
