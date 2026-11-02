@@ -54,4 +54,20 @@ describe("herramientas en modelos que solo las aceptan por Responses", () => {
     await expect(streamChat(p, msgs, () => undefined, undefined, { tools })).rejects.toThrow();
     expect(spy).toHaveBeenCalledTimes(1);
   });
+
+  test("DeepSeek/Kimi: el razonamiento se captura y se reenvía con las herramientas; a OpenAI nunca se le envía", async () => {
+    const bodies: any[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_u, init) => {
+      bodies.push(JSON.parse(String((init as RequestInit).body)));
+      return new Response(`data: ${JSON.stringify({ choices: [{ delta: { reasoning_content: "pienso" } }] })}\n\ndata: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: "c1", function: { name: "datetime__now", arguments: "{}" } }] } }] })}\n\ndata: [DONE]\n\n`, { status: 200 });
+    });
+    const ds = { kind: "deepseek" as const, endpoint: "https://api.deepseek.com/v1", apiKey: "k", model: "deepseek-flash" };
+    const r = await streamChat(ds, msgs, () => undefined, undefined, { tools });
+    expect(r.reasoning).toBe("pienso");
+    const history: ChatMsg[] = [...msgs, { role: "assistant", content: "", tool_calls: r.toolCalls, reasoning_content: r.reasoning! }, { role: "tool", tool_call_id: "c1", content: "23:30" }];
+    await streamChat(ds, history, () => undefined, undefined, { tools });
+    expect(bodies[1].messages[2]).toMatchObject({ role: "assistant", reasoning_content: "pienso", tool_calls: [{ id: "c1" }] });
+    await streamChat({ kind: "openai", endpoint: "https://api.openai.com/v1", apiKey: "k", model: "gpt-4o" }, history, () => undefined, undefined, { tools });
+    expect(bodies[2].messages[2].reasoning_content).toBeUndefined();
+  });
 });
