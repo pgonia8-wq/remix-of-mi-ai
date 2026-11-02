@@ -320,8 +320,14 @@ export async function invokeTool(ctx: ToolCtx, toolId: string, raw: unknown, opt
   if (def.roles !== "all" && !def.roles.includes(ctx.agent)) return reject(`El rol ${ctx.agent} no tiene permiso para ${toolId}.`);
   const [pol] = await repo.sql.all<{ enabled: number; max_calls: number | null; budget_usd: number | null }>("SELECT enabled, max_calls, budget_usd FROM tool_policies WHERE project_id=? AND tool=?", [p, toolId]);
   if (pol && !pol.enabled) return reject("Herramienta desactivada para este proyecto.");
-  const parsed = def.input.safeParse(raw);
-  if (!parsed.success) return reject(`Entrada inválida: ${parsed.error.issues[0]?.message ?? "formato"}`);
+  let parsed = def.input.safeParse(raw);
+  if (!parsed.success) {
+    // Repair common model formatting slips (null optionals, "5" for 5, extra keys, "/path"), then validate strictly again.
+    const { coerceArgs, describeIssue } = await import("./coerce");
+    const retry = def.input.safeParse(coerceArgs(def.input, raw));
+    if (retry.success) parsed = retry;
+    else { const { jsonSchemaOf } = await import("../realtime-voice"); return reject(describeIssue(def.input, retry.error, jsonSchemaOf(def.input))); }
+  }
   const input = parsed.data;
   const [{ n: used }] = await repo.sql.all<{ n: number }>("SELECT COUNT(*) n FROM auto_observations WHERE project_id=? AND run_id=? AND tool=? AND kind='tool'", [p, ctx.runId, toolId]) as [{ n: number }];
   const cap = Math.min(def.maxCalls, pol?.max_calls ?? Infinity, opts.limits.perToolCalls[toolId] ?? Infinity);
