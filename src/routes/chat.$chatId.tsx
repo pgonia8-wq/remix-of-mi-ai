@@ -125,6 +125,7 @@ function ChatPage() {
       const callInfo = { kind: provider.kind, endpoint: provider.endpoint, apiKey, model: provider.model, deployment: provider.deployment, apiVersion: provider.api_version, extraParams: provider.extra_params };
       let tools = toolSet?.schemas.length ? toolSet.schemas : undefined;
       let runId: string | null = null;
+      let thinking = ""; // reasoning DeepSeek/Kimi need back with tools; kept for this answer and later turns
       // Tool loop: the model may request app tools; each runs through invokeTool and its result goes back to the model.
       for (let turn = 0; turn < 30; turn++) {
         let turnText = "";
@@ -139,7 +140,7 @@ function ChatPage() {
         } catch (err) {
           // A provider/deployment without tool support rejects the request: answer without tools, but never leave the
           // tool list in the system prompt (the model would claim tools it cannot call) and tell the person why.
-          if (tools && !turnText && err instanceof ProviderError && err.httpStatus === 400 && /tool|function/i.test(err.technical ?? "")) {
+          if (tools && !turnText && err instanceof ProviderError && err.httpStatus === 400 && /tool|function|reasoning_content/i.test(err.technical ?? "")) {
             tools = undefined; turn--;
             const reason = (err.technical ?? "").replace(/\s+/g, " ").slice(0, 300);
             msgs[0] = { role: "system", content: `${baseSystem}${toolsRejectedPrompt}\n\n${ctx}` };
@@ -150,8 +151,9 @@ function ChatPage() {
           throw err;
         }
         out += turnText;
+        if (result.reasoning) thinking += (thinking ? "\n" : "") + result.reasoning;
         if (!result.toolCalls.length) break;
-        msgs.push({ role: "assistant", content: turnText, tool_calls: result.toolCalls });
+        msgs.push({ role: "assistant", content: turnText, tool_calls: result.toolCalls, ...(result.reasoning ? { reasoning_content: result.reasoning } : {}) });
         if (!runId) { const { createRun } = await import("@/lib/automation/orchestrator"); runId = await createRun(core, pid, { goal: `Chat: ${(text || "respuesta").slice(0, 300)}`, kind: "chat", limits: { maxCalls: 300, perAgentCalls: 300, unknownCost: "allow" } }); }
         const { runChatTool, TOOL_LABELS, toolIdOf } = await import("@/lib/chat-tools");
         for (const call of result.toolCalls) {
@@ -173,6 +175,7 @@ function ChatPage() {
       if (!out.trim()) throw new ProviderError("parameters", "El modelo no devolvió una respuesta válida.");
       const saved = regenerate ? (await repo.updateMessage(pid, regenerate.id, out), regenerate) : await repo.addMessage(pid, chatId, "assistant", out, provider.id, provider.deployment || provider.model);
       for (const a of produced.splice(0)) await repo.attachToMessage(pid, chatId, saved.id, a.id, null).catch(() => undefined);
+      await repo.setMessageReasoning(pid, chatId, saved.id, thinking).catch(() => undefined);
       out = "";
       await repo.setProviderVerification(provider.id, "verified");
     } catch (e) {
