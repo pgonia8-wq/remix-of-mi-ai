@@ -3,6 +3,7 @@ import { FolderKanban, MessagesSquare, LayoutGrid, Settings, Images, Boxes, Menu
 import { useEffect, useState, type ReactNode } from "react";
 import { ShareInbox } from "./ShareInbox";
 import { installBackgroundWork } from "@/lib/background-work";
+import { installInsets } from "@/lib/device";
 import { setActiveProject, useActiveProjectId, useMutate, useRepoQuery } from "@/lib/use-app";
 import { Button } from "./ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "./ui/sheet";
@@ -26,7 +27,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false), [collapsed, setCollapsed] = useState(false), [search, setSearch] = useState("");
   const mutate = useMutate(), navigate = useNavigate();
   const inChat = path.startsWith("/chat/");
-  useEffect(() => { installBackgroundWork(); }, []);
+  useEffect(() => { installBackgroundWork(); installInsets(); }, []);
   async function newChat() {
     if (!pid) { await navigate({ to: "/" }); setOpen(false); return; }
     try { const c = await mutate((r) => r.createChat(pid)); await navigate({ to: "/chat/$chatId", params: { chatId: c.id } }); setOpen(false); }
@@ -46,10 +47,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     </div>
     <div className="space-y-1 border-t border-sidebar-border p-3"><Link to="/models" onClick={() => setOpen(false)} className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-sidebar-accent"><Boxes className="h-4 w-4" />Modelos</Link><Link to="/settings" onClick={() => setOpen(false)} className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-sidebar-accent"><Settings className="h-4 w-4" />Configuración</Link><div className="flex items-center gap-2 px-3 pt-3 text-[11px] text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5 text-success" />Privado · En tu dispositivo</div></div>
   </div>;
-  return <div className="flex h-dvh w-full overflow-hidden app-bg">
+  return <div className="safe-shell flex h-dvh w-full overflow-hidden app-bg">
     {!collapsed && <aside className="hidden w-64 shrink-0 border-r border-sidebar-border lg:block">{sidebar}</aside>}
     <ShareInbox />
-    <Sheet open={open} onOpenChange={setOpen}><SheetContent side="left" className="w-[min(300px,86vw)] p-0 sm:max-w-[300px]"><SheetTitle className="sr-only">Menú MI AI</SheetTitle><SheetDescription className="sr-only">Proyectos, conversaciones, archivos y configuración</SheetDescription>{sidebar}</SheetContent></Sheet>
+    <Sheet open={open} onOpenChange={setOpen}><SheetContent side="left" className="safe-sheet w-[min(300px,86vw)] p-0 sm:max-w-[300px]"><SheetTitle className="sr-only">Menú MI AI</SheetTitle><SheetDescription className="sr-only">Proyectos, conversaciones, archivos y configuración</SheetDescription>{sidebar}</SheetContent></Sheet>
     <div className="flex min-w-0 flex-1 flex-col">
       <header className="glass-strong flex h-14 shrink-0 items-center gap-3 border-b border-sidebar-border px-3 sm:px-5">
         <Button variant="ghost" size="icon" aria-label="Abrir menú" title="Abrir menú" className={collapsed ? "" : "lg:hidden"} onClick={() => { if (window.matchMedia("(min-width:1024px)").matches) setCollapsed(false); else setOpen(true); }}><Menu className="h-5 w-5" /></Button>

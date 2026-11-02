@@ -80,7 +80,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "MI AI" },
       { name: "description", content: "Asistente de IA privado para Android con proyectos aislados." },
       { name: "theme-color", content: "#141318" },
@@ -145,7 +145,7 @@ function RootComponent() {
       <AppShell>
         <Outlet />
       </AppShell>
-      <Toaster theme="dark" position="top-center" />
+      <Toaster theme="dark" position="top-center" offset={{ top: "calc(var(--sat) + 16px)" }} mobileOffset={{ top: "calc(var(--sat) + 12px)" }} />
       <BudgetConfirm />
     </QueryClientProvider>
   );
