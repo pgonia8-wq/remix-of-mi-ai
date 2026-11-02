@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { NeedProject, inputCls } from "@/components/AppShell";
 import { useActiveProjectId, useCoreQuery, useCoreMutate } from "@/lib/use-app";
-import { autoRuns, createRun, stepRun, resolveReview, afterApproval, ROLES, type AutoRun } from "@/lib/automation/orchestrator";
+import { autoRuns, createRun, resolveReview, afterApproval, ROLES, type AutoRun } from "@/lib/automation/orchestrator";
 import { approvals } from "@/lib/automation/approvals";
 import { createBuilderRun, packageDeliverable, type DeliverableKind } from "@/lib/automation/builder";
 import { availabilityReport } from "@/lib/automation/tools";
@@ -132,7 +132,7 @@ function Inbox({ pid, act, busy }: { pid: string; act: Act; busy: boolean }) {
     {a.target && <p className="break-all">Destino: {a.target}</p>}
     <details><summary className="cursor-pointer">Parámetros exactos</summary><pre className="whitespace-pre-wrap break-all text-xs">{a.params}</pre></details>
     <p className="text-xs text-muted-foreground">Si cambia cualquier parámetro, esta aprobación deja de valer.</p>
-    <div className="flex gap-2"><Button size="sm" disabled={busy} onClick={() => act(async (c) => { await approvals.decide(c.repo, pid, a.id, true); return afterApproval(c, pid, a.id); }, "Aprobada")}><Check />Aprobar</Button>
+    <div className="flex gap-2"><Button size="sm" disabled={busy} onClick={() => act(async (c) => { await approvals.decide(c.repo, pid, a.id, true); const r = await afterApproval(c, pid, a.id); driveRun(c, pid, r.run_id); return r; }, "Aprobada")}><Check />Aprobar</Button>
       <Button size="sm" variant="outline" disabled={busy} onClick={() => act(async (c) => { await approvals.decide(c.repo, pid, a.id, false); return afterApproval(c, pid, a.id); })}><X />Rechazar</Button></div>
   </article>)}</section>;
 }
