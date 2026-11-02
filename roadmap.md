@@ -196,3 +196,10 @@
 - [x] Agentes autónomos independientes de PC (teléfono por defecto, VM opcional) y delegación desde el chat.
 - [x] Corregir lentitud del chat con mensajes largos (escritura y streaming).
 - [ ] Esperar lo que falta según Fer y recompilar build.13 (bloqueado: falta su indicación).
+
+## Solicitud actual — todas las herramientas en el chat (lista de 60 de Fer)
+- [x] Dar al chat las herramientas que ya existían (archivos, versiones, pruebas en el teléfono, SSH/VM, estado de trabajos).
+- [x] Construir herramientas del teléfono: parches, mover/copiar, índice de código y referencias, ZIP/7z/TAR (crear) y ZIP/7z/RAR/TAR/GZ (extraer), Python, TypeScript, peticiones HTTP, leer/descargar web, SQL local con respaldos, OCR, leer documentos, editar/procesar imágenes, transcribir, convertir audio, CAD, gráficas, QR, datos, hash, finanzas, unidades, portapapeles, recursos del teléfono, notificaciones, revisiones periódicas, registros, credenciales (sin valores), puntos de restauración, exportar.
+- [x] PC/VM desde el chat con pc.exec (bash/PowerShell, compilar, pruebas, git, Docker, Playwright, instaladores) y ssh.exec; siempre con aprobación.
+- [ ] No posibles dentro del teléfono: contenedores, escritorio, compilar Android/escritorio, modelos de IA locales y navegador automatizado; disponibles solo vía PC/VM.
+- [ ] Probar en Android físico (Python, 7z, portapapeles, notificaciones) y compilar build.14 cuando Fer lo pida.

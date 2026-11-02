@@ -5,34 +5,61 @@ import type { ToolAsset } from "./automation/tools";
 
 /** Fixed allowlist offered to the chat model. Multi-step work goes to the autonomous team via agents.delegate. */
 export const CHAT_TOOLS = [
-  "image.generate", "video.generate", "audio.tts", "music.generate", "model3d.generate",
-  "research.web", "research.deep", "doc.create",
-  "note.save", "task.add", "reminder.add", "memory.search", "memory.save", "code.js", "agents.delegate",
+  // Creación con IA
+  "image.generate", "image.edit", "image.upscale", "image.remove_bg", "video.generate", "audio.tts", "music.generate", "model3d.generate", "audio.transcribe", "audio.translate",
+  // Investigación e internet
+  "research.web", "research.deep", "web.fetch", "web.download", "http.request",
+  // Documentos y datos
+  "doc.create", "doc.read", "media.ocr", "data.analyze", "chart.create", "db.list", "db.sql",
+  // Archivos del espacio de trabajo
+  "fs.list", "fs.read", "fs.write", "fs.patch", "fs.move", "fs.delete", "fs.search", "fs.versions", "code.symbols", "code.refs", "text.diff",
+  "ws.snapshot", "ws.restore", "archive.create", "archive.extract", "files.export", "files.attach", "assets.list",
+  // Código
+  "code.js", "code.ts", "code.python", "code.run", "code.file", "quality.run",
+  // Medios locales
+  "image.process", "audio.convert", "cad.create", "qr.generate",
+  // Productividad
+  "note.save", "task.add", "reminder.add", "schedule.add", "notify.now", "memory.search", "memory.save",
+  // Sistema
+  "datetime.now", "device.info", "clipboard.read", "clipboard.write", "hash.compute", "calc.finance", "unit.convert", "logs.read", "secrets.list", "jobs.list",
+  // Agentes y PC/VM
+  "agents.delegate", "agents.status", "agents.control", "pc.exec", "vm.list", "ssh.exec",
 ] as const;
 
 /** Plain-language hints so the model knows when and how to use each tool. */
 const HINTS: Record<string, string> = {
-  "image.generate": "Crea una imagen. `text` = descripción visual detallada (en inglés o español).",
+  "image.generate": "Crea una imagen. `text` = descripción visual detallada.",
+  "image.edit": "Edita una imagen del proyecto con IA. `assetId` (ver assets.list o adjuntos) y `text` = cambio deseado.",
   "video.generate": "Crea un video corto; tarda minutos y queda en Trabajos. `text` = descripción de la escena.",
   "audio.tts": "Convierte texto en un archivo de voz. `text` = lo que se dirá.",
   "music.generate": "Crea música. `text` = estilo, instrumentos, ánimo y duración.",
-  "model3d.generate": "Crea un modelo 3D GLB. `text` = descripción del objeto.",
+  "model3d.generate": "Crea un modelo 3D GLB con IA. `text` = descripción del objeto. Para piezas con medidas exactas usa cad.create.",
   "research.web": "Busca en internet. `text` = consulta breve. Cita las fuentes devueltas.",
   "research.deep": "Investigación de varias rondas con lectura de fuentes y citas. `text` = pregunta completa.",
   "doc.create": "Crea un archivo PDF, Word (docx), Excel (xlsx, usa tablas Markdown), PowerPoint (pptx, una diapositiva por título) o Markdown.",
-  "note.save": "Guarda una nota en el proyecto.",
-  "task.add": "Crea una tarea pendiente en el proyecto.",
-  "reminder.add": "Programa un recordatorio en `minutes` minutos.",
-  "memory.search": "Consulta la memoria del proyecto.",
-  "memory.save": "Guarda un dato importante en la memoria del proyecto (solo si la persona lo pide o es claramente útil).",
+  "fs.write": "Escribe un archivo de texto en el espacio de trabajo. `baseHash`=null si es nuevo; si existe, primero fs.read y usa su hash.",
+  "fs.patch": "Edita partes de un archivo existente: cada edición reemplaza un fragmento exacto (`find`) por `replace`.",
+  "code.python": "Ejecuta Python 3 (solo biblioteca estándar: math, statistics, json, re, datetime, csv, itertools, decimal, fractions…). Usa print().",
   "code.js": "Ejecuta JavaScript aislado para cálculos exactos. Usa console.log para el resultado.",
+  "pc.exec": "Solo si hay PC/VM emparejada: ejecuta un programa allí. Para shell usa argv [\"bash\",\"-lc\",\"comando\"] o [\"powershell\",\"-Command\",\"...\"].",
   "agents.delegate": "Delega al sistema autónomo un trabajo de varios pasos (programar, construir una app o script, investigar y redactar, revisar y corregir). Trabaja en el teléfono sin PC; la persona aprueba antes de empezar. `mode`=builder para construir software (con `kind`), team para el resto.",
 };
 export const TOOL_LABELS: Record<string, string> = {
-  "image.generate": "Creando imagen", "video.generate": "Creando video", "audio.tts": "Generando voz", "music.generate": "Creando música",
-  "model3d.generate": "Creando modelo 3D", "research.web": "Buscando en internet", "research.deep": "Investigando a fondo", "doc.create": "Creando documento",
-  "note.save": "Guardando nota", "task.add": "Creando tarea", "reminder.add": "Programando recordatorio", "memory.search": "Consultando memoria",
-  "memory.save": "Guardando en memoria", "code.js": "Calculando", "agents.delegate": "Iniciando equipo de agentes",
+  "image.generate": "Creando imagen", "image.edit": "Editando imagen", "image.upscale": "Mejorando imagen", "image.remove_bg": "Quitando fondo", "video.generate": "Creando video",
+  "audio.tts": "Generando voz", "music.generate": "Creando música", "model3d.generate": "Creando modelo 3D", "audio.transcribe": "Transcribiendo audio", "audio.translate": "Traduciendo audio",
+  "research.web": "Buscando en internet", "research.deep": "Investigando a fondo", "web.fetch": "Leyendo página web", "web.download": "Descargando archivo", "http.request": "Enviando petición HTTP",
+  "doc.create": "Creando documento", "doc.read": "Leyendo documento", "media.ocr": "Leyendo texto de la imagen", "data.analyze": "Analizando datos", "chart.create": "Creando gráfica",
+  "db.list": "Consultando bases de datos", "db.sql": "Ejecutando SQL",
+  "fs.list": "Listando archivos", "fs.read": "Leyendo archivo", "fs.write": "Escribiendo archivo", "fs.patch": "Editando archivo", "fs.move": "Moviendo archivo", "fs.delete": "Eliminando archivo",
+  "fs.search": "Buscando en archivos", "fs.versions": "Revisando versiones", "code.symbols": "Indexando código", "code.refs": "Buscando referencias", "text.diff": "Comparando",
+  "ws.snapshot": "Creando punto de restauración", "ws.restore": "Restaurando", "archive.create": "Comprimiendo", "archive.extract": "Extrayendo", "files.export": "Exportando", "files.attach": "Adjuntando archivo", "assets.list": "Revisando archivos",
+  "code.js": "Ejecutando JavaScript", "code.ts": "Ejecutando TypeScript", "code.python": "Ejecutando Python", "code.run": "Ejecutando archivo", "code.file": "Ejecutando archivo", "quality.run": "Ejecutando pruebas",
+  "image.process": "Procesando imagen", "audio.convert": "Procesando audio", "cad.create": "Modelando 3D", "qr.generate": "Creando QR",
+  "note.save": "Guardando nota", "task.add": "Creando tarea", "reminder.add": "Programando recordatorio", "schedule.add": "Programando revisiones", "notify.now": "Enviando notificación",
+  "memory.search": "Consultando memoria", "memory.save": "Guardando en memoria",
+  "datetime.now": "Consultando fecha", "device.info": "Revisando el teléfono", "clipboard.read": "Leyendo portapapeles", "clipboard.write": "Copiando", "hash.compute": "Calculando hash",
+  "calc.finance": "Calculando", "unit.convert": "Convirtiendo unidades", "logs.read": "Leyendo registros", "secrets.list": "Revisando credenciales", "jobs.list": "Revisando trabajos",
+  "agents.delegate": "Iniciando equipo de agentes", "agents.status": "Revisando agentes", "agents.control": "Controlando agentes", "pc.exec": "Ejecutando en la PC", "vm.list": "Revisando servidores", "ssh.exec": "Ejecutando por SSH",
 };
 export const toolName = (id: string) => id.replace(/\./g, "__");
 export const toolIdOf = (name: string) => name.replace(/__/g, ".");
@@ -58,7 +85,7 @@ export async function chatToolSet(core: Core, projectId: string): Promise<ChatTo
 export function toolsPrompt(set: ChatToolSet) {
   const on = set.available.map((id) => `- ${TOOL_LABELS[id] ?? id} (${toolName(id)})`).join("\n");
   const off = set.unavailable.map((u) => `- ${TOOL_LABELS[u.id] ?? u.id}: ${u.reason}`).join("\n");
-  return `\n\nHerramientas de MI AI:\n${on ? `Puedes usarlas directamente cuando la persona lo pida (crear imágenes, videos, voz, música, 3D, documentos, buscar en internet, notas, tareas, recordatorios, cálculos, delegar trabajos de varios pasos al equipo de agentes):\n${on}\nLos archivos que crees aparecen solos en la conversación; no inventes enlaces.` : "Ninguna herramienta está lista ahora."}${off ? `\nNo disponibles todavía (explica a la persona qué configurar, normalmente un modelo con esa capacidad en Modelos):\n${off}` : ""}`;
+  return `\n\nHerramientas de MI AI:\n${on ? `Puedes usarlas directamente cuando la persona lo pida o cuando ayuden a resolver su petición (crear y editar medios, documentos, internet y APIs, archivos y código en el espacio de trabajo del teléfono, Python/TypeScript/JavaScript, bases de datos, comprimidos, sistema, agentes, PC/VM). Los adjuntos del usuario traen su id para usarlos en herramientas. No digas que no tienes una herramienta si está en esta lista:\n${on}\nLos archivos que crees aparecen solos en la conversación; no inventes enlaces.` : "Ninguna herramienta está lista ahora."}${off ? `\nNo disponibles todavía (explica a la persona qué configurar, normalmente un modelo con esa capacidad en Modelos):\n${off}` : ""}`;
 }
 
 export type ToolStep = { reply: string; assets: ToolAsset[]; runId?: string };
@@ -73,7 +100,7 @@ export async function runChatTool(core: Core, projectId: string, runId: string, 
   const { invokeTool, DEFAULT_LIMITS } = await import("./automation/tools");
   const ctx = { core, projectId, runId, taskId: null, agent: "chat", ...(signal ? { signal } : {}) };
   // The person asked for this in the chat: unknown prices proceed (project budgets still apply); known costs ask on screen.
-  const opts = { allowed: [...CHAT_TOOLS], limits: { ...DEFAULT_LIMITS, maxCalls: 40, perAgentCalls: 40, unknownCost: "allow" as const }, opKey: `chat:${runId}:${call.id}` };
+  const opts = { allowed: [...CHAT_TOOLS], limits: { ...DEFAULT_LIMITS, maxCalls: 300, perAgentCalls: 300, unknownCost: "allow" as const }, opKey: `chat:${runId}:${call.id}` };
   for (let attempt = 0; attempt < 2; attempt++) {
     const r = await invokeTool(ctx, toolId, input, opts);
     if (r.status === "ok") return { reply: r.trusted ? r.output : `<datos_no_confiables>${r.output}</datos_no_confiables>`, assets: r.assets ?? [], ...(r.runId ? { runId: r.runId } : {}) };

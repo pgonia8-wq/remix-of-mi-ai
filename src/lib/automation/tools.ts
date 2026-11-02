@@ -14,6 +14,7 @@ import { approvals, canonical, fingerprintAction, sha256Hex } from "./approvals"
 import { workingMemory } from "./working-memory";
 import { localWs } from "./local-workspace";
 import { scrubSecrets } from "../db/repo";
+import { phoneTools } from "./phone-tools";
 
 export type Family = "ia" | "investigacion" | "ingenieria" | "desarrollo" | "infraestructura" | "datos" | "multimedia" | "productividad";
 export type Permission = "provider" | "network" | "local.write" | "pc.read" | "pc.write" | "pc.exec" | "remote" | "tunnel" | "memory" | "sensitive";
@@ -119,7 +120,8 @@ const provider = (id: string, name: string, family: Family, capability: string, 
   availability: providerAvail(capability), run: providerRun(capability),
 });
 const LANGS: [string, string, string][] = [["dev.node", "Node.js / npm", "node"], ["dev.npm", "npm", "npm"], ["dev.npx", "npx (TypeScript, frameworks)", "npx"], ["dev.python", "Python", "python3"], ["dev.pip", "pip", "pip"], ["dev.java", "Java", "java"], ["dev.kotlin", "Kotlin", "kotlinc"], ["dev.gradle", "Gradle / Android", "gradle"], ["dev.gcc", "C (GCC)", "gcc"], ["dev.clang", "C/C++ (Clang)", "clang"], ["dev.cmake", "CMake", "cmake"], ["dev.ninja", "Ninja", "ninja"], ["dev.rust", "Rust", "rustc"], ["dev.cargo", "Cargo", "cargo"], ["dev.go", "Go", "go"], ["dev.dotnet", "C# / .NET", "dotnet"], ["dev.sqlite", "SQLite", "sqlite3"], ["dev.postgres", "PostgreSQL (psql)", "psql"], ["dev.foundry", "Solidity (Foundry)", "forge"]];
-const ENG = ["architect", "frontend", "backend", "database", "infra", "security", "tester", "integrator", "debugger", "auditor", "coordinator"];
+// "chat" is the interactive chat run: it may use engineering tools on the phone workspace (and PC tools only via pc.exec).
+const ENG = ["architect", "frontend", "backend", "database", "infra", "security", "tester", "integrator", "debugger", "auditor", "coordinator", "chat"];
 
 export const TOOL_REGISTRY: ToolDef[] = [
   // A. IA
@@ -175,7 +177,7 @@ export const TOOL_REGISTRY: ToolDef[] = [
   { id: "repo.push", name: "Publicar en repositorio remoto", description: "git push: siempre requiere aprobación expresa.", family: "ingenieria", input: z.object({ remote: z.string().regex(/^[\w.-]{1,60}$/), branch: z.string().regex(/^[\w./-]{1,120}$/) }).strict(), output: "resultado", permissions: ["remote", "network"], network: true, cost: "none", maxCalls: 3, timeoutMs: 120_000, parallel: false, env: ["pc"], risk: "high", approval: "always", sideEffect: true, roles: ["integrator", "coordinator"],
     target: (i, ctx) => `${ctx.nodeId}:${i.remote}/${i.branch}`, availability: (ctx) => nodeReady(ctx, "git").then((r) => r.ok ? folderReady(ctx) : r),
     run: async (ctx, i) => { const j = await runJob(ctx, ["git", "push", i.remote, i.branch], "", await sha256Hex(canonical([ctx.runId, ctx.opKey ?? "push", "push", i])), { remoteApproved: true, network: true }); return { output: `estado=${j.status}\n${j.output}`, trusted: true }; } },
-  { id: "quality.run", name: "Verificación de calidad", description: "Ejecuta compilación, tipos, lint, pruebas y auditoría de dependencias detectadas.", family: "ingenieria", input: z.object({ checks: z.array(z.enum(["build", "typecheck", "lint", "test", "e2e", "audit"])).min(1).max(6) }).strict(), output: "evidencias", permissions: ["pc.exec"], network: false, cost: "none", maxCalls: 20, timeoutMs: 1_800_000, parallel: false, env: ["android", "pc"], risk: "medium", approval: "always", sideEffect: true, roles: ["tester", "auditor", "debugger", "integrator", "security"],
+  { id: "quality.run", name: "Verificación de calidad", description: "Ejecuta compilación, tipos, lint, pruebas y auditoría de dependencias detectadas.", family: "ingenieria", input: z.object({ checks: z.array(z.enum(["build", "typecheck", "lint", "test", "e2e", "audit"])).min(1).max(6) }).strict(), output: "evidencias", permissions: ["pc.exec"], network: false, cost: "none", maxCalls: 20, timeoutMs: 1_800_000, parallel: false, env: ["android", "pc"], risk: "medium", approval: "always", sideEffect: true, roles: ["tester", "auditor", "debugger", "integrator", "security", "chat"],
     target: (i, ctx) => `${ctx.nodeId ?? "teléfono"}:${i.checks.join(",")}`, availability: (ctx) => onPhone(ctx) ? hasWorker() : folderReady(ctx),
     run: async (ctx, i) => { const q = await import("./quality"); return onPhone(ctx) ? q.runLocalQuality(ctx, i.checks) : q.runQuality(ctx, i.checks, runJob); } },
   { id: "code.js", name: "JavaScript ligero aislado (QuickJS)", description: "Evalúa JavaScript sin red, almacenamiento ni claves.", family: "desarrollo", input: z.object({ source: z.string().min(1).max(60_000), input: z.string().max(60_000).default("") }).strict(), output: "salida", permissions: [], network: false, cost: "none", maxCalls: 30, timeoutMs: 10_000, parallel: true, env: ["sandbox"], risk: "low", approval: "never", sideEffect: false, roles: "all",
@@ -238,7 +240,6 @@ export const TOOL_REGISTRY: ToolDef[] = [
       const a = await ctx.core.assets.put(ctx.projectId, (async function* () { yield bytes; })(), { kind: "document", name, mime: EXPORT_MIME[i.format as keyof typeof EXPORT_MIME], capability: "doc.create" });
       return { output: `Documento creado: ${name} (${bytes.length} bytes)`, trusted: true, assets: [{ id: a.id, mime: a.mime, name }] };
     } },
-  declared("media.ocr", "OCR", "multimedia", "OCR local disponible en Documentos; requiere archivo elegido por el usuario.", ["local.write"]),
   // H. Productividad
   { id: "note.save", name: "Guardar nota", description: "Guarda una nota del proyecto.", family: "productividad", input: z.object({ title: z.string().min(1).max(200), body: z.string().max(60_000) }).strict(), output: "id", permissions: ["local.write"], network: false, cost: "none", maxCalls: 20, timeoutMs: 5000, parallel: true, env: ["android"], risk: "low", approval: "never", sideEffect: true, roles: "all",
     availability: ok, run: async (ctx, i) => { await notes.save(ctx.core.repo.sql, ctx.projectId, { title: i.title, body: i.body }); return { output: "nota guardada", trusted: true }; } },
@@ -268,6 +269,16 @@ export const TOOL_REGISTRY: ToolDef[] = [
       driveRun(ctx.core, ctx.projectId, id);
       return { output: `Ejecución autónoma ${id} iniciada en el teléfono. Su avance, aprobaciones y resultado aparecen en esta conversación y en Sistema autónomo. No inventes resultados: explica que el equipo está trabajando.`, trusted: true, runId: id };
     } },
+  // J. Herramientas del teléfono (archivos, código, red, datos, medios, sistema) y PC/VM desde el chat.
+  ...phoneTools({
+    ToolRejected, onPhone, wsReady, hasWorker, modelFor, relPath, assertLock: (c, path) => assertLock(c, path), getTool: (id) => getTool(id),
+    ws: {
+      list: async (c, dir = "") => onPhone(c) ? localWs.list(c.core.repo, c.projectId, dir) : (await pcFiles.list(c.core.repo, c.projectId, c.folderId!, dir)).files as { path: string; size: number }[],
+      read: async (c, path) => { if (onPhone(c)) return localWs.read(c.core.repo, c.projectId, path); const r = await pcFiles.read(c.core.repo, c.projectId, c.folderId!, path); return { text: new TextDecoder().decode(r.bytes), hash: r.hash }; },
+      write: (c, path, content, baseHash) => onPhone(c) ? localWs.write(c.core.repo, c.projectId, path, content, baseHash) : pcFiles.write(c.core.repo, c.projectId, c.folderId!, path, new TextEncoder().encode(content), baseHash),
+      remove: async (c, path) => { if (onPhone(c)) await localWs.remove(c.core.repo, c.projectId, path); else await pcFiles.remove(c.core.repo, c.projectId, c.folderId!, path); },
+    },
+  }),
 ];
 export const TOOL_IDS = TOOL_REGISTRY.map((t) => t.id);
 export const getTool = (id: string) => TOOL_REGISTRY.find((t) => t.id === id) ?? null;

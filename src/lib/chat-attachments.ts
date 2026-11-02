@@ -26,8 +26,9 @@ export async function chatHistory(core: Core, projectId: string, chatId: string,
     // Live run cards are UI markers; the model sees a plain note instead.
     let content = message.content.replace(/\[\[miai-run:[0-9a-f-]{36}\]\]/g, "[Trabajo delegado al equipo de agentes]");
     for (const file of files) {
-      if (message.role !== "user") content += `\n\n[Archivo creado en esta conversación: ${file.name} (${file.mime})]`;
-      else if (file.mime.startsWith("image/")) {
+      if (message.role !== "user") { content += `\n\n[Archivo creado en esta conversación: ${file.name} (${file.mime}) id=${file.asset_id}]`; continue; }
+      content += `\n\n[Adjunto: ${file.name} (${file.mime}) id=${file.asset_id}]`;
+      if (file.mime.startsWith("image/")) {
         const bytes = await core.assets.read(projectId, file.asset_id);
         let binary = ""; for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
         images.push({ mime: file.mime, data: btoa(binary) });
