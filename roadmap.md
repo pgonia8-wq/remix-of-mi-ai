@@ -216,3 +216,7 @@
 - [x] A9 Clonación de voz con verificación real de que la voz es del usuario.
 - [x] Compartir en: enviar mensajes, archivos y resultados a otras apps (hoja de compartir de Android).
 - [x] Compilar build.14 una sola vez al final (firma fija, Android 11+, ARM64/ARMv7). Pruebas físicas pendientes del usuario.
+
+## Solicitud actual — herramientas del chat
+- [x] El chat ya no deja la lista de herramientas cuando el modelo las rechaza; muestra el motivo y cuántas herramientas están conectadas.
+- [ ] Firma Release del APK: pospuesta por Fer (falta decidir Play Store/APK directa y llave).
