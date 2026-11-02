@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Languages, Mic2, Trash2, Upload, Volume2 } from "lucide-react";
+import { Languages, Mic2, ShieldCheck, Trash2, Upload, Volume2 } from "lucide-react";
 import { toast } from "sonner";
 import { useCoreMutate, useCoreQuery } from "@/lib/use-app";
 import { getCore } from "@/lib/core";
@@ -7,7 +7,8 @@ import { route, type RouteMode } from "@/lib/core/router";
 import { credentialsFor, execute } from "@/lib/core/executor";
 import { getAdapter } from "@/lib/core/adapters";
 import { AUDIO_IN_MIME, AUDIO_MAX_BYTES, TTS_MAX_CHARS } from "@/lib/core/adapters/audio";
-import { voices } from "@/lib/core/voices";
+import { voices, verifications, VERIFY_TTL_MS } from "@/lib/core/voices";
+import { challengePhrase, phraseMatch } from "@/lib/media/voice-verify";
 import { extForAudio } from "@/lib/recorder";
 import { RecordButton } from "@/components/RecordButton";
 import { inputCls } from "@/components/AppShell";
