@@ -497,7 +497,7 @@ describe("F2 · SOCKS5 y VPN en el PC Node", () => {
             pre = Buffer.concat([pre, d]); if (pre.length < 32) return;
             const k = relay.vpnSessionKey(key, pre.subarray(0, 32), phoneSalt); seal = relay.frameSealer(k, 0);
             reader = relay.frameOpener(k, 1, (pt: Buffer) => { if (!hello) { hello = true; res(); } else got.push(pt); });
-            sock.write(Buffer.concat([phoneSalt, seal(relay.VPN_HELLO)])); const rest = pre.subarray(32); if (rest.length) reader(rest);
+            sock.write(Buffer.concat([phoneSalt, seal(relay.VPN_HELLO)])); const rest = pre.subarray(32); if (rest.length) reader!(rest);
           }); });
         vpnKey = key; client = { sock, got, seal };
       },
