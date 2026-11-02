@@ -89,6 +89,8 @@ grep -q WAKE_LOCK $M || sed -i 's#<application#<uses-permission android:name="an
 grep -q MiaiWorkService $M || sed -i 's#</application>#<service android:name=".MiaiWorkService" android:exported="false" android:foregroundServiceType="specialUse"><property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="ai_agent_run" /></service>\n    </application>#' $M
 # Receive files/text from other apps ("Compartir en… MI AI").
 grep -q 'android.intent.action.SEND"' $M || sed -i '0,/<\/activity>/s#</activity>#<intent-filter><action android:name="android.intent.action.SEND" /><category android:name="android.intent.category.DEFAULT" /><data android:mimeType="*/*" /></intent-filter><intent-filter><action android:name="android.intent.action.SEND_MULTIPLE" /><category android:name="android.intent.category.DEFAULT" /><data android:mimeType="*/*" /></intent-filter>\n        </activity>#' $M
+# "Enviar por Bluetooth": Android 11+ package visibility so the system Bluetooth sender can be found directly.
+grep -q 'miai-share-query' $M || sed -i 's#<application#<!-- miai-share-query --><queries><intent><action android:name="android.intent.action.SEND" /><data android:mimeType="*/*" /></intent></queries>\n    <application#' $M
 # "Compartir en…" only exposes files from the app cache through Capacitor's FileProvider.
 mkdir -p android/app/src/main/res/xml
 cat > android/app/src/main/res/xml/file_paths.xml <<'XML'

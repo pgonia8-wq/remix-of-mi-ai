@@ -97,10 +97,20 @@ public class MiaiDevicePlugin extends Plugin {
       } else s.setType("text/plain");
       if (text != null && !text.isEmpty()) s.putExtra(Intent.EXTRA_TEXT, text);
       if (subject != null && !subject.isEmpty()) s.putExtra(Intent.EXTRA_SUBJECT, subject);
+      // "Enviar por Bluetooth": open the system Bluetooth sender directly when present (package name varies by maker).
+      if ("bluetooth".equals(call.getString("target"))) {
+        for (android.content.pm.ResolveInfo ri : getContext().getPackageManager().queryIntentActivities(s, 0)) {
+          if (ri.activityInfo != null && ri.activityInfo.packageName.toLowerCase(Locale.ROOT).contains("bluetooth")) {
+            s.setClassName(ri.activityInfo.packageName, ri.activityInfo.name);
+            getActivity().startActivity(s);
+            JSObject o = new JSObject(); o.put("direct", true); call.resolve(o); return;
+          }
+        }
+      }
       Intent chooser = Intent.createChooser(s, call.getString("title", "Compartir en…"));
       chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
       getActivity().startActivity(chooser);
-      call.resolve();
+      JSObject o = new JSObject(); o.put("direct", false); call.resolve(o);
     } catch (Exception e) { call.reject("No se pudo abrir Compartir en…"); }
   }
 
