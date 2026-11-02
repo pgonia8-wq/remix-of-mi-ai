@@ -48,13 +48,17 @@ const trim = (s: string) => s.replace(/\/+$/, "");
 function buildRequest(p: ProviderCall, messages: ChatMsg[], tools?: unknown[]): { url: string; init: RequestInit; parse: (data: any) => string | null } {
   const hasImages = messages.some((m) => m.images?.length);
   if (hasImages && !["openai", "azure", "azure_openai", "anthropic", "gemini", "xai", "mistral", "openai_compatible", "custom"].includes(p.kind)) throw new ProviderError("parameters", "Este adaptador no admite imágenes en el chat. Elige un modelo con visión.");
-  const openaiMessages = messages.map((m) => m.role === "tool" ? { role: "tool", tool_call_id: m.tool_call_id, content: m.content }
-    : m.tool_calls?.length ? { role: "assistant", content: m.content || null, tool_calls: m.tool_calls.map((c) => ({ id: c.id, type: "function", function: { name: c.name, arguments: c.arguments } })) }
-    : ({ role: m.role, content: m.images?.length ? [{ type: "text", text: m.content }, ...m.images.map((i) => ({ type: "image_url", image_url: { url: `data:${i.mime};base64,${i.data}` } }))] : m.content }));
   // Tool-call turns exist only for OpenAI-style providers; other contracts never receive them.
   if (!supportsChatTools(p.kind)) messages = messages.filter((m) => m.role !== "tool" && !m.tool_calls?.length);
   // DeepSeek/Kimi thinking models require their reasoning back on assistant turns when tools are sent; OpenAI/Azure never return it.
   const keepsReasoning = !["openai", "azure", "azure_openai"].includes(p.kind);
+  const openaiMessages = messages.map((m) => {
+    const base: Record<string, unknown> = m.role === "tool" ? { role: "tool", tool_call_id: m.tool_call_id, content: m.content }
+      : m.tool_calls?.length ? { role: "assistant", content: m.content || null, tool_calls: m.tool_calls.map((c) => ({ id: c.id, type: "function", function: { name: c.name, arguments: c.arguments } })) }
+      : { role: m.role, content: m.images?.length ? [{ type: "text", text: m.content }, ...m.images.map((i) => ({ type: "image_url", image_url: { url: `data:${i.mime};base64,${i.data}` } }))] : m.content };
+    if (keepsReasoning && m.role === "assistant" && m.reasoning_content) base["reasoning_content"] = m.reasoning_content;
+    return base;
+  });
   const toolBody = tools?.length && supportsChatTools(p.kind) ? { tools, tool_choice: "auto" } : {};
   const defaults = PROVIDER_KINDS.find((k) => k.kind === p.kind);
   if (!defaults) throw new ProviderError("endpoint", "Endpoint incorrecto: proveedor desconocido.");
@@ -267,7 +271,7 @@ async function streamResponses(p: ProviderCall, messages: ChatMsg[], tools: unkn
 
 /** Streams text deltas. API key is only placed in request headers — never logged.
  *  With tools on OpenAI/Azure: models that refuse function tools on chat/completions are retried once on /responses. */
-export async function streamChat(p: ProviderCall, messages: ChatMsg[], onDelta: (t: string) => void, signal?: AbortSignal, opts: { tools?: unknown[] } = {}): Promise<{ toolCalls: ToolCall[] }> {
+export async function streamChat(p: ProviderCall, messages: ChatMsg[], onDelta: (t: string) => void, signal?: AbortSignal, opts: { tools?: unknown[] } = {}): Promise<{ toolCalls: ToolCall[]; reasoning?: string }> {
   const tools = opts.tools?.length ? opts.tools : undefined;
   const viaResponses = !!tools && RESPONSES_KINDS.includes(p.kind);
   if (viaResponses && responsesForTools.has(responsesKey(p))) return streamResponses(p, messages, tools!, onDelta, signal);
@@ -286,7 +290,10 @@ export async function streamChat(p: ProviderCall, messages: ChatMsg[], onDelta: 
       throw err; // Responses not available either: keep the original tool rejection for the caller's text-only fallback.
     }
   }
+  let reasoning = "";
   await readSse(res, p, (parsed) => {
+    const r = parsed.choices?.[0]?.delta?.reasoning_content;
+    if (typeof r === "string") reasoning += r;
     const text = parse(parsed);
     if (typeof text === "string" && text) onDelta(text);
     const deltas = parsed.choices?.[0]?.delta?.tool_calls;
@@ -298,7 +305,7 @@ export async function streamChat(p: ProviderCall, messages: ChatMsg[], onDelta: 
       if (typeof d.function?.arguments === "string") c.arguments += d.function.arguments;
     }
   });
-  return { toolCalls: finishCalls(calls) };
+  return { toolCalls: finishCalls(calls), ...(reasoning ? { reasoning } : {}) };
 }
 
 export type DiagnosticCode = "key" | "auth" | "endpoint" | "model" | "unavailable" | "network" | "timeout" | "parameters";
