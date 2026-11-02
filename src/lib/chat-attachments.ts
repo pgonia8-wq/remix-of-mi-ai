@@ -5,7 +5,7 @@ import type { ChatMsg } from "./providers";
 import { docKind, extractText } from "./docs/extract";
 
 export type ChatAttachment = { id: string; project_id: string; chat_id: string; message_id: string; asset_id: string; name: string; mime: string; text_content: string | null };
-export const CHAT_ACCEPT = "image/png,image/jpeg,image/webp,.pdf,.docx,.xlsx,.xls,.csv,.txt,.md,.json,.html,.xml,.yaml,.yml";
+export const CHAT_ACCEPT = "image/png,image/jpeg,image/webp,.pdf,.docx,.pptx,.odt,.rtf,.xlsx,.xls,.ods,.csv,.txt,.md,.json,.html,.xml,.yaml,.yml";
 export function attachmentKind(name: string, mime: string) {
   if (["image/png", "image/jpeg", "image/webp"].includes(mime)) return "image";
   if (docKind(name, mime) !== "unsupported") return "document";
