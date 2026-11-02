@@ -4,6 +4,7 @@
 import { beforeAll, afterAll, beforeEach, describe, expect, it } from "vitest";
 import initSqlJs from "sql.js";
 import net from "node:net";
+import crypto from "node:crypto";
 import os from "node:os";
 import fs from "node:fs";
 import path from "node:path";
