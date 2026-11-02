@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Plus, Trash2, Copy, Archive, ArchiveRestore, Check, Download, Upload, Wallet, Bluetooth } from "lucide-react";
 import { getCore } from "@/lib/core";
-import { exportProject, importProject, packForBluetooth, projectFileText, bluetoothName, BLUETOOTH_MIME } from "@/lib/core/project-transfer";
+import { exportProject, importProject, packForBluetooth, projectFileText, fileBytes, bluetoothName, BLUETOOTH_MIME } from "@/lib/core/project-transfer";
 import { blobChunks, sendByBluetooth } from "@/lib/device";
 import { passwordStrength } from "@/lib/core/backup";
 import { saveExport } from "@/lib/save-export";
@@ -24,12 +24,7 @@ export const Route = createFileRoute("/")({
   component: Projects,
 });
 
-async function readProjectUpload(f: File) {
-  const parts: Uint8Array[] = []; let n = 0;
-  for await (const c of blobChunks(f)) { parts.push(c); n += c.length; }
-  const all = new Uint8Array(n); let o = 0; for (const c of parts) { all.set(c, o); o += c.length; }
-  return projectFileText(all);
-}
+const readProjectUpload = async (f: File) => projectFileText(await fileBytes(blobChunks(f)));
 
 function Projects() {
   const { data: projects = [], isLoading, error } = useRepoQuery(["projects"], (r) => r.listProjects());
