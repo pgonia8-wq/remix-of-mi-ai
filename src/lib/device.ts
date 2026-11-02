@@ -2,15 +2,18 @@
 // chunked reads so large files never travel as one base64 string. Web preview uses browser fallbacks.
 import { Capacitor, registerPlugin } from "@capacitor/core";
 
+export type Insets = { top: number; right: number; bottom: number; left: number; ime: number };
 export type InboxItem = { kind: "file" | "text"; path?: string; name?: string; mime?: string; size?: number; text?: string };
 interface DevicePlugin {
   startWork(o: { title: string; text: string }): Promise<void>;
   stopWork(): Promise<void>;
   saveAs(o: { path: string; name: string; mime: string }): Promise<{ saved: boolean }>;
-  share(o: { path?: string; text?: string; mime?: string; title?: string; subject?: string }): Promise<void>;
+  share(o: { path?: string; text?: string; mime?: string; title?: string; subject?: string; target?: "bluetooth" }): Promise<{ direct?: boolean } | void>;
+  getInsets(): Promise<Insets>;
   getInbox(): Promise<{ items: InboxItem[] }>;
   clearInbox(): Promise<void>;
   addListener(e: "inbox", cb: () => void): Promise<{ remove(): Promise<void> }>;
+  addListener(e: "insets", cb: (i: Insets) => void): Promise<{ remove(): Promise<void> }>;
 }
 export const MiaiDevice = registerPlugin<DevicePlugin>("MiaiDevice");
 export const onDevice = () => Capacitor.isNativePlatform();
@@ -115,4 +118,27 @@ export function onInbox(cb: () => void): () => void {
   let h: { remove(): Promise<void> } | null = null, gone = false;
   void MiaiDevice.addListener("inbox", cb).then((x) => { if (gone) void x.remove(); else h = x; });
   return () => { gone = true; void h?.remove(); };
+}
+
+// ---------- screen insets ----------
+/** Applies the real status bar / cutout / navigation bar / keyboard sizes as CSS variables (--sat, --sar, --sab, --sal, --kb). */
+export function applyInsets(i: Insets, root: HTMLElement = document.documentElement) {
+  const px = (n: number) => `${Math.max(0, Math.round(n * 10) / 10)}px`;
+  root.style.setProperty("--sat", px(i.top)); root.style.setProperty("--sar", px(i.right));
+  root.style.setProperty("--sab", px(i.bottom)); root.style.setProperty("--sal", px(i.left));
+  root.style.setProperty("--kb", px(Math.max(0, i.ime - i.bottom)));
+}
+let insetsInstalled = false;
+export function installInsets() {
+  if (insetsInstalled || !onDevice()) return; insetsInstalled = true;
+  void MiaiDevice.getInsets().then(applyInsets).catch(() => undefined);
+  void MiaiDevice.addListener("insets", applyInsets).catch(() => undefined);
+}
+
+/** "Enviar por Bluetooth": opens Android's Bluetooth sender directly (or the share sheet if this phone hides it). */
+export async function sendByBluetooth(file: { data: Bytesish; name: string; mime: string }): Promise<"direct" | "chooser" | "downloaded"> {
+  if (!onDevice()) { download(await collectBlob(file.data, file.mime), file.name); return "downloaded"; }
+  const path = await stageToCache(file.data, file.name);
+  const r = await MiaiDevice.share({ path, mime: file.mime, title: "Enviar por Bluetooth", target: "bluetooth" });
+  return r && r.direct ? "direct" : "chooser";
 }
