@@ -224,3 +224,5 @@
 - [ ] Firma Release del APK: pospuesta por Fer (falta decidir Play Store/APK directa y llave).
 - [x] DeepSeek/Kimi con razonamiento: la app guarda y reenvía su razonamiento al usar herramientas (lo exigen sus APIs).
 - [ ] Verificación con cuentas reales de DeepSeek, Qwen y Kimi: Fer no quiso cargar claves aquí; probar en el teléfono.
+- [x] Herramientas en Android: lectura de archivos cifrados corregida («Encabezado ilegible»), argumentos de modelos reparados y errores explicados.
+- [x] Contexto: 429 ya no se muestra como contexto excedido; muchas herramientas en una respuesta se recortan y se reintenta.

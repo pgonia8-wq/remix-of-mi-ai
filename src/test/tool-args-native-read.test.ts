@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { z } from "zod";
 import { coerceArgs } from "@/lib/automation/coerce";
 import { rangeSlice } from "@/lib/core";
-import { shrinkForRetry, isContextOverflow } from "@/lib/chat-attachments";
+import { shrinkForRetry, isContextOverflow, compactToolResults } from "@/lib/chat-attachments";
 import type { ChatMsg } from "@/lib/providers";
 
 describe("lectura por rangos en Android (causa de «Encabezado ilegible»)", () => {
@@ -61,5 +61,12 @@ describe("contexto del chat", () => {
     expect(shrinkForRetry(msgs)).toBe(true);
     expect(msgs[2]!.content.length).toBeLessThan(2000);
     expect(msgs[4]!.content.length).toBe(5000);
+  });
+  test("con decenas de herramientas en una respuesta, los resultados viejos se recortan antes de saturar", () => {
+    const msgs: ChatMsg[] = [{ role: "system", content: "s" }, { role: "user", content: "u" }, ...Array.from({ length: 65 }, (_, i): ChatMsg => ({ role: "tool", content: "y".repeat(12_000), tool_call_id: String(i) }))];
+    compactToolResults(msgs);
+    const total = msgs.filter((m) => m.role === "tool").reduce((a, m) => a + m.content.length, 0);
+    expect(total).toBeLessThanOrEqual(120_000);
+    expect(msgs.at(-1)!.content.length).toBe(12_000);
   });
 });

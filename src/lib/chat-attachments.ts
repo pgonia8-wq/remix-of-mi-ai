@@ -71,6 +71,20 @@ export function shrinkForRetry(msgs: ChatMsg[]): boolean {
   msgs.splice(1, drop);
   return true;
 }
+/** Keeps the tool results of the current answer under ~120k characters, trimming the oldest first (newest 4 stay whole). */
+export function compactToolResults(msgs: ChatMsg[], budget = 120_000): void {
+  const lastUser = msgs.map((m) => m.role).lastIndexOf("user");
+  const idx = msgs.map((m, i) => (m.role === "tool" && i > lastUser ? i : -1)).filter((i) => i >= 0);
+  let total = idx.reduce((a, i) => a + msgs[i]!.content.length, 0);
+  for (const i of idx.slice(0, -4)) {
+    if (total <= budget) break;
+    const m = msgs[i]!;
+    if (m.content.length <= 800) continue;
+    const short = `${m.content.slice(0, 800)}\n[resultado anterior recortado para no llenar el contexto]`;
+    total -= m.content.length - short.length;
+    msgs[i] = { ...m, content: short };
+  }
+}
 /** Provider rejections caused by sending too much text in one request. */
 export function isContextOverflow(status: number | undefined, technical: string | undefined) {
   // 429 / "tokens per minute" are speed limits of the provider, not a too-long conversation: never blame the context for them.

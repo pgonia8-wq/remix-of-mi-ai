@@ -170,6 +170,9 @@ function ChatPage() {
           msgs.push({ role: "tool", tool_call_id: call.id, content: step.reply.slice(0, 12_000) });
         }
         setActivity(null);
+        // Many tool calls in one answer pile up their results: keep the newest whole, trim older ones early.
+        const { compactToolResults } = await import("@/lib/chat-attachments");
+        compactToolResults(msgs);
         if (out && !out.endsWith("\n")) out += "\n\n";
       }
       if (runId) await repo.sql.run("UPDATE auto_runs SET status='completed', phase='done', updated_at=? WHERE project_id=? AND id=?", [Date.now(), pid, runId]).catch(() => undefined);
