@@ -14,23 +14,19 @@ type KeystorePlugin = Parameters<typeof nativeBackend>[0] & { deviceInfo(): Prom
 export const MiaiKeystore = registerPlugin<KeystorePlugin>("MiaiKeystore");
 
 /**
- * Exact bytes [offset, offset+length) from a ranged response. The Android WebView local server may ignore the
- * end of the range (returning everything to EOF) or the whole Range header (200 with the full file).
+ * Exact bytes [offset, offset+length) of a file of `size` bytes from a ranged response. The Android WebView local
+ * server answers 206 with a Content-Range for the requested offset but streams the file from byte 0, and others
+ * ignore the end of the range or the whole header. Decide by the body length, never by the headers.
  */
-export function rangeSlice(status: number, contentRange: string | null, buf: Uint8Array, offset: number, length: number): Uint8Array {
-  let start = offset;
-  if (status === 206) {
-    const m = /bytes\s+(\d+)-/i.exec(contentRange ?? "");
-    start = m ? Number(m[1]) : offset;
-    if (start > offset) throw new Error("Lectura parcial inválida del archivo");
-    const out = buf.subarray(offset - start, offset - start + length);
-    if (out.length !== length) throw new Error("Lectura incompleta del archivo");
-    return out;
-  }
-  if (status !== 200) throw new Error(`No se pudo leer el archivo (HTTP ${status})`);
-  const out = buf.subarray(offset, offset + length);
-  if (out.length !== length) throw new Error("Lectura incompleta del archivo");
-  return out;
+export function rangeSlice(status: number, buf: Uint8Array, offset: number, length: number, size: number): { bytes: Uint8Array; whole: boolean } {
+  if (status !== 200 && status !== 206) throw new Error(`No se pudo leer el archivo (HTTP ${status})`);
+  let bytes: Uint8Array; let whole = false;
+  if (buf.length >= size && size > 0 && (status === 200 || buf.length !== length || offset === 0)) { bytes = buf.subarray(offset, offset + length); whole = true; }
+  else if (status === 206 && buf.length === length) bytes = buf;
+  else if (status === 206 && buf.length === size - offset) bytes = buf.subarray(0, length);
+  else throw new Error("Lectura parcial inválida del archivo");
+  if (bytes.length !== length) throw new Error("Lectura incompleta del archivo");
+  return { bytes, whole };
 }
 
 /** Native private-file backend: Directory.Data, append-only writes, ranged reads (no full-file load). */
@@ -57,13 +53,19 @@ function nativeFiles(): BlobBackend {
       const { Capacitor } = await import("@capacitor/core");
       const st = await Filesystem.stat({ path, directory: Directory.Data });
       const url = Capacitor.convertFileSrc(st.uri);
+      const size = Number(st.size);
+      let whole: Uint8Array | null = null;
       return {
-        size: Number(st.size),
+        size,
         async read(offset, length) {
           if (length === 0) return new Uint8Array(0);
+          if (whole) return whole.subarray(offset, offset + length);
           const r = await fetch(url, { cache: "no-store", headers: { Range: `bytes=${offset}-${offset + length - 1}` } });
           const buf = new Uint8Array(await r.arrayBuffer());
-          return rangeSlice(r.status, r.headers.get("content-range"), buf, offset, length);
+          const out = rangeSlice(r.status, buf, offset, length, size);
+          // The server sent the whole file: keep it for this source's next reads instead of refetching per block.
+          if (out.whole && size <= 96 * 1024 * 1024) whole = buf;
+          return out.bytes;
         },
       };
     },
