@@ -7,6 +7,7 @@ cd "$(dirname "$0")/.."
 VERSION_NAME="${VERSION_NAME:-$(node -p "require('./version.json').version")}"
 VERSION_CODE="${VERSION_CODE:-1}"
 
+python3 scripts/fetch-pyodide-packages.py
 CAPACITOR=1 npx vite build
 test -f dist/client/index.html || { echo "dist/client/index.html missing"; exit 1; }
 
