@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Download, Eye, ShieldCheck, Sparkles, Tag, Trash2, Upload, Wand2, X } from "lucide-react";
+import { Download, Eye, Share2, ShieldCheck, Sparkles, Tag, Trash2, Upload, Wand2, X } from "lucide-react";
+import { saveExport } from "@/lib/save-export";
+import { blobChunks, shareContent } from "@/lib/device";
 import { VISION_MIME } from "@/lib/core/adapters/vision";
 import { applyOp, describeOp, extFor, type ImageOp } from "@/lib/core/image-tools";
 import { toast } from "sonner";
@@ -81,7 +83,7 @@ async function importFiles(projectId: string, files: File[], mutate: ReturnType<
     if (!/^(image|audio)\//.test(f.type)) { toast.error(`${f.name}: solo imágenes o audio.`); continue; }
     if (f.size > MAX_IMPORT) { toast.error(`${f.name}: supera 100 MB.`); continue; }
     try {
-      await mutate(async (c) => c.assets.put(projectId, (async function* () { yield new Uint8Array(await f.arrayBuffer()); })(), { kind: f.type.split("/")[0]!, mime: f.type, name: f.name }));
+      await mutate(async (c) => c.assets.put(projectId, blobChunks(f), { kind: f.type.split("/")[0]!, mime: f.type, name: f.name }));
       ok++;
     } catch (e) { toast.error(`${f.name}: ${(e as Error).message}`); }
   }
@@ -248,7 +250,8 @@ function AssetDetail({ a, onClose, onOpen }: { a: Asset; onClose: () => void; on
           </div>
         )}
         <div className="grid grid-cols-3 gap-2">
-          <Button variant="outline" onClick={exportFile}><Download /> Exportar</Button>
+          <Button variant="outline" onClick={exportFile}><Download /> Guardar como</Button>
+          <Button variant="outline" onClick={shareFile}><Share2 /> Compartir en…</Button>
           <Button variant="outline" onClick={() => getCore().then((c) => c.assets.verify(a.project_id, a.id)).then(() => toast.success("Integridad verificada"), (e) => toast.error((e as Error).message))}><ShieldCheck /> Verificar</Button>
           <Button variant="outline" onClick={() => confirm("¿Eliminar este activo?") && mutate((c) => c.assets.remove(a.project_id, a.id)).then(onClose)}><Trash2 /> Borrar</Button>
         </div>
