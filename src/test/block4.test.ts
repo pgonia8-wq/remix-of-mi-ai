@@ -4,6 +4,7 @@
 import { beforeAll, afterAll, beforeEach, describe, expect, it } from "vitest";
 import initSqlJs from "sql.js";
 import net from "node:net";
+import crypto from "node:crypto";
 import os from "node:os";
 import fs from "node:fs";
 import path from "node:path";
@@ -482,14 +483,23 @@ describe("F2 · SOCKS5 y VPN en el PC Node", () => {
   it("VPN dividida: subredes validadas, cliente cifrado real, TCP de punta a punta y rechazo fuera de subred", async () => {
     expect(validSubnet("192.168.1.0/24")).toBe(true); expect(validSubnet("0.0.0.0/0")).toBe(false); expect(validSubnet("10.0.0.0/7")).toBe(false);
     const relay = await import(/* @vite-ignore */ path.resolve("pc-node/relay.mjs"));
-    let client: { sock: net.Socket; got: Buffer[]; seal: (b: Buffer) => Buffer } | null = null;
+    let client: { sock: net.Socket; got: Buffer[]; seal: (b: Buffer) => Buffer } | null = null, vpnKey: Buffer | null = null;
     const fakeTunnel = { forwardLocal: async () => ({ id: "f1", port: 40001, expiresAt: Date.now() + 60_000 }), forwardRemote: async () => ({ id: "f2", port: 8022, expiresAt: Date.now() + 60_000 }), socksDynamic: async () => ({ id: "f3", port: 40003, expiresAt: Date.now() + 60_000, user: "u", pass: "p" }), closeForward: async () => {}, listForwards: async () => ({ forwards: [] }) };
     const fakeVpn = {
       // Simulates MiaiVpnService.java: connects to the node and speaks the encrypted frame protocol.
       start: async (o: { host: string; port: number; key: string }) => {
-        const key = Buffer.from(o.key, "base64"), sock = net.connect(o.port, o.host), seal = relay.frameSealer(key, 0), got: Buffer[] = [];
-        const ready = new Promise<void>((res) => { let hello = false; sock.on("data", relay.frameOpener(key, 1, (pt: Buffer) => { if (!hello) { hello = true; res(); } else got.push(pt); })); });
-        sock.on("connect", () => sock.write(seal(relay.VPN_HELLO))); await ready; client = { sock, got, seal };
+        // Same handshake as MiaiVpnService.java: read node salt, send phone salt + sealed hello under the derived key.
+        const key = Buffer.from(o.key, "base64"), sock = net.connect(o.port, o.host), got: Buffer[] = [], phoneSalt = crypto.randomBytes(32);
+        let seal: (b: Buffer) => Buffer = () => Buffer.alloc(0);
+        await new Promise<void>((res) => { let pre = Buffer.alloc(0), reader: ((b: Buffer) => void) | null = null, hello = false;
+          sock.on("data", (d: Buffer) => {
+            if (reader) return reader(d);
+            pre = Buffer.concat([pre, d]); if (pre.length < 32) return;
+            const k = relay.vpnSessionKey(key, pre.subarray(0, 32), phoneSalt); seal = relay.frameSealer(k, 0);
+            reader = relay.frameOpener(k, 1, (pt: Buffer) => { if (!hello) { hello = true; res(); } else got.push(pt); });
+            sock.write(Buffer.concat([phoneSalt, seal(relay.VPN_HELLO)])); const rest = pre.subarray(32); if (rest.length) reader!(rest);
+          }); });
+        vpnKey = key; client = { sock, got, seal };
       },
       stop: async () => { client?.sock.destroy(); }, status: async () => ({ state: client ? "activa" : "detenida", expiresAt: 0 }),
     };
@@ -511,6 +521,12 @@ describe("F2 · SOCKS5 y VPN en el PC Node", () => {
     c.got.length = 0; send(F.SYN, 5000, 0, Buffer.alloc(0), "8.8.8.8", 53);
     await wait(() => c.got.length > 0);
     expect(relay.parsePacket(c.got[0]).flags & F.RST).toBe(F.RST);
+    // Replay protection: the listener is single-use, and even a raw replay of the old stream would face a new node salt.
+    const row = (await tunnels.list(repo, p)).find((x) => x.id === t)!;
+    const replay = net.connect(row.port!, "127.0.0.1"); const refused = await new Promise<boolean>((res) => { replay.on("error", () => res(true)); replay.on("close", () => res(true)); replay.on("data", () => res(false)); setTimeout(() => res(false), 1500); });
+    expect(refused).toBe(true); replay.destroy();
+    const sA = relay.vpnSessionKey(vpnKey!, Buffer.alloc(32, 1), Buffer.alloc(32, 2)), sB = relay.vpnSessionKey(vpnKey!, Buffer.alloc(32, 3), Buffer.alloc(32, 2));
+    expect(sA.equals(sB)).toBe(false);
     await tunnels.close(repo, p, t);
     expect((await tunnels.list(repo, p)).find((x) => x.id === t)!.status).toBe("cerrado");
   });

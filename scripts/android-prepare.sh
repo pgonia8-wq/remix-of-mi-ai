@@ -65,6 +65,8 @@ cp scripts/native/MiaiMediaPlugin.java "$JAVA_DIR/MiaiMediaPlugin.java"
 cp scripts/native/MiaiTunnelPlugin.java "$JAVA_DIR/MiaiTunnelPlugin.java"
 cp scripts/native/MiaiVpnPlugin.java "$JAVA_DIR/MiaiVpnPlugin.java"
 cp scripts/native/MiaiVpnService.java "$JAVA_DIR/MiaiVpnService.java"
+cp scripts/native/MiaiDevicePlugin.java "$JAVA_DIR/MiaiDevicePlugin.java"
+cp scripts/native/MiaiWorkService.java "$JAVA_DIR/MiaiWorkService.java"
 cp scripts/native/MainActivity.java "$JAVA_DIR/MainActivity.java"
 grep -q 'com.github.mwiede:jsch' android/app/build.gradle || printf '\ndependencies { implementation "com.github.mwiede:jsch:2.28.2" }\n' >> android/app/build.gradle
 grep -q 'media3-transformer' android/app/build.gradle || printf '\ndependencies { implementation "androidx.media3:media3-transformer:1.5.1"; implementation "androidx.media3:media3-effect:1.5.1" }\n' >> android/app/build.gradle
@@ -81,3 +83,17 @@ echo "Android project ready: version ${VERSION_NAME} (${VERSION_CODE})"
 M=android/app/src/main/AndroidManifest.xml
 grep -q FOREGROUND_SERVICE_SPECIAL_USE $M || sed -i 's#<application#<uses-permission android:name="android.permission.FOREGROUND_SERVICE" /><uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />\n    <application#' $M
 grep -q MiaiVpnService $M || sed -i 's#</application>#<service android:name=".MiaiVpnService" android:permission="android.permission.BIND_VPN_SERVICE" android:exported="false" android:foregroundServiceType="specialUse"><intent-filter><action android:name="android.net.VpnService" /></intent-filter><property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="vpn" /></service>\n    </application>#' $M
+
+# Agents keep working with the screen off: user-visible foreground notice + bounded wake lock while a run is driven.
+grep -q WAKE_LOCK $M || sed -i 's#<application#<uses-permission android:name="android.permission.WAKE_LOCK" />\n    <application#' $M
+grep -q MiaiWorkService $M || sed -i 's#</application>#<service android:name=".MiaiWorkService" android:exported="false" android:foregroundServiceType="specialUse"><property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="ai_agent_run" /></service>\n    </application>#' $M
+# Receive files/text from other apps ("Compartir en… MI AI").
+grep -q 'android.intent.action.SEND"' $M || sed -i '0,/<\/activity>/s#</activity>#<intent-filter><action android:name="android.intent.action.SEND" /><category android:name="android.intent.category.DEFAULT" /><data android:mimeType="*/*" /></intent-filter><intent-filter><action android:name="android.intent.action.SEND_MULTIPLE" /><category android:name="android.intent.category.DEFAULT" /><data android:mimeType="*/*" /></intent-filter>\n        </activity>#' $M
+# "Compartir en…" only exposes files from the app cache through Capacitor's FileProvider.
+mkdir -p android/app/src/main/res/xml
+cat > android/app/src/main/res/xml/file_paths.xml <<'XML'
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <cache-path name="miai_cache" path="." />
+</paths>
+XML

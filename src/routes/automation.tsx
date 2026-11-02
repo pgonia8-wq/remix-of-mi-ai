@@ -11,6 +11,7 @@ import { planFlow } from "@/lib/automation/planner";
 import { delegatePlan, runUntilPause, schedules } from "@/lib/automation/control";
 import { reviewRun } from "@/lib/automation/review";
 import { AdaptiveRuns } from "@/components/AdaptiveRuns";
+import { ReactionsPanel } from "@/components/ReactionsPanel";
 
 export const Route = createFileRoute("/automation")({ head: () => ({ meta: [
   { title: "Automatización — MI AI" }, { name: "description", content: "Flujos multimodelo con aprobaciones, condiciones e historial local." },
@@ -33,8 +34,8 @@ function Automation({ pid }: { pid: string }) {
   async function action(fn: Parameters<typeof mutate>[0]) { setBusy(true); try { await mutate(fn); } catch (e) { toast.error(e instanceof Error ? e.message : "No se pudo completar."); } finally { setBusy(false); } }
   return <div className="space-y-4 p-4">
     <div className="flex items-center justify-between"><h1 className="text-2xl font-bold">Automatización</h1><Button aria-label="Nuevo flujo" onClick={() => { open(); setTab("flows"); }}><Plus /></Button></div>
-    <div className="flex flex-wrap gap-2"><Button variant={tab === "flows" ? "default" : "outline"} onClick={() => setTab("flows")}>Flujos</Button><Button variant={tab === "history" ? "default" : "outline"} onClick={() => setTab("history")}>Historial</Button><Button variant={tab === "adaptive" ? "default" : "outline"} onClick={() => setTab("adaptive")}>Agente adaptativo</Button></div>
-    {tab === "adaptive" ? <AdaptiveRuns projectId={pid} /> : tab === "history" ? <div className="space-y-3">{history.filter((r) => !(JSON.parse(r.definition) as Flow).autonomous).map((r) => <RunItem key={r.id} pid={pid} run={r} busy={busy} action={action} />)}{!history.length && <p className="text-sm text-muted-foreground">Sin ejecuciones.</p>}</div> : edit ? <div className="space-y-3">
+    <div className="flex flex-wrap gap-2"><Button variant={tab === "flows" ? "default" : "outline"} onClick={() => setTab("flows")}>Flujos</Button><Button variant={tab === "history" ? "default" : "outline"} onClick={() => setTab("history")}>Historial</Button><Button variant={tab === "adaptive" ? "default" : "outline"} onClick={() => setTab("adaptive")}>Agente adaptativo</Button><Button variant={tab === "reactions" ? "default" : "outline"} onClick={() => setTab("reactions")}>Reacciones</Button></div>
+    {tab === "reactions" ? <ReactionsPanel pid={pid} /> : tab === "adaptive" ? <AdaptiveRuns projectId={pid} /> : tab === "history" ? <div className="space-y-3">{history.filter((r) => !(JSON.parse(r.definition) as Flow).autonomous).map((r) => <RunItem key={r.id} pid={pid} run={r} busy={busy} action={action} />)}{!history.length && <p className="text-sm text-muted-foreground">Sin ejecuciones.</p>}</div> : edit ? <div className="space-y-3">
       <label className="block text-sm">Nombre del flujo<input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} /></label>
       <label className="block text-sm">Máximo de solicitudes<input type="number" className={inputCls} min={1} max={20} value={flow.maxCalls} onChange={(e) => setFlow({ ...flow, maxCalls: Number(e.target.value) })} /></label>
       {flow.steps.map((s, i) => <div key={s.id} className="space-y-2 border-l-2 border-primary pl-3">

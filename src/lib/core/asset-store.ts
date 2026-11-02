@@ -1,6 +1,6 @@
 // Universal asset library. Encrypted bytes live outside SQLite (private files on Android); rows hold metadata.
 import type { SqlDb } from "../db/sql";
-import { encryptAsset, readAll, verifyAsset, newDek, type ByteSource } from "./asset-crypto";
+import { encryptAsset, readAll, verifyAsset, decryptAsset, newDek, type ByteSource } from "./asset-crypto";
 import type { KeyRing } from "./keys";
 import type { PerfProfile } from "./device-profile";
 import { exclusive } from "./operation-lock";
@@ -25,6 +25,9 @@ export type NewAsset = {
 };
 
 export class AssetError extends Error {}
+/** Listeners for newly stored assets (automatic reactions). Errors in listeners never affect the write. */
+const addedListeners = new Set<(a: Asset) => void>();
+export function onAssetAdded(cb: (a: Asset) => void) { addedListeners.add(cb); return () => { addedListeners.delete(cb); }; }
 const now = () => Date.now();
 function need(projectId: string) { if (!projectId) throw new AssetError("projectId requerido"); }
 const kindOf = (mime: string) => mime.split("/")[0] === "application" ? "document" : mime.split("/")[0]!;
@@ -77,6 +80,7 @@ export class AssetStore {
         [row.id, row.project_id, row.kind, row.mime, row.format, row.size, row.path, row.key_id, row.wrapped_dek, row.enc_state, row.provider_id, row.model_id, row.capability_id, row.prompt, row.params, row.job_id, row.parent_id, row.version, row.name, row.created_at],
       );
       if (meta.parentId) await this.relate(projectId, meta.parentId, id, "version", meta.jobId ?? null);
+      for (const l of addedListeners) queueMicrotask(() => { try { l(row); } catch { /* reactions never break storage */ } });
       return row;
     } catch (e) {
       // Roll back the row too (e.g. relate failed after INSERT) so no metadata points at a deleted file.
@@ -122,6 +126,15 @@ export class AssetStore {
     const dek = await this.keys.unwrapDek(a.key_id, a.wrapped_dek, a.id, a.project_id);
     try { return await readAll(await this.fs.source(a.path), { assetId: a.id, projectId: a.project_id }, dek); }
     catch (e) { await this.db.run(`UPDATE assets SET enc_state='corrupt' WHERE id=? AND project_id=?`, [id, projectId]); throw e; }
+    finally { dek.fill(0); }
+  }
+  /** Bounded-memory plaintext stream for large files: the whole file is authenticated first, then rereads are pinned by digest. */
+  async *stream(projectId: string, id: string): AsyncGenerator<Uint8Array> {
+    const a = await this.get(projectId, id);
+    if (!a) throw new AssetError("Activo no pertenece al proyecto");
+    const dek = await this.keys.unwrapDek(a.key_id, a.wrapped_dek, a.id, a.project_id);
+    try { yield* decryptAsset(await this.fs.source(a.path), { assetId: a.id, projectId: a.project_id }, dek); }
+    catch (e) { if (e instanceof Error && /cambi|integr|autentic/i.test(e.message + e.name)) await this.db.run(`UPDATE assets SET enc_state='corrupt' WHERE id=? AND project_id=?`, [id, projectId]).catch(() => undefined); throw e; }
     finally { dek.fill(0); }
   }
   async verify(projectId: string, id: string) {

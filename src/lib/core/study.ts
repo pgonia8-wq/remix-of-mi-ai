@@ -46,3 +46,50 @@ export const cards = {
   },
   removeDeck: (db: SqlDb, projectId: string, deck: string) => { need(projectId); return db.run(`DELETE FROM flashcards WHERE project_id=? AND deck=?`, [projectId, deck]); },
 };
+
+// ---------- Adaptive tutor: a learner model per concept that adjusts difficulty and focus ----------
+export type Progress = { project_id: string; topic: string; concept: string; mastery: number; level: number; attempts: number; correct: number; streak: number; updated_at: number };
+export type TutorQ = QuizQ & { concept: string; hint: string; level: number };
+
+/** Mastery moves toward 1 on correct answers and toward 0 on mistakes; harder questions weigh more when right,
+ * easier ones weigh more when wrong (Elo-like). Level 1–5 follows mastery, with streaks speeding it up. */
+export function updateMastery(p: Pick<Progress, "mastery" | "level" | "streak">, correct: boolean, usedHint = false) {
+  const diff = (p.level - 1) / 4, k = 0.35;
+  const expected = 1 / (1 + Math.exp(-6 * (p.mastery - diff)));
+  const score = correct ? (usedHint ? 0.6 : 1) : 0;
+  const mastery = Math.min(1, Math.max(0, p.mastery + k * (score - expected)));
+  const streak = correct ? Math.max(1, p.streak + 1) : Math.min(-1, p.streak - 1);
+  let level = Math.round(1 + mastery * 4);
+  if (streak >= 3) level = Math.min(5, Math.max(level, p.level + 1));
+  if (streak <= -2) level = Math.max(1, Math.min(level, p.level - 1));
+  return { mastery: Math.round(mastery * 1000) / 1000, level: Math.min(5, Math.max(1, level)), streak };
+}
+/** Next concept to practice: the weakest one, avoiding repeating the very last concept when there are others. */
+export function pickConcept(list: Pick<Progress, "concept" | "mastery" | "updated_at">[], last?: string) {
+  if (!list.length) return null;
+  const sorted = [...list].sort((a, b) => a.mastery - b.mastery || a.updated_at - b.updated_at);
+  return (sorted.find((x) => x.concept !== last) ?? sorted[0]!).concept;
+}
+export function validateTutorQ(raw: unknown, level: number): TutorQ {
+  const [q] = validateQuiz([raw]);
+  const r = raw as { concept?: unknown; hint?: unknown };
+  const concept = String(r?.concept ?? "").trim().slice(0, 80);
+  if (!concept) throw new Error("El modelo no indicó el concepto.");
+  return { ...q!, concept, hint: String(r?.hint ?? "").slice(0, 400), level };
+}
+export const progress = {
+  list: (db: SqlDb, projectId: string, topic: string) => { need(projectId); return db.all<Progress>(`SELECT * FROM study_progress WHERE project_id=? AND topic=? ORDER BY mastery`, [projectId, topic]); },
+  topics: (db: SqlDb, projectId: string) => { need(projectId); return db.all<{ topic: string; mastery: number; concepts: number }>(`SELECT topic, AVG(mastery) AS mastery, COUNT(*) AS concepts FROM study_progress WHERE project_id=? GROUP BY topic ORDER BY MAX(updated_at) DESC`, [projectId]); },
+  async seed(db: SqlDb, projectId: string, topic: string, concepts: string[], level = 2) {
+    need(projectId);
+    for (const c of concepts.slice(0, 12)) await db.run(`INSERT OR IGNORE INTO study_progress VALUES (?,?,?,?,?,0,0,0,?)`, [projectId, topic, c.trim().slice(0, 80), (level - 1) / 4, level, Date.now()]);
+  },
+  async record(db: SqlDb, projectId: string, topic: string, concept: string, correct: boolean, usedHint = false) {
+    need(projectId);
+    const [cur] = await db.all<Progress>(`SELECT * FROM study_progress WHERE project_id=? AND topic=? AND concept=?`, [projectId, topic, concept]);
+    const base = cur ?? { mastery: 0.25, level: 2, streak: 0, attempts: 0, correct: 0 };
+    const n = updateMastery(base, correct, usedHint);
+    await db.run(`INSERT OR REPLACE INTO study_progress VALUES (?,?,?,?,?,?,?,?,?)`, [projectId, topic, concept, n.mastery, n.level, base.attempts + 1, base.correct + (correct ? 1 : 0), n.streak, Date.now()]);
+    return n;
+  },
+};

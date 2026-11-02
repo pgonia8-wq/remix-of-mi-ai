@@ -60,12 +60,13 @@ function Research() {
       {res && (
         <section className="space-y-2 rounded-xl border bg-card p-3">
           {res.invalidCitations.length > 0 && <p className="rounded-md bg-destructive/15 p-2 text-xs text-destructive">Atención: el informe cita fuentes inexistentes ({res.invalidCitations.map((n) => `[${n}]`).join(", ")}). Verifica esas afirmaciones.</p>}
+          {res.checks.length > 0 && <p className={`rounded-md p-2 text-xs ${res.checks.some((c) => c.status === "sin respaldo" || c.status === "sin cita") ? "bg-destructive/15 text-destructive" : "bg-primary/10 text-primary"}`}>Verificación: {res.checks.filter((c) => c.status === "respaldada").length} de {res.checks.length} afirmaciones respaldadas por su fuente{res.checks.filter((c) => c.status === "parcial").length ? `, ${res.checks.filter((c) => c.status === "parcial").length} parciales` : ""}{res.checks.filter((c) => c.status === "sin respaldo" || c.status === "sin cita").length ? `, ${res.checks.filter((c) => c.status === "sin respaldo" || c.status === "sin cita").length} sin respaldo (marcadas con ⚠️)` : ""}.</p>}
           <Markdown text={res.report} />
           <div className="space-y-1 border-t pt-2">
             {res.sources.map((s, i) => <a key={s.url} href={s.url} target="_blank" rel="noreferrer noopener" className="block truncate text-xs text-primary underline">[{i + 1}] {s.title}{s.read ? " · leída" : ""}</a>)}
           </div>
           <p className="text-[10px] text-muted-foreground">Búsquedas ({res.rounds} {res.rounds > 1 ? "rondas" : "ronda"}): {res.queries.join(" · ")}. {res.sources.filter((x) => x.read).length} páginas leídas completas. Guardado cifrado en la Biblioteca con la etiqueta «investigación».</p>
-          <div className="grid grid-cols-3 gap-1">{(["pdf", "docx", "md"] as const).map((f) => <Button key={f} size="sm" variant="outline" onClick={() => exp(f)}>{f.toUpperCase()}</Button>)}</div>
+          <div className="grid grid-cols-5 gap-1">{(["pdf", "docx", "odt", "rtf", "md"] as const).map((f) => <Button key={f} size="sm" variant="outline" onClick={() => exp(f)}>{f.toUpperCase()}</Button>)}</div>
         </section>
       )}
     </div>

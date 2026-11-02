@@ -2,7 +2,7 @@
 // Both accept only the paired phone's IP and only allowlisted destinations. No public proxy, no admin rights.
 import net from "node:net";
 import dgram from "node:dgram";
-import { createCipheriv, createDecipheriv, timingSafeEqual } from "node:crypto";
+import { createCipheriv, createDecipheriv, timingSafeEqual, hkdfSync, randomBytes } from "node:crypto";
 
 // ---------- CIDR helpers (IPv4) ----------
 export const ipToInt = (ip) => { const p = ip.split(".").map(Number); if (p.length !== 4 || p.some((x) => !Number.isInteger(x) || x < 0 || x > 255)) return null; return ((p[0] << 24) >>> 0) + (p[1] << 16) + (p[2] << 8) + p[3]; };
@@ -138,22 +138,44 @@ export function createNat({ cidrs, send, onLog }) {
   };
 }
 
-export const VPN_HELLO = Buffer.from("miai-vpn-1");
-/** One VPN client at a time, from the paired phone only. The first frame must decrypt to VPN_HELLO. */
+export const VPN_HELLO = Buffer.from("miai-vpn-2");
+export const VPN_SALT = 32;
+/** Per-connection key: HKDF-SHA256(session key, node salt || phone salt). Fresh salts on both sides mean a recorded
+ * stream can never be replayed into a new connection, and nonces (direction || counter) are never reused under one key. */
+export const vpnSessionKey = (key, nodeSalt, phoneSalt) => Buffer.from(hkdfSync("sha256", key, Buffer.concat([nodeSalt, phoneSalt]), Buffer.from("miai-vpn-2 session"), 32));
+/** Single-use listener for the paired phone only. Handshake: node sends a random salt, the phone answers with its own
+ * salt plus the first sealed frame (VPN_HELLO) under the derived key. After one authenticated client the listener
+ * stops accepting connections, so a captured stream cannot be replayed later within the session lifetime. */
 export async function startVpn({ host, peerIp, key, cidrs, onLog }) {
-  let active = null;
+  let active = null, used = false, listening = true;
   const srv = net.createServer((sock) => {
     const from = (sock.remoteAddress || "").replace(/^::ffff:/, "");
-    if ((peerIp && from !== peerIp) || active) { onLog?.({ event: "rechazada", from }); sock.destroy(); return; }
-    active = sock; const sealOut = frameSealer(key, 1); let hello = false, nat = null;
+    if ((peerIp && from !== peerIp) || active || used) { onLog?.({ event: "rechazada", from }); sock.destroy(); return; }
+    active = sock; const nodeSalt = randomBytes(VPN_SALT); sock.write(nodeSalt);
+    let pre = Buffer.alloc(0), reader = null, hello = false, nat = null;
     const done = () => { nat?.close(); if (active === sock) active = null; };
-    const reader = frameOpener(key, 0, (pt) => {
-      if (!hello) { if (!pt.equals(VPN_HELLO)) throw new Error("hello"); hello = true; nat = createNat({ cidrs, onLog, send: (pkt) => sock.write(sealOut(pkt)) }); sock.write(sealOut(VPN_HELLO)); onLog?.({ event: "vpn conectada", from }); return; }
-      nat.input(pt);
+    const timer = setTimeout(() => { if (!hello) { onLog?.({ event: "autenticación fallida", from }); sock.destroy(); } }, 15_000);
+    sock.on("data", (d) => {
+      try {
+        if (!reader) {
+          pre = Buffer.concat([pre, d]); if (pre.length < VPN_SALT) return;
+          const k = vpnSessionKey(key, nodeSalt, pre.subarray(0, VPN_SALT)); const sealOut = frameSealer(k, 1);
+          reader = frameOpener(k, 0, (pt) => {
+            if (!hello) {
+              if (pt.length !== VPN_HELLO.length || !timingSafeEqual(pt, VPN_HELLO)) throw new Error("hello");
+              hello = true; used = true; clearTimeout(timer);
+              if (listening) { listening = false; srv.close(); } // single use: no further connections are accepted
+              nat = createNat({ cidrs, onLog, send: (pkt) => sock.write(sealOut(pkt)) }); sock.write(sealOut(VPN_HELLO)); onLog?.({ event: "vpn conectada", from }); return;
+            }
+            nat.input(pt);
+          });
+          const rest = pre.subarray(VPN_SALT); pre = Buffer.alloc(0); if (rest.length) reader(rest); return;
+        }
+        reader(d);
+      } catch { onLog?.({ event: "autenticación fallida", from }); sock.destroy(); }
     });
-    sock.on("data", (d) => { try { reader(d); } catch { onLog?.({ event: "autenticación fallida", from }); sock.destroy(); } });
-    sock.on("close", done); sock.on("error", done);
+    sock.on("close", () => { clearTimeout(timer); done(); }); sock.on("error", done);
   });
   await new Promise((res, rej) => { srv.once("error", rej); srv.listen(0, host, res); });
-  return { port: srv.address().port, close: () => new Promise((r) => { active?.destroy(); srv.close(() => r()); }) };
+  return { port: srv.address().port, close: () => new Promise((r) => { active?.destroy(); if (!listening) return r(); listening = false; srv.close(() => r()); }) };
 }

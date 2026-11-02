@@ -15,6 +15,7 @@ import { workingMemory } from "./working-memory";
 import { localWs } from "./local-workspace";
 import { scrubSecrets } from "../db/repo";
 import { phoneTools } from "./phone-tools";
+import { officeTools } from "./office-tools";
 
 export type Family = "ia" | "investigacion" | "ingenieria" | "desarrollo" | "infraestructura" | "datos" | "multimedia" | "productividad";
 export type Permission = "provider" | "network" | "local.write" | "pc.read" | "pc.write" | "pc.exec" | "remote" | "tunnel" | "memory" | "sensitive";
@@ -230,7 +231,7 @@ export const TOOL_REGISTRY: ToolDef[] = [
   provider("music.generate", "Generar música", "multimedia", "music.generate"),
   provider("model3d.generate", "Generar modelo 3D", "multimedia", "model3d.generate"),
   { id: "doc.create", name: "Crear documento", description: "Crea en el teléfono un PDF, Word, Excel, PowerPoint o Markdown a partir de Markdown (títulos, listas y tablas).", family: "productividad",
-    input: z.object({ title: z.string().min(1).max(160), format: z.enum(["pdf", "docx", "xlsx", "pptx", "md"]), markdown: z.string().min(1).max(200_000) }).strict(), output: "archivo",
+    input: z.object({ title: z.string().min(1).max(160), format: z.enum(["pdf", "docx", "xlsx", "pptx", "odt", "rtf", "md"]), markdown: z.string().min(1).max(200_000) }).strict(), output: "archivo",
     permissions: ["local.write"], network: false, cost: "none", maxCalls: 20, timeoutMs: 120_000, parallel: false, env: ["android"], risk: "low", approval: "never", sideEffect: true, roles: "all",
     availability: ok,
     run: async (ctx, i) => {
@@ -279,6 +280,8 @@ export const TOOL_REGISTRY: ToolDef[] = [
       remove: async (c, path) => { if (onPhone(c)) await localWs.remove(c.core.repo, c.projectId, path); else await pcFiles.remove(c.core.repo, c.projectId, c.folderId!, path); },
     },
   }),
+  // K. Documentos de Office, hojas con fórmulas, render de video y rigging 3D.
+  ...officeTools(ToolRejected),
 ];
 export const TOOL_IDS = TOOL_REGISTRY.map((t) => t.id);
 export const getTool = (id: string) => TOOL_REGISTRY.find((t) => t.id === id) ?? null;

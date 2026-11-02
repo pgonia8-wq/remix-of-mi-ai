@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { takeChatHandoff } from "@/lib/share-handoff";
+import { shareContent } from "@/lib/device";
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Square, Plus, Copy, Check, ThumbsUp, ThumbsDown, RotateCcw, Pencil, FileText, X, Sparkles, ArrowDown } from "lucide-react";
+import { ArrowUp, Square, Plus, Copy, Check, Share2, ThumbsUp, ThumbsDown, RotateCcw, Pencil, FileText, X, Sparkles, ArrowDown } from "lucide-react";
 import { toast } from "sonner";
 import { getRepo } from "@/lib/app-db";
 import { streamChat, supportsChatTools, ProviderError, type ChatMsg } from "@/lib/providers";
@@ -56,6 +58,7 @@ function ChatPage() {
   const [approval, setApproval] = useState<{ summary: string; resolve: (ok: boolean) => void } | null>(null);
   const running = busy || streaming !== null;
   useEffect(() => () => { abort.current?.abort(); }, [chatId]);
+  useEffect(() => { const h = takeChatHandoff(chatId); if (h) { if (h.text) setInput(h.text); if (h.files.length) setFiles(h.files.slice(0, 8)); } }, [chatId]);
   useEffect(() => { const el = composer.current; if (el) { el.style.height = "auto"; el.style.height = `${Math.min(el.scrollHeight, 180)}px`; } }, [input]);
   useEffect(() => {
     end.current?.scrollIntoView?.();
@@ -235,6 +238,7 @@ function ChatPage() {
             {editing === m.id ? <div className="space-y-2"><textarea aria-label="Editar mensaje" className={inputCls} rows={4} value={editText} onChange={(e) => setEditText(e.target.value)} /><div className="flex gap-2"><Button size="sm" onClick={async () => { await mutate((r) => r.updateMessage(pid, m.id, editText.trim())); setEditing(null); }}>Guardar</Button><Button size="sm" variant="ghost" onClick={() => setEditing(null)}>Cancelar</Button></div></div> : m.role === "user" ? <div className="rounded-3xl bg-secondary px-5 py-3 text-[15px] leading-7"><p className="whitespace-pre-wrap break-words">{m.content}</p></div> : (() => { const sp = splitRunMarkers(m.content); return <>{sp.text && <ChatMarkdown text={sp.text} />}{sp.runIds.map((id) => <AutoRunInline key={id} pid={pid} runId={id} />)}</>; })()}
             <div className={`mt-2 flex items-center gap-0.5 ${m.role === "user" ? "justify-end" : ""}`}>
               <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground" aria-label="Copiar mensaje" title="Copiar mensaje" onClick={() => navigator.clipboard.writeText(splitRunMarkers(m.content).text).then(() => { setCopied(m.id); setTimeout(() => setCopied(null), 1800); }).catch(() => toast.error("No se pudo copiar."))}>{copied === m.id ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}</Button>
+              <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground" aria-label="Compartir mensaje" title="Compartir en…" onClick={() => shareContent({ text: splitRunMarkers(m.content).text, title: "MI AI" }).catch((e) => { if (!(e instanceof DOMException && e.name === "AbortError")) toast.error("No se pudo compartir."); })}><Share2 className="h-4 w-4" /></Button>
               {m.role === "user" ? <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground" disabled={running} aria-label="Editar mensaje" title="Editar mensaje" onClick={() => { setEditing(m.id); setEditText(m.content); }}><Pencil className="h-4 w-4" /></Button> : <>
                 <Button size="icon" variant="ghost" className={`h-8 w-8 ${vote === "like" ? "text-primary" : "text-muted-foreground"}`} aria-label="Buena respuesta" title="Buena respuesta" onClick={() => mutate((r) => r.setMessageFeedback(pid, m.id, vote === "like" ? null : "like"))}><ThumbsUp className="h-4 w-4" /></Button>
                 <Button size="icon" variant="ghost" className={`h-8 w-8 ${vote === "dislike" ? "text-destructive" : "text-muted-foreground"}`} aria-label="Mala respuesta" title="Mala respuesta" onClick={() => mutate((r) => r.setMessageFeedback(pid, m.id, vote === "dislike" ? null : "dislike"))}><ThumbsDown className="h-4 w-4" /></Button>

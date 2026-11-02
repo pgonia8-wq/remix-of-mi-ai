@@ -10,14 +10,14 @@ export const CHAT_TOOLS = [
   // Investigación e internet
   "research.web", "research.deep", "web.fetch", "web.download", "http.request",
   // Documentos y datos
-  "doc.create", "doc.read", "media.ocr", "data.analyze", "chart.create", "db.list", "db.sql",
+  "doc.create", "doc.read", "doc.outline", "doc.edit", "sheet.compute", "media.ocr", "data.analyze", "chart.create", "db.list", "db.sql",
   // Archivos del espacio de trabajo
   "fs.list", "fs.read", "fs.write", "fs.patch", "fs.move", "fs.delete", "fs.search", "fs.versions", "code.symbols", "code.refs", "text.diff",
   "ws.snapshot", "ws.restore", "archive.create", "archive.extract", "files.export", "files.attach", "assets.list",
   // Código
   "code.js", "code.ts", "code.python", "code.run", "code.file", "quality.run",
   // Medios locales
-  "image.process", "audio.convert", "cad.create", "qr.generate",
+  "image.process", "audio.convert", "cad.create", "rig.edit", "video.render", "qr.generate",
   // Productividad
   "note.save", "task.add", "reminder.add", "schedule.add", "notify.now", "memory.search", "memory.save",
   // Sistema
@@ -36,7 +36,11 @@ const HINTS: Record<string, string> = {
   "model3d.generate": "Crea un modelo 3D GLB con IA. `text` = descripción del objeto. Para piezas con medidas exactas usa cad.create.",
   "research.web": "Busca en internet. `text` = consulta breve. Cita las fuentes devueltas.",
   "research.deep": "Investigación de varias rondas con lectura de fuentes y citas. `text` = pregunta completa.",
-  "doc.create": "Crea un archivo PDF, Word (docx), Excel (xlsx, usa tablas Markdown), PowerPoint (pptx, una diapositiva por título) o Markdown.",
+  "doc.edit": "Edita un Word o PowerPoint existente sin perder su diseño (textos, notas del orador, orden y borrado de diapositivas). Primero doc.outline para ver índices.",
+  "sheet.compute": "Hojas de cálculo con fórmulas reales que se recalculan; puede partir de un Excel adjunto y guardar el resultado.",
+  "video.render": "Renderiza la línea de tiempo (clips con recortes, subtítulos, formato). En el teléfono solo cortes; transiciones con target=pc.",
+  "rig.edit": "Agrega huesos, piel con uniones suaves y keyframes con curvas a una malla o pieza CAD y exporta GLB animado.",
+  "doc.create": "Crea un archivo PDF, Word (docx), Excel (xlsx, usa tablas Markdown), PowerPoint (pptx, una diapositiva por título), ODT, RTF o Markdown.",
   "fs.write": "Escribe un archivo de texto en el espacio de trabajo. `baseHash`=null si es nuevo; si existe, primero fs.read y usa su hash.",
   "fs.patch": "Edita partes de un archivo existente: cada edición reemplaza un fragmento exacto (`find`) por `replace`.",
   "code.python": "Ejecuta Python 3 con biblioteca estándar, numpy, pandas, matplotlib y scipy (offline). Usa print(). Archivos adjuntos (assetIds) quedan en /in/; lo que guardes en /out/ (gráficas PNG, CSV, etc.) se adjunta al chat.",
@@ -48,7 +52,7 @@ export const TOOL_LABELS: Record<string, string> = {
   "image.generate": "Creando imagen", "image.edit": "Editando imagen", "image.upscale": "Mejorando imagen", "image.remove_bg": "Quitando fondo", "video.generate": "Creando video",
   "audio.tts": "Generando voz", "music.generate": "Creando música", "model3d.generate": "Creando modelo 3D", "audio.transcribe": "Transcribiendo audio", "audio.translate": "Traduciendo audio",
   "research.web": "Buscando en internet", "research.deep": "Investigando a fondo", "web.fetch": "Leyendo página web", "web.download": "Descargando archivo", "http.request": "Enviando petición HTTP",
-  "doc.create": "Creando documento", "doc.read": "Leyendo documento", "media.ocr": "Leyendo texto de la imagen", "data.analyze": "Analizando datos", "chart.create": "Creando gráfica",
+  "doc.create": "Creando documento", "doc.read": "Leyendo documento", "doc.outline": "Revisando documento", "doc.edit": "Editando documento", "sheet.compute": "Calculando hoja", "rig.edit": "Animando modelo 3D", "video.render": "Renderizando video", "media.ocr": "Leyendo texto de la imagen", "data.analyze": "Analizando datos", "chart.create": "Creando gráfica",
   "db.list": "Consultando bases de datos", "db.sql": "Ejecutando SQL",
   "fs.list": "Listando archivos", "fs.read": "Leyendo archivo", "fs.write": "Escribiendo archivo", "fs.patch": "Editando archivo", "fs.move": "Moviendo archivo", "fs.delete": "Eliminando archivo",
   "fs.search": "Buscando en archivos", "fs.versions": "Revisando versiones", "code.symbols": "Indexando código", "code.refs": "Buscando referencias", "text.diff": "Comparando",

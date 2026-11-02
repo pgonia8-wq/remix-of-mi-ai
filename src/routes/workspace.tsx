@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { blobChunks } from "@/lib/device";
 import { useRef, useState } from "react";
 import { Briefcase, File, FolderOpen, Plus, Star, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
@@ -41,7 +42,7 @@ function Workspace({ pid }: { pid: string }) {
     {tab !== "board" && <input aria-label="Buscar en espacio profesional" className={inputCls} placeholder="Buscar" value={q} onChange={(e) => setQ(e.target.value)} />}
     {tab === "tools" && <div className="grid grid-cols-2 gap-2">{[...LINKS].sort((a, b) => Number(favorites.some((f) => f.tool === b.to)) - Number(favorites.some((f) => f.tool === a.to))).filter((x) => x.label.toLowerCase().includes(q.toLowerCase())).map((x) => <div key={x.to} className="flex items-center gap-1 rounded-lg border bg-card p-2"><Link to={x.to} className="min-w-0 flex-1 break-words py-2 text-sm font-medium">{x.label}</Link><Button size="icon" variant="ghost" aria-label={`Favorito ${x.label}`} onClick={() => act((c) => workspace.favorite(c.repo, pid, x.to, !favorites.some((f) => f.tool === x.to)))}><Star className={favorites.some((f) => f.tool === x.to) ? "fill-primary text-primary" : "text-muted-foreground"} /></Button></div>)}</div>}
     {tab === "files" && <div className="space-y-3">
-      <input type="file" ref={upload} className="hidden" aria-label="Subir archivo profesional" onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; act(async (c) => { if (f.size > 50 * 1024 * 1024) throw new Error("Máximo 50 MB."); await c.assets.put(pid, (async function* () { yield new Uint8Array(await f.arrayBuffer()); })(), { kind: "document", mime: f.type || "application/octet-stream", name: f.name }); }); e.target.value = ""; }} />
+      <input type="file" ref={upload} className="hidden" aria-label="Subir archivo profesional" onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; act(async (c) => { if (f.size > 50 * 1024 * 1024) throw new Error("Máximo 50 MB."); await c.assets.put(pid, blobChunks(f), { kind: "document", mime: f.type || "application/octet-stream", name: f.name }); }); e.target.value = ""; }} />
       <Button variant="outline" disabled={busy} onClick={() => upload.current?.click()}><Upload />Subir archivo</Button>
       {files.filter((f) => (f.name ?? "").toLowerCase().includes(q.toLowerCase())).map((f) => <div key={f.id} className="space-y-2 rounded-lg border bg-card p-3">
         <div className="flex items-center gap-2"><File className="h-4 w-4 shrink-0 text-primary" /><span className="min-w-0 flex-1 break-words text-sm">{f.name ?? f.id}</span><span className="text-xs text-muted-foreground">v{f.version}</span></div>

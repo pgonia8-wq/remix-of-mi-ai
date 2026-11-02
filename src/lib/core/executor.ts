@@ -49,6 +49,13 @@ export async function execute(deps: { repo: Repo; jobs: JobManager; assets: Asse
   if (mask) throw new ProviderError("parameters", mask);
   if (!currentAdapter.supports(req.capability)) throw new ProviderError("parameters", `El adaptador ${currentAdapter.label} no implementa «${req.capability}». No se accedió a credenciales ni se creó un trabajo.`);
   if (!model.capabilities.includes(req.capability)) throw new ProviderError("parameters", `El modelo «${model.name}» no admite «${req.capability}». No se ejecutó ninguna solicitud.`);
+  if (req.capability === "audio.voice_clone") {
+    // Voice ownership must be proven on the phone (live phrase + same speaker) before samples leave the device.
+    const { verifications } = await import("./voices");
+    try { await verifications.assertUsable(deps.repo.sql, projectId, typeof req.params?.["verificationId"] === "string" ? req.params["verificationId"] as string : undefined); }
+    catch (e) { throw new ProviderError("parameters", (e as Error).message); }
+    await verifications.markUsed(deps.repo.sql, projectId, req.params!["verificationId"] as string);
+  }
   if (!req.existingJobId) await budgetGate(deps.repo, projectId, model.remote_id, usageFor(req.capability, req.prompt, req.params));
   const { creds, adapter: adapterId } = await credentialsFor(deps.repo, model.provider_id);
   const adapter = getAdapter(adapterId);

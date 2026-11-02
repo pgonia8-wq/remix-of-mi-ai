@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Download, Eye, ShieldCheck, Sparkles, Tag, Trash2, Upload, Wand2, X } from "lucide-react";
+import { Download, Eye, Share2, ShieldCheck, Sparkles, Tag, Trash2, Upload, Wand2, X } from "lucide-react";
+import { saveExport } from "@/lib/save-export";
+import { blobChunks, shareContent } from "@/lib/device";
 import { VISION_MIME } from "@/lib/core/adapters/vision";
 import { applyOp, describeOp, extFor, type ImageOp } from "@/lib/core/image-tools";
 import { toast } from "sonner";
@@ -9,7 +11,6 @@ import { getCore } from "@/lib/core";
 import { route, type RouteMode } from "@/lib/core/router";
 import { execute } from "@/lib/core/executor";
 import type { Asset } from "@/lib/core/asset-store";
-import { isNative } from "@/lib/app-db";
 import { NeedProject, inputCls } from "@/components/AppShell";
 import { AudioStudio } from "@/components/AudioStudio";
 import { Button } from "@/components/ui/button";
@@ -81,7 +82,7 @@ async function importFiles(projectId: string, files: File[], mutate: ReturnType<
     if (!/^(image|audio)\//.test(f.type)) { toast.error(`${f.name}: solo imágenes o audio.`); continue; }
     if (f.size > MAX_IMPORT) { toast.error(`${f.name}: supera 100 MB.`); continue; }
     try {
-      await mutate(async (c) => c.assets.put(projectId, (async function* () { yield new Uint8Array(await f.arrayBuffer()); })(), { kind: f.type.split("/")[0]!, mime: f.type, name: f.name }));
+      await mutate(async (c) => c.assets.put(projectId, blobChunks(f), { kind: f.type.split("/")[0]!, mime: f.type, name: f.name }));
       ok++;
     } catch (e) { toast.error(`${f.name}: ${(e as Error).message}`); }
   }
@@ -166,17 +167,17 @@ function AssetDetail({ a, onClose, onOpen }: { a: Asset; onClose: () => void; on
   async function exportFile() {
     try {
       const c = await getCore();
-      const bytes = await c.assets.read(a.project_id, a.id); // verified before export
       const name = a.name ?? `miai-${a.id.slice(0, 8)}.${a.format ?? "bin"}`;
-      if (isNative()) {
-        const { Filesystem, Directory } = await import("@capacitor/filesystem");
-        let s = ""; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-        await Filesystem.writeFile({ path: `MI AI/${name}`, data: btoa(s), directory: Directory.Documents, recursive: true });
-        toast.success(`Exportado sin cifrar a Documentos/MI AI/${name}`);
-      } else {
-        const l = document.createElement("a"); l.href = URL.createObjectURL(new Blob([bytes as BlobPart], { type: a.mime })); l.download = name; l.click();
-      }
+      await saveExport(c.assets.stream(a.project_id, a.id), name, a.mime); // authenticated before any byte leaves
     } catch (e) { toast.error((e as Error).message); }
+  }
+  async function shareFile() {
+    try {
+      const c = await getCore();
+      const name = a.name ?? `miai-${a.id.slice(0, 8)}.${a.format ?? "bin"}`;
+      const r = await shareContent({ file: { data: c.assets.stream(a.project_id, a.id), name, mime: a.mime }, title: name });
+      if (r === "downloaded") toast("Este navegador no puede compartir archivos; se descargó.");
+    } catch (e) { if (!(e instanceof DOMException && e.name === "AbortError")) toast.error((e as Error).message); }
   }
   async function runEdit(capability = "image.edit") {
     if (capability === "image.edit" && !edit.trim()) return;
@@ -248,7 +249,8 @@ function AssetDetail({ a, onClose, onOpen }: { a: Asset; onClose: () => void; on
           </div>
         )}
         <div className="grid grid-cols-3 gap-2">
-          <Button variant="outline" onClick={exportFile}><Download /> Exportar</Button>
+          <Button variant="outline" onClick={exportFile}><Download /> Guardar como</Button>
+          <Button variant="outline" onClick={shareFile}><Share2 /> Compartir en…</Button>
           <Button variant="outline" onClick={() => getCore().then((c) => c.assets.verify(a.project_id, a.id)).then(() => toast.success("Integridad verificada"), (e) => toast.error((e as Error).message))}><ShieldCheck /> Verificar</Button>
           <Button variant="outline" onClick={() => confirm("¿Eliminar este activo?") && mutate((c) => c.assets.remove(a.project_id, a.id)).then(onClose)}><Trash2 /> Borrar</Button>
         </div>

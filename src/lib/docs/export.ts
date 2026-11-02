@@ -1,13 +1,15 @@
 // Export generated Markdown to PDF, Word (.docx), Excel (.xlsx) or Markdown — entirely on the phone.
 import { parseMarkdown, tablesOf } from "./markdown";
 
-export type ExportFormat = "pdf" | "docx" | "xlsx" | "md" | "pptx";
+export type ExportFormat = "pdf" | "docx" | "xlsx" | "md" | "pptx" | "odt" | "rtf";
 export const EXPORT_MIME: Record<ExportFormat, string> = {
   pdf: "application/pdf",
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   md: "text/markdown",
   pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  odt: "application/vnd.oasis.opendocument.text",
+  rtf: "application/rtf",
 };
 
 export type Slide = { title: string; bullets: string[]; table?: string[][] };
@@ -29,6 +31,8 @@ export function slidesFromMarkdown(md: string, title: string): Slide[] {
 
 export async function exportDoc(md: string, format: ExportFormat, title: string): Promise<Uint8Array> {
   if (format === "md") return new TextEncoder().encode(md);
+  if (format === "odt") { const { writeOdt } = await import("./odf-rtf"); return writeOdt(md, title); }
+  if (format === "rtf") { const { writeRtf } = await import("./odf-rtf"); return writeRtf(md, title); }
   if (format === "pptx") {
     const PptxGenJS = (await import("pptxgenjs")).default;
     const pres = new PptxGenJS();

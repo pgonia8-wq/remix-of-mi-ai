@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { blobChunks } from "@/lib/device";
 import { Plus, Upload, Save, ArrowUp, ArrowDown, Trash2, Film } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "./ui/button";
@@ -24,8 +25,8 @@ function Editor({ pid }: { pid: string }) {
     try { duration = await new Promise<number>((resolve, reject) => { video.preload = "metadata"; video.onloadedmetadata = () => resolve(video.duration); video.onerror = () => reject(new Error("Video no compatible")); video.src = url; }); }
     finally { URL.revokeObjectURL(url); video.removeAttribute("src"); video.load(); }
     if (!Number.isFinite(duration)) throw new Error("No se pudo leer la duración.");
-    const core = await getCore(), bytes = new Uint8Array(await file.arrayBuffer());
-    const asset = await core.assets.put(pid, (async function* () { yield bytes; })(), { kind: "video", mime: file.type || "video/mp4", name: file.name, capability: "video.local.source" });
+    const core = await getCore();
+    const asset = await core.assets.put(pid, blobChunks(file), { kind: "video", mime: file.type || "video/mp4", name: file.name, capability: "video.local.source" });
     setClips((v) => [...v, { assetId: asset.id, name: file.name, start: 0, end: duration, duration, transition: "cut" as const, transitionSeconds: 0.5 }].slice(0, 8));
   }
   function move(index: number, delta: number) { const next = [...clips], item = next[index], other = next[index + delta]; if (!item || !other) return; next[index] = other; next[index + delta] = item; setClips(next); }
@@ -41,7 +42,7 @@ function Editor({ pid }: { pid: string }) {
       <div className="flex flex-wrap gap-2"><Button variant="outline" disabled={busy || !captions.length} onClick={() => action(async (c) => { validateTimeline(clips, captions); const text = captionsSrt(captions); await c.assets.put(pid, (async function* () { yield new TextEncoder().encode(text); })(), { kind: "text", mime: "application/x-subrip", name: "Subtítulos.srt", capability: "video.local.subtitles" }); toast.success("SRT cifrado en Biblioteca"); })}>Guardar SRT</Button><input aria-label="Idioma de subtítulos" className={inputCls + " max-w-40"} value={language} onChange={(e) => setLanguage(e.target.value)} /><Button variant="outline" disabled={busy || !captions.length} onClick={() => { if (!confirm("¿Enviar los subtítulos al modelo para traducir? Puede tener costo.")) return; action(async (c) => { const result = await askModel(c, pid, `Traduce al idioma ${language} solo text; preserva start/end. Devuelve JSON array de subtítulos. Datos: ${JSON.stringify(captions)}`); const parsed = extractJson<Caption[]>(result.text); validateTimeline(clips, parsed); setCaptions(parsed); }); }}>Traducir con IA</Button></div>
     </section>
     <section className="space-y-3 border-t pt-5"><div className="flex items-center justify-between"><h2 className="font-semibold">Pistas de audio de fondo</h2><Button size="sm" variant="outline" disabled={busy || tracks.length >= 4} onClick={() => audioUpload.current?.click()}><Plus />Audio</Button></div>
-      <input ref={audioUpload} type="file" accept="audio/*" aria-label="Importar pista de audio" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (!f) return; action(async (c) => { const bytes = new Uint8Array(await f.arrayBuffer()); const a = await c.assets.put(pid, (async function* () { yield bytes; })(), { kind: "audio", mime: f.type || "audio/wav", name: f.name, capability: "video.local.audio" }); setTracks((t) => [...t, { assetId: a.id, name: f.name, offset: 0, gain: 0.6 }]); }); }} />
+      <input ref={audioUpload} type="file" accept="audio/*" aria-label="Importar pista de audio" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (!f) return; action(async (c) => { const a = await c.assets.put(pid, blobChunks(f), { kind: "audio", mime: f.type || "audio/wav", name: f.name, capability: "video.local.audio" }); setTracks((t) => [...t, { assetId: a.id, name: f.name, offset: 0, gain: 0.6 }]); }); }} />
       {tracks.map((t, i) => <div key={t.assetId} className="grid grid-cols-[1fr_5rem_5rem_auto] items-center gap-2 text-xs"><span className="truncate">{t.name}</span><label>Inicio (s)<input aria-label={`Inicio pista ${i + 1}`} className={inputCls} type="number" min={0} step={0.1} value={t.offset} onChange={(e) => setTracks(tracks.map((x, n) => n === i ? { ...x, offset: Number(e.target.value) } : x))} /></label><label>Volumen<input aria-label={`Volumen pista ${i + 1}`} className={inputCls} type="number" min={0} max={2} step={0.1} value={t.gain} onChange={(e) => setTracks(tracks.map((x, n) => n === i ? { ...x, gain: Number(e.target.value) } : x))} /></label><Button size="icon" variant="ghost" aria-label={`Quitar pista ${i + 1}`} onClick={() => setTracks(tracks.filter((_, n) => n !== i))}><Trash2 /></Button></div>)}
       <p className="text-xs text-muted-foreground">Las pistas se mezclan en el teléfono, se recortan a la duración del video y terminan con un fundido.</p>
     </section>

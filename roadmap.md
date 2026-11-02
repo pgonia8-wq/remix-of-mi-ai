@@ -203,3 +203,16 @@
 - [x] PC/VM desde el chat con pc.exec (bash/PowerShell, compilar, pruebas, git, Docker, Playwright, instaladores) y ssh.exec; siempre con aprobación.
 - [ ] No posibles dentro del teléfono: contenedores, escritorio, compilar Android/escritorio, modelos de IA locales y navegador automatizado; disponibles solo vía PC/VM.
 - [ ] Probar en Android físico (Python, 7z, portapapeles, notificaciones) y compilar build.14 cuando Fer lo pida.
+
+## Solicitud actual — grupo A completo + compartir (una sola compilación al final)
+- [x] A1 Agentes con pantalla apagada: servicio en primer plano + aviso en barra de notificaciones.
+- [x] A2 Seguridad del túnel VPN: corregir cifrado.
+- [x] A3 Archivos grandes por partes (documentos/audio/video) sin cargar todo en memoria.
+- [x] A4 "Guardar como", recibir archivos compartidos desde otras apps, video nativo sin quedarse sin memoria.
+- [x] A5 Documentos: editar Word/PowerPoint conservando estilos, hoja con fórmulas recalculables, ODT y RTF.
+- [x] A6 Investigación más profunda con verificación de cada dato contra su fuente.
+- [x] A7 Chat: herramientas de presentaciones, render de línea de tiempo y rigging 3D.
+- [x] A8 Reacciones automáticas a archivos/eventos, tutor adaptativo, animación 3D más fina.
+- [x] A9 Clonación de voz con verificación real de que la voz es del usuario.
+- [x] Compartir en: enviar mensajes, archivos y resultados a otras apps (hoja de compartir de Android).
+- [x] Compilar build.14 una sola vez al final (firma fija, Android 11+, ARM64/ARMv7). Pruebas físicas pendientes del usuario.

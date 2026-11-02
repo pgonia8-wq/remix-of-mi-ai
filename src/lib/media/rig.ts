@@ -3,9 +3,12 @@
 // boneWorld = parentWorld · T(restLocal + move) · R(euler XYZ), skin = boneWorld · T(−restHead).
 export type V3 = [number, number, number];
 export type Bone = { id: string; name: string; parent: string | null; head: V3 };
-export type Key = { t: number; rot: V3; move: V3 };
+/** ease: linear (default), ease (smooth in/out), in, out, step (hold until the next key). */
+export type Ease = "linear" | "ease" | "in" | "out" | "step";
+export type Key = { t: number; rot: V3; move: V3; ease?: Ease };
 export type BoneTrack = { bone: string; keys: Key[] };
-export type MeshDoc = { version: 1; name: string; positions: number[]; indices: number[]; bones: Bone[]; weights: number[]; tracks: BoneTrack[]; duration: number };
+/** weights = main bone per vertex; optional weights2/blend give smooth two-bone skinning (blend = share of weights2, 0–0.5). */
+export type MeshDoc = { version: 1; name: string; positions: number[]; indices: number[]; bones: Bone[]; weights: number[]; weights2?: number[]; blend?: number[]; tracks: BoneTrack[]; duration: number };
 type M4 = Float64Array;
 export const MAX_VERTICES = 200_000, MAX_BONES = 64;
 
@@ -27,7 +30,8 @@ export function validateMesh(d: MeshDoc) {
   boneOrder(d.bones); // throws on cycles
   if (d.weights.length !== n || d.weights.some((w) => !Number.isInteger(w) || w < -1 || w >= d.bones.length)) throw new Error("Asignación de vértices inválida.");
   if (!Number.isFinite(d.duration) || d.duration <= 0 || d.duration > 600) throw new Error("Duración de animación inválida.");
-  for (const t of d.tracks) { if (!ids.has(t.bone)) throw new Error("Pista de hueso inexistente."); if (t.keys.some((k) => !Number.isFinite(k.t) || k.t < 0 || k.t > d.duration || ![...k.rot, ...k.move].every(Number.isFinite))) throw new Error("Keyframe inválido."); }
+  if (d.weights2 || d.blend) { if (d.weights2?.length !== n || d.blend?.length !== n || d.weights2.some((w) => !Number.isInteger(w) || w < -1 || w >= d.bones.length) || d.blend.some((b) => !Number.isFinite(b) || b < 0 || b > 0.5)) throw new Error("Mezcla de huesos inválida."); }
+  for (const t of d.tracks) { if (t.keys.some((k) => k.ease !== undefined && !["linear", "ease", "in", "out", "step"].includes(k.ease))) throw new Error("Curva de animación inválida."); if (!ids.has(t.bone)) throw new Error("Pista de hueso inexistente."); if (t.keys.some((k) => !Number.isFinite(k.t) || k.t < 0 || k.t > d.duration || ![...k.rot, ...k.move].every(Number.isFinite))) throw new Error("Keyframe inválido."); }
 }
 /** Parents before children; rejects cycles. */
 export function boneOrder(bones: Bone[]): Bone[] {
@@ -42,23 +46,66 @@ export function moveVertices(d: MeshDoc, ids: number[], delta: V3, falloff?: { c
 }
 export function verticesWithin(d: MeshDoc, center: V3, radius: number) { const out: number[] = []; for (let i = 0; i < d.positions.length / 3; i++) if (Math.hypot(d.positions[i * 3]! - center[0], d.positions[i * 3 + 1]! - center[1], d.positions[i * 3 + 2]! - center[2]) <= radius) out.push(i); return out; }
 /** Rigid skinning: each vertex follows the bone whose segment (head → first child head) is closest. */
-export function autoAssign(d: MeshDoc): MeshDoc {
+/** Nearest-bone skinning. With `smooth`, vertices near a joint also follow the second-nearest bone (soft bends). */
+export function autoAssign(d: MeshDoc, o: { smooth?: boolean; falloff?: number } = {}): MeshDoc {
   if (!d.bones.length) throw new Error("Crea al menos un hueso.");
   const segs = d.bones.map((b) => { const child = d.bones.find((c) => c.parent === b.id); return { a: b.head, b: child?.head ?? b.head }; });
-  const weights = new Array(d.positions.length / 3).fill(0).map((_, i) => {
-    const p: V3 = [d.positions[i * 3]!, d.positions[i * 3 + 1]!, d.positions[i * 3 + 2]!]; let best = 0, bestD = Infinity;
-    segs.forEach((s, j) => { const ab = s.b.map((v, k) => v - s.a[k]!) as V3, ap = p.map((v, k) => v - s.a[k]!) as V3, l2 = ab[0] ** 2 + ab[1] ** 2 + ab[2] ** 2, t = l2 ? Math.min(1, Math.max(0, (ap[0] * ab[0] + ap[1] * ab[1] + ap[2] * ab[2]) / l2)) : 0, q = s.a.map((v, k) => v + ab[k]! * t), dist = Math.hypot(p[0] - q[0]!, p[1] - q[1]!, p[2] - q[2]!); if (dist < bestD - 1e-9) { bestD = dist; best = j; } });
-    return best;
-  });
-  return { ...d, weights };
+  const n = d.positions.length / 3, weights = new Array<number>(n), weights2 = new Array<number>(n).fill(-1), blend = new Array<number>(n).fill(0);
+  let span = 0; for (const s of segs) span = Math.max(span, Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1], s.b[2] - s.a[2]));
+  const fall = o.falloff ?? Math.max(1e-6, span * 0.25);
+  for (let i = 0; i < n; i++) {
+    const p: V3 = [d.positions[i * 3]!, d.positions[i * 3 + 1]!, d.positions[i * 3 + 2]!];
+    let best = 0, bestD = Infinity, second = -1, secondD = Infinity;
+    segs.forEach((s, j) => {
+      const ab = s.b.map((v, k) => v - s.a[k]!) as V3, ap = p.map((v, k) => v - s.a[k]!) as V3, l2 = ab[0] ** 2 + ab[1] ** 2 + ab[2] ** 2;
+      const t = l2 ? Math.min(1, Math.max(0, (ap[0] * ab[0] + ap[1] * ab[1] + ap[2] * ab[2]) / l2)) : 0, q = s.a.map((v, k) => v + ab[k]! * t), dist = Math.hypot(p[0] - q[0]!, p[1] - q[1]!, p[2] - q[2]!);
+      if (dist < bestD - 1e-9) { second = best; secondD = bestD; best = j; bestD = dist; } else if (dist < secondD - 1e-9) { second = j; secondD = dist; }
+    });
+    weights[i] = best;
+    if (o.smooth && second >= 0 && second !== best && Number.isFinite(secondD)) {
+      const gap = secondD - bestD; // equal distance → 50/50, beyond `fall` → rigid
+      if (gap < fall) { weights2[i] = second; blend[i] = Math.round(0.5 * (1 - gap / fall) * 1000) / 1000; }
+    }
+  }
+  return o.smooth ? { ...d, weights, weights2, blend } : (() => { const { weights2: _w, blend: _b, ...rest } = d; return { ...rest, weights }; })();
+}
+const easeFn: Record<Ease, (u: number) => number> = {
+  linear: (u) => u, ease: (u) => u * u * (3 - 2 * u), in: (u) => u * u, out: (u) => 1 - (1 - u) * (1 - u), step: () => 0,
+};
+type Q = [number, number, number, number];
+const toRad = Math.PI / 180;
+/** Euler XYZ (degrees, Three.js order) → quaternion and back; used so rotations take the shortest smooth path. */
+function quatFromEuler(e: V3): Q {
+  const [x, y, z] = e.map((v) => v * toRad / 2) as V3, c1 = Math.cos(x), c2 = Math.cos(y), c3 = Math.cos(z), s1 = Math.sin(x), s2 = Math.sin(y), s3 = Math.sin(z);
+  return [s1 * c2 * c3 + c1 * s2 * s3, c1 * s2 * c3 - s1 * c2 * s3, c1 * c2 * s3 + s1 * s2 * c3, c1 * c2 * c3 - s1 * s2 * s3];
+}
+function eulerFromQuat([x, y, z, w]: Q): V3 {
+  const m11 = 1 - 2 * (y * y + z * z), m12 = 2 * (x * y - z * w), m13 = 2 * (x * z + y * w), m22 = 1 - 2 * (x * x + z * z), m23 = 2 * (y * z - x * w), m32 = 2 * (y * z + x * w), m33 = 1 - 2 * (x * x + y * y);
+  const ry = Math.asin(Math.max(-1, Math.min(1, m13)));
+  const [rx, rz] = Math.abs(m13) < 0.9999999 ? [Math.atan2(-m23, m33), Math.atan2(-m12, m11)] : [Math.atan2(m32, m22), 0];
+  return [rx / toRad, ry / toRad, rz / toRad];
+}
+function slerp(a: Q, b: Q, u: number): Q {
+  let dot = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]; let bb = b;
+  if (dot < 0) { dot = -dot; bb = b.map((v) => -v) as Q; }
+  if (dot > 0.9995) { const r = a.map((v, i) => v + (bb[i]! - v) * u) as Q; const l = Math.hypot(...r); return r.map((v) => v / l) as Q; }
+  const th = Math.acos(dot), s = Math.sin(th), wa = Math.sin((1 - u) * th) / s, wb = Math.sin(u * th) / s;
+  return a.map((v, i) => v * wa + bb[i]! * wb) as Q;
 }
 export function sampleKeys(keys: Key[], t: number): { rot: V3; move: V3 } {
   if (!keys.length) return { rot: [0, 0, 0], move: [0, 0, 0] };
   const ks = [...keys].sort((a, b) => a.t - b.t);
   if (t <= ks[0]!.t) return ks[0]!; const last = ks[ks.length - 1]!; if (t >= last.t) return last;
-  const i = ks.findIndex((k) => k.t > t), a = ks[i - 1]!, b = ks[i]!, u = (t - a.t) / (b.t - a.t);
-  const lerp = (x: V3, y: V3) => x.map((v, k) => v + (y[k]! - v) * u) as V3;
-  return { rot: lerp(a.rot, b.rot), move: lerp(a.move, b.move) };
+  const i = ks.findIndex((k) => k.t > t), a = ks[i - 1]!, b = ks[i]!, u = easeFn[a.ease ?? "linear"]((t - a.t) / (b.t - a.t));
+  const move = a.move.map((v, k) => v + (b.move[k]! - v) * u) as V3;
+  const same = a.rot.every((v, k) => v === b.rot[k]);
+  return { rot: same || u === 0 ? a.rot : u === 1 ? b.rot : eulerFromQuat(slerp(quatFromEuler(a.rot), quatFromEuler(b.rot), u)), move };
+}
+/** Bake keys to a fixed frame rate (for formats without easing such as glTF linear tracks). */
+export function bakeTrack(keys: Key[], duration: number, fps = 30): Key[] {
+  const out: Key[] = []; const n = Math.max(1, Math.round(duration * fps));
+  for (let f = 0; f <= n; f++) { const t = Math.min(duration, f / fps); const s = sampleKeys(keys, t); out.push({ t, rot: s.rot, move: s.move }); }
+  return out;
 }
 function ident(): M4 { const m = new Float64Array(16); m[0] = m[5] = m[10] = m[15] = 1; return m; }
 function mul(a: M4, b: M4): M4 { const o = new Float64Array(16); for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) { let s = 0; for (let k = 0; k < 4; k++) s += a[k * 4 + r]! * b[c * 4 + k]!; o[c * 4 + r] = s; } return o; }
@@ -84,7 +131,15 @@ export function posedPositions(d: MeshDoc, t: number): Float32Array {
   const out = new Float32Array(d.positions);
   if (!d.bones.length) return out;
   const skins = skinMatrices(d, t), list = d.bones.map((b) => skins.get(b.id)!);
-  for (let i = 0; i < out.length / 3; i++) { const m = list[d.weights[i] ?? -1]; if (!m) continue; const x = d.positions[i * 3]!, y = d.positions[i * 3 + 1]!, z = d.positions[i * 3 + 2]!; out[i * 3] = m[0]! * x + m[4]! * y + m[8]! * z + m[12]!; out[i * 3 + 1] = m[1]! * x + m[5]! * y + m[9]! * z + m[13]!; out[i * 3 + 2] = m[2]! * x + m[6]! * y + m[10]! * z + m[14]!; }
+  const apply = (m: M4, x: number, y: number, z: number): V3 => [m[0]! * x + m[4]! * y + m[8]! * z + m[12]!, m[1]! * x + m[5]! * y + m[9]! * z + m[13]!, m[2]! * x + m[6]! * y + m[10]! * z + m[14]!];
+  for (let i = 0; i < out.length / 3; i++) {
+    const m = list[d.weights[i] ?? -1]; if (!m) continue;
+    const x = d.positions[i * 3]!, y = d.positions[i * 3 + 1]!, z = d.positions[i * 3 + 2]!;
+    let p = apply(m, x, y, z);
+    const m2 = list[d.weights2?.[i] ?? -1], w2 = d.blend?.[i] ?? 0;
+    if (m2 && w2 > 0) { const q = apply(m2, x, y, z); p = p.map((v, k) => v * (1 - w2) + q[k]! * w2) as V3; }
+    out[i * 3] = p[0]; out[i * 3 + 1] = p[1]; out[i * 3 + 2] = p[2];
+  }
   return out;
 }
 export function setKey(d: MeshDoc, bone: string, key: Key): MeshDoc {
