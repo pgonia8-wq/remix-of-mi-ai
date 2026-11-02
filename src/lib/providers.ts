@@ -1,4 +1,5 @@
 import type { ProviderKind } from "./db/repo";
+import { azureKindOf, parseAzureUrl, type AzureDeploymentKind } from "./azure-url";
 
 export const PROVIDER_KINDS: { kind: ProviderKind; label: string; endpoint: string; model: string; needsDeployment?: boolean; needsVersion?: boolean }[] = [
   { kind: "openai", label: "OpenAI", endpoint: "https://api.openai.com/v1", model: "gpt-4o-mini" },
@@ -63,7 +64,13 @@ function buildRequest(p: ProviderCall, messages: ChatMsg[], tools?: unknown[]): 
   const defaults = PROVIDER_KINDS.find((k) => k.kind === p.kind);
   if (!defaults) throw new ProviderError("endpoint", "Endpoint incorrecto: proveedor desconocido.");
   const azure = p.kind === "azure" || p.kind === "azure_openai";
-  const ep = trim(p.endpoint?.trim() || defaults.endpoint);
+  let ep = trim(p.endpoint?.trim() || defaults.endpoint);
+  // Azure: any URL copied from the portal collapses to the resource (classic) or /openai/v1 (GA) contract.
+  const az = azure ? parseAzureUrl(ep) : null;
+  if (azure && !az) {
+    if (/^https:\/\//i.test(ep)) throw new ProviderError("endpoint", "URL de Azure incorrecta: usa la URL del recurso, /openai/v1 o la URL completa del deployment (por ejemplo …/openai/deployments/NOMBRE/chat/completions).");
+  }
+  if (az) { ep = az.endpoint; if (!az.v1 && !p.apiVersion?.trim() && az.apiVersion) p = { ...p, apiVersion: az.apiVersion }; }
   let endpoint: URL;
   try {
     endpoint = new URL(ep);
@@ -73,7 +80,7 @@ function buildRequest(p: ProviderCall, messages: ChatMsg[], tools?: unknown[]): 
     throw new ProviderError("endpoint", "Endpoint incorrecto: utiliza una URL HTTP o HTTPS sin credenciales ni parámetros.");
   }
   const azurePath = trim(endpoint.pathname);
-  const azureV1 = azure && (azurePath === "/openai/v1" || azurePath === "/openai/v1/chat/completions");
+  const azureV1 = azure && azurePath === "/openai/v1";
   if ((!azure && !p.model.trim()) || (azure && !p.deployment?.trim())) throw new ProviderError("model", "Modelo o deployment inexistente: completa el identificador.");
   if (p.kind === "azure_openai" && !azureV1 && !p.apiVersion?.trim()) throw new ProviderError("parameters", "Versión de API requerida: introduce la versión de Azure OpenAI.");
   if (!["custom", "openai_compatible"].includes(p.kind) && !p.apiKey?.trim()) throw new ProviderError("key", "API Key inválida: falta la credencial.");
@@ -120,17 +127,12 @@ function buildRequest(p: ProviderCall, messages: ChatMsg[], tools?: unknown[]): 
   if (azure) {
     // Accept a resource URL or a copied deployment chat-completions URL.
     // Explicit form fields remain authoritative; never duplicate the route.
-    const path = azurePath;
-    let base: string;
     if (azureV1) {
       // Azure v1 selects deployment through model, not through the URL.
       // Dated api-version is not part of this GA endpoint contract.
       url = `${endpoint.origin}/openai/v1/chat/completions`;
     } else {
-    if (path === "" || path === "/openai") base = endpoint.origin;
-    else if (/^\/openai\/deployments\/[^/]+\/chat\/completions$/.test(path)) base = endpoint.origin;
-    else throw new ProviderError("endpoint", "URL de Azure incorrecta: usa la URL del recurso, /openai/v1/chat/completions o la URL completa del deployment.");
-    url = `${base}/openai/deployments/${encodeURIComponent(p.deployment?.trim() || p.model)}/chat/completions?api-version=${encodeURIComponent(p.apiVersion?.trim() || "2024-10-21")}`;
+    url = `${endpoint.origin}/openai/deployments/${encodeURIComponent(p.deployment?.trim() || p.model)}/chat/completions?api-version=${encodeURIComponent(p.apiVersion?.trim() || "2024-10-21")}`;
     }
     headers["api-key"] = key;
   } else if (key) headers["authorization"] = `Bearer ${key}`;
@@ -337,7 +339,12 @@ export function responseError(status: number, body: string, key?: string | null)
       + (reason ? ` Detalle del proveedor: ${reason}` : "");
     return new ProviderError("unavailable", label, status, technical);
   }
-  return new ProviderError(code, labels[code], status, technical);
+  // Say why: the provider's own reason (redacted) goes next to the generic label, so chat notices are not a dead end.
+  let reason = "";
+  try { const j = JSON.parse(technical); reason = String(j?.error?.message ?? j?.message ?? ""); } catch { /* plain text body */ }
+  reason = reason.replace(/\s+/g, " ").trim().slice(0, 220);
+  const label = code === "unavailable" ? `${labels[code]}${status ? ` (HTTP ${status})` : ""}` : labels[code];
+  return new ProviderError(code, reason ? `${label} Detalle del proveedor: ${reason}` : label, status, technical);
 }
 /** Realtime deployments are voice-only: they never answer chat completions. */
 export const isRealtimeDeployment = (name: string | null | undefined) => /realtime/i.test(name ?? "");
@@ -370,14 +377,34 @@ async function testRealtime(p: ProviderCall, signal: AbortSignal): Promise<void>
   const value = typeof token?.value === "string" ? token.value : typeof token?.client_secret?.value === "string" ? token.client_secret.value : null;
   if (!value) throw new ProviderError("parameters", "Respuesta inválida: Azure no devolvió una sesión de voz válida.", res.status);
 }
+/** Non-chat Azure deployments (voice, transcription, embeddings, images) are verified with a real request of their own kind. */
+async function testAzureKind(p: ProviderCall, kind: Exclude<AzureDeploymentKind, "chat" | "realtime">, signal: AbortSignal): Promise<void> {
+  const deployment = p.deployment?.trim();
+  if (!deployment) throw new ProviderError("model", "Modelo o deployment inexistente: completa el deployment.");
+  if (!p.apiKey?.trim()) throw new ProviderError("key", "API Key inválida: falta la credencial.");
+  const { azureAdapter } = await import("./core/adapters/azure");
+  const { testWav } = await import("./core/adapters/audio");
+  const creds = { kind: p.kind, endpoint: p.endpoint, apiKey: p.apiKey, deployment, apiVersion: p.apiVersion ?? null, model: deployment, extraParams: p.extraParams ?? null };
+  const out = kind === "tts" || kind === "audio-chat" ? await azureAdapter.run(creds, { capability: "audio.tts", model: deployment, prompt: "OK", signal })
+    : kind === "transcribe" ? await azureAdapter.run(creds, { capability: "audio.transcribe", model: deployment, files: [{ bytes: testWav(), mime: "audio/wav", name: "prueba.wav" }], params: { allowEmpty: true }, signal })
+    : kind === "embedding" ? await azureAdapter.run(creds, { capability: "embedding", model: deployment, prompt: "prueba", signal })
+    : await azureAdapter.run(creds, { capability: "image.generate", model: deployment, prompt: "A small blue circle on a white background", params: /gpt-image/i.test(deployment) ? { quality: "low", n: 1 } : { n: 1 }, signal });
+  const real = (out.kind === "files" && out.files.some((f) => f.bytes.length > 100)) || (out.kind === "text" && typeof out.text === "string") || (out.kind === "vectors" && (out.vectors[0]?.length ?? 0) > 0);
+  if (!real) throw new ProviderError("parameters", "Respuesta inválida: el modelo no devolvió un resultado real.", 200);
+}
 /** Draft credentials stay only in memory. Success requires actual generated model text. */
 export async function testProvider(p: ProviderCall, timeoutMs = 20000): Promise<ConnectionResult> {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => { controller.abort(); reject(new ProviderError("timeout", "Error de red o timeout: se agotó el tiempo de espera.")); }, timeoutMs); });
   try {
-    if (p.kind === "azure_openai" && isRealtimeDeployment(p.deployment)) {
+    const kind = p.kind === "azure_openai" ? azureKindOf(p) : "chat";
+    if (kind === "realtime") {
       await Promise.race([testRealtime(p, controller.signal), timeout]);
+      return { ok: true, checkedAt: Date.now() };
+    }
+    if (kind !== "chat") {
+      await Promise.race([testAzureKind(p, kind, controller.signal), timeout]);
       return { ok: true, checkedAt: Date.now() };
     }
     let out = "";

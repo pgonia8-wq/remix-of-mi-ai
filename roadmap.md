@@ -229,3 +229,6 @@
 - [ ] Verificación con cuentas reales de DeepSeek, Qwen y Kimi: Fer no quiso cargar claves aquí; probar en el teléfono.
 - [x] Herramientas en Android: lectura de archivos cifrados corregida («Encabezado ilegible»), argumentos de modelos reparados y errores explicados.
 - [x] Contexto: 429 ya no se muestra como contexto excedido; muchas herramientas en una respuesta se recortan y se reintenta.
+
+- [x] Azure: aceptar cualquier URL del portal (responses, audio/speech, deployments) y probar cada tipo de modelo (texto a voz, gpt-audio, transcripción, embeddings, imágenes)
+- [ ] Compilar build.17 cuando Fer lo pida
