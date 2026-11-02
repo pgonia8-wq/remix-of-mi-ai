@@ -232,3 +232,8 @@
 
 - [x] Azure: aceptar cualquier URL del portal (responses, audio/speech, deployments) y probar cada tipo de modelo (texto a voz, gpt-audio, transcripción, embeddings, imágenes)
 - [ ] Compilar build.17 cuando Fer lo pida
+
+## Solicitud actual — pantallas y Bluetooth
+- [ ] Adaptar la app a todos los teléfonos (barra de estado, cámara, barra de navegación, teclado) — reportado en Motorola G86 Power
+- [ ] Enviar proyectos por Bluetooth a otro teléfono e importarlos allí
+- [ ] Enviar por Bluetooth la configuración de los modelos instalados
