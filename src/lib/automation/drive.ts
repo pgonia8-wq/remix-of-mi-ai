@@ -4,6 +4,12 @@ import type { Core } from "../core";
 import { stepRun, type ModelCall } from "./orchestrator";
 
 const driving = new Set<string>();
+/** Platform hooks (installed by the app shell): background-work notice, settle notifications and a pause that is not
+ * throttled while the screen is off. Hooks never execute tools; stepRun remains the only executor. */
+export type DriveHooks = { busy?(active: number): void; idle?(): void; settled?(p: string, id: string, status: string, goal: string): void; pause?(ms: number): Promise<void> };
+let hooks: DriveHooks = {};
+export function setDriveHooks(h: DriveHooks) { hooks = h; }
+const safe = (f: () => void) => { try { f(); } catch { /* platform hooks never stop a run */ } };
 const listeners = new Set<(runId: string) => void>();
 export const isDriving = (p: string, id: string) => driving.has(`${p}:${id}`);
 export function onRunProgress(cb: (runId: string) => void) { listeners.add(cb); return () => { listeners.delete(cb); }; }
@@ -14,16 +20,23 @@ export function driveRun(core: Core, p: string, id: string, o: { model?: ModelCa
   const key = `${p}:${id}`;
   if (driving.has(key)) return false;
   driving.add(key);
+  safe(() => hooks.busy?.(driving.size));
   void (async () => {
+    let last = { status: "active", goal: "" };
     try {
       for (let i = 0; i < (o.maxSteps ?? 400); i++) {
         const r = o.model ? await stepRun(core, p, id, o.model) : await stepRun(core, p, id);
+        last = { status: r.status, goal: r.goal };
         notify(id);
         if (r.status !== "active") break;
-        if (o.pauseMs !== 0) await new Promise((res) => setTimeout(res, o.pauseMs ?? 50));
+        if (o.pauseMs !== 0) { const ms = o.pauseMs ?? 50; await (hooks.pause ? hooks.pause(ms) : new Promise((res) => setTimeout(res, ms))); }
       }
     } catch { /* stepRun records its own failures on the run; a concurrent step simply ends this driver */ }
-    finally { driving.delete(key); notify(id); }
+    finally {
+      driving.delete(key); notify(id);
+      safe(() => hooks.settled?.(p, id, last.status, last.goal));
+      safe(() => (driving.size ? hooks.busy?.(driving.size) : hooks.idle?.()));
+    }
   })();
   return true;
 }
