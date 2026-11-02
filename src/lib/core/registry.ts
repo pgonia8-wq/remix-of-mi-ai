@@ -1,3 +1,4 @@
+import { AZURE_KIND_CAPABILITY, azureKindOf } from "../azure-url";
 import type { SqlDb } from "../db/sql";
 import { INITIAL_CAPABILITIES, validateCapability, type CapabilitySpec } from "./capabilities";
 
@@ -48,8 +49,8 @@ export class Registry {
 
   /** Mirrors existing (v2) providers into the registry without touching or copying credentials. Idempotent. */
   async syncLegacyProviders() {
-    const legacy = await this.db.all<{ id: string; name: string; kind: string; endpoint: string | null; deployment: string | null; model: string; api_version: string | null; enabled: number; created_at: number }>(
-      `SELECT id, name, kind, endpoint, deployment, model, api_version, enabled, created_at FROM providers`,
+    const legacy = await this.db.all<{ id: string; name: string; kind: string; endpoint: string | null; deployment: string | null; model: string; api_version: string | null; extra_params: string | null; enabled: number; created_at: number }>(
+      `SELECT id, name, kind, endpoint, deployment, model, api_version, extra_params, enabled, created_at FROM providers`,
     );
     for (const p of legacy) {
       await this.db.run(
@@ -67,7 +68,7 @@ export class Registry {
       if (remote && !["elevenlabs", "tavily", "searxng", "meshy", "runway"].includes(p.kind)) {
         const mid = await this.upsertModel({ providerId: p.id, remoteId: remote, name: remote, source: "legacy" });
         // Default capability only when the model has none yet, so user/voice choices survive every resync.
-        const cap = /realtime/i.test(remote) ? "speech.realtime" : "chat";
+        const cap = p.kind === "azure_openai" ? AZURE_KIND_CAPABILITY[azureKindOf({ deployment: remote, extraParams: p.extra_params })] : /realtime/i.test(remote) ? "speech.realtime" : "chat";
         await this.db.run(`INSERT INTO model_capabilities (model_id, capability_id) SELECT ?, ? WHERE NOT EXISTS (SELECT 1 FROM model_capabilities WHERE model_id=?)`, [mid, cap, mid]);
       }
     }

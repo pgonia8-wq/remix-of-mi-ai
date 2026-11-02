@@ -1,3 +1,4 @@
+import { parseAzureUrl } from "./azure-url";
 import type { Core } from "./core";
 import { credentialsFor } from "./core/executor";
 import { call } from "./core/adapters/http";
@@ -23,7 +24,7 @@ export function realtimeEndpoints(kind: string, endpoint: string | null) {
   if (u.protocol === "wss:") u = new URL(`https://${u.host}${u.pathname}`); // portal's realtime URL → same resource over HTTPS
   if (u.protocol !== "https:") throw new ProviderError("endpoint", "URL de Azure incorrecta: usa HTTPS.");
   const path = u.pathname.replace(/\/+$/, "");
-  if (!(path === "" || path === "/openai" || path.startsWith("/openai/v1") || path.startsWith("/openai/deployments") || path === "/openai/realtime")) throw new ProviderError("endpoint", "URL de Azure incorrecta: usa la URL del recurso o /openai/v1.");
+  if (!(path === "" || path === "/openai" || parseAzureUrl(u.toString()))) throw new ProviderError("endpoint", "URL de Azure incorrecta: usa la URL del recurso o /openai/v1.");
   return { secrets: `${u.origin}/openai/v1/realtime/client_secrets`, calls: `${u.origin}/openai/v1/realtime/calls`, auth: "api-key" as const };
 }
 /** Minimal zod → JSON Schema for tool parameters (objects, strings, numbers, booleans, arrays, enums). */
