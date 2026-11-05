@@ -102,7 +102,7 @@ describe("A · Gestor universal de herramientas", () => {
 describe("B · Autonomía multiagente", () => {
   it("planifica, ejecuta en paralelo con tope, audita y entrega", async () => {
     const p = (await repo.createProject("P")).id, run = await createRun(core, p, { goal: "Tres notas", limits: { concurrency: 2 } });
-    const s = script({ architect: [plan3], analyst: [saveNote("A"), fin], documenter: [saveNote("B"), fin], integrator: [saveNote("C"), fin], auditor: [approve] });
+    const s = script({ coordinator: [plan3], analyst: [saveNote("A"), fin], documenter: [saveNote("B"), fin], integrator: [saveNote("C"), fin], auditor: [approve] });
     await stepRun(core, p, run, s.m);
     expect((await autoRuns.tasks(core, p, run)).map((t) => t.role)).toEqual(["analyst", "documenter", "integrator"]);
     await stepRun(core, p, run, s.m);

@@ -36,13 +36,13 @@ export function builderPlanPhone(kind: DeliverableKind, maxFixAttempts = 3): { t
   ];
   return { tasks, acceptance: ["Código y documentación presentes en el espacio del proyecto", "Pruebas automatizadas ejecutadas y aprobadas", `Máximo ${maxFixAttempts} ciclos de corrección`] };
 }
-export async function createBuilderRun(core: Core, p: string, o: { requirements: string; kind: DeliverableKind; nodeId: string | null; folderId: string | null; modelId?: string | null; sshId?: string | null; maxFixAttempts?: number; limits?: Parameters<typeof createRun>[2]["limits"] }) {
+export async function createBuilderRun(core: Core, p: string, o: { requirements: string; kind: DeliverableKind; nodeId: string | null; folderId: string | null; modelId?: string | null; roleChoices?: Parameters<typeof createRun>[2]["roleChoices"]; sshId?: string | null; maxFixAttempts?: number; limits?: Parameters<typeof createRun>[2]["limits"] }) {
   if (o.folderId) {
     const f = await folders.get(core.repo, p, o.folderId);
     if (!f || f.node_id !== o.nodeId) throw new Error("La carpeta elegida no pertenece a este proyecto o a ese PC Node.");
   }
   const plan = o.folderId ? builderPlan(o.kind, o.maxFixAttempts ?? 3) : builderPlanPhone(o.kind, o.maxFixAttempts ?? 3);
-  const id = await createRun(core, p, { goal: `Construir (${o.kind}): ${o.requirements}`, acceptance: plan.acceptance, kind: "builder", nodeId: o.folderId ? o.nodeId : null, folderId: o.folderId, modelId: o.modelId ?? null, sshId: o.sshId ?? null, plan, limits: { ...o.limits } });
+  const id = await createRun(core, p, { goal: `Construir (${o.kind}): ${o.requirements}`, acceptance: plan.acceptance, kind: "builder", nodeId: o.folderId ? o.nodeId : null, folderId: o.folderId, modelId: o.modelId ?? null, roleChoices: o.roleChoices ?? {}, sshId: o.sshId ?? null, plan, limits: { ...o.limits } });
   await core.repo.sql.run("UPDATE auto_tasks SET max_attempts=? WHERE project_id=? AND run_id=?", [Math.min(Math.max(o.maxFixAttempts ?? 3, 1), 6), p, id]);
   return id;
 }

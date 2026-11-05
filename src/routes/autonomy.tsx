@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import type { RoleModels } from "@/lib/automation/role-models";
 import { route } from "@/lib/core/router";
 import { useEffect, useState } from "react";
 import { Check, X, Pause, Play, Square, RefreshCw, Link2, FolderPlus, Cable, Package } from "lucide-react";
@@ -6,7 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { NeedProject, inputCls } from "@/components/AppShell";
 import { useActiveProjectId, useCoreQuery, useCoreMutate } from "@/lib/use-app";
-import { autoRuns, createRun, resolveReview, afterApproval, ROLES, type AutoRun } from "@/lib/automation/orchestrator";
+import { autoRuns, createRun, resolveReview, afterApproval, ROLES, type Role, type AutoRun } from "@/lib/automation/orchestrator";
 import { approvals } from "@/lib/automation/approvals";
 import { createBuilderRun, packageDeliverable, type DeliverableKind } from "@/lib/automation/builder";
 import { availabilityReport } from "@/lib/automation/tools";
@@ -72,13 +73,14 @@ function Runs({ pid, act, busy }: { pid: string; act: Act; busy: boolean }) {
   const { data: servers = [] } = useCoreQuery(["connections", pid], (c) => connections.list(c.repo, pid));
   const sshServers = servers.filter((x) => x.kind === "ssh");
   const [modelId, setModelId] = useState(""), [sshId, setSshId] = useState("");
+  const [roleChoices, setRoleChoices] = useState<Partial<Record<Role, string>>>({});
   const chosen = chatModels.find((m) => m.id === modelId);
   const f = fl.find((x) => x.id === folder);
   const create = () => act(async (c) => {
     const limits = { maxUsd: usd ? Number(usd) : null, concurrency: conc };
     const id = mode === "builder"
-      ? await createBuilderRun(c, pid, { requirements: goal, kind, nodeId: f?.node_id ?? null, folderId: f?.id ?? null, modelId: modelId || null, sshId: sshId || null, limits })
-      : await createRun(c, pid, { goal, acceptance: acc.split("\n").map((s) => s.trim()).filter(Boolean), limits, nodeId: f?.node_id ?? null, folderId: f?.id ?? null, modelId: modelId || null, sshId: sshId || null });
+      ? await createBuilderRun(c, pid, { requirements: goal, kind, nodeId: f?.node_id ?? null, folderId: f?.id ?? null, modelId: modelId || null, roleChoices, sshId: sshId || null, limits })
+      : await createRun(c, pid, { goal, acceptance: acc.split("\n").map((s) => s.trim()).filter(Boolean), limits, nodeId: f?.node_id ?? null, folderId: f?.id ?? null, modelId: modelId || null, roleChoices, sshId: sshId || null });
     setOpen(id); setGoal(""); driveRun(c, pid, id); return id;
   }, "Ejecución creada");
   return <section className="space-y-4">
@@ -86,8 +88,9 @@ function Runs({ pid, act, busy }: { pid: string; act: Act; busy: boolean }) {
     <div className="space-y-3 rounded-md border p-3">
       <p className="text-sm">Pide algo y un equipo de agentes lo planifica, lo hace y lo revisa por su cuenta, <b>aquí en tu teléfono</b>. No necesitas PC ni VM.</p>
       {brain === null ? null : brain.ok || chosen
-        ? <label className="block text-sm">Modelo con el que trabajan<select aria-label="Modelo de los agentes" className={inputCls} value={modelId} onChange={(e) => setModelId(e.target.value)}><option value="">Automático{brain.ok ? ` (ahora: ${brain.name})` : ""}</option>{chatModels.map((m) => <option key={m.id} value={m.id}>{m.name} · {m.provider}</option>)}</select></label>
+        ? <label className="block text-sm">Modelo coordinador<select aria-label="Modelo coordinador" className={inputCls} value={modelId} onChange={(e) => setModelId(e.target.value)}><option value="">Automático{brain.ok ? ` (ahora: ${brain.name})` : ""}</option>{chatModels.map((m) => <option key={m.id} value={m.id}>{m.name} · {m.provider}</option>)}</select></label>
         : <p className="text-xs text-destructive">Primero configura un modelo de chat en <Link to="/models" className="underline">Modelos</Link> (la configuración automática lo hace por ti).</p>}
+      <details className="text-sm"><summary className="cursor-pointer text-primary">Modelos por rol</summary><div className="mt-2 grid gap-2 sm:grid-cols-2">{(Object.keys(ROLES) as Role[]).filter((r) => r !== "coordinator").map((r) => <label key={r} className="block text-xs">{ROLES[r].name}<select aria-label={`Modelo: ${ROLES[r].name}`} className={inputCls} value={roleChoices[r] ?? ""} onChange={(e) => setRoleChoices((v) => ({ ...v, [r]: e.target.value }))}><option value="">Asignado por el coordinador</option>{chatModels.map((m) => <option key={m.id} value={m.id} disabled={m.id === modelId || Object.entries(roleChoices).some(([k, id]) => k !== r && id === m.id)}>{m.name} · {m.provider}</option>)}</select></label>)}</div></details>
       <div className="flex gap-2"><Button size="sm" variant={mode === "team" ? "default" : "outline"} onClick={() => setMode("team")}>Hacer una tarea</Button><Button size="sm" variant={mode === "builder" ? "default" : "outline"} onClick={() => setMode("builder")}>Construir una app</Button></div>
       <label className="block text-sm">{mode === "builder" ? "¿Qué app o programa quieres?" : "¿Qué quieres que hagan?"}<textarea className={inputCls} rows={3} value={goal} onChange={(e) => setGoal(e.target.value)} placeholder={mode === "builder" ? "Ej.: una página web para mi negocio con menú, precios y formulario de contacto" : "Ej.: investiga los 5 mejores celulares de 2026 y hazme un informe en Word con tabla comparativa"} /></label>
       <details className="text-sm"><summary className="cursor-pointer text-xs text-primary">Opciones: dónde trabajan (teléfono, PC, VM o servidor), gasto y agentes</summary>
@@ -116,6 +119,7 @@ function RunCard({ pid, r, open, toggle, act, busy }: { pid: string; r: AutoRun;
   const { data: tasks = [] } = useCoreQuery(["auto-tasks", pid, r.id], (c) => autoRuns.tasks(c, pid, r.id), open);
   const { data: obs = [] } = useCoreQuery(["auto-obs", pid, r.id], (c) => autoRuns.observations(c, pid, r.id), open);
   const { data: ev = [] } = useCoreQuery(["auto-ev", pid, r.id], (c) => autoRuns.evidence(c, pid, r.id), open);
+  const assignments = (JSON.parse(r.env) as { roleModels?: RoleModels }).roleModels ?? {};
   const limits = JSON.parse(r.limits) as { maxCalls: number; maxUsd: number | null };
   const step = () => act(async (c) => { driveRun(c, pid, r.id); return r; });
   useEffect(() => onRunProgress((id) => { if (id === r.id) void qc.invalidateQueries(); }), [r.id, qc]);
@@ -132,10 +136,13 @@ function RunCard({ pid, r, open, toggle, act, busy }: { pid: string; r: AutoRun;
       {r.status === "completed" && r.kind === "builder" && <Button size="sm" variant="outline" disabled={busy} onClick={() => act((c) => packageDeliverable(c, pid, r.id), "Entrega guardada en la Biblioteca")}><Package />Generar entrega</Button>}
     </div>
     {open && <div className="space-y-3 text-sm">
+      <h3 className="font-medium">Modelos del equipo</h3>
+      <ul className="space-y-1 text-xs">{Object.entries(assignments).map(([role, m]) => <li key={role} className="break-words">{ROLES[role as Role]?.name ?? role} · {m.name} · {m.provider} · {m.deployment}</li>)}</ul>
       <h3 className="font-medium">Subtareas</h3>
       {tasks.map((t) => <div key={t.id} className="rounded-md border p-2">
         <p className="font-medium">{t.title}</p>
         <p className="text-muted-foreground">{ROLES[t.role]?.name ?? t.role} · {t.status} · intento {t.attempts + 1}/{t.max_attempts} · turno {t.turns}</p>
+        {assignments[t.role] && <p className="break-words text-xs text-muted-foreground">{assignments[t.role]?.name} · {assignments[t.role]?.deployment}</p>}
         {t.review && <p>Auditor: {t.review}</p>}{t.error && <p className="text-destructive">{t.error}</p>}
         {t.status === "review_required" && <div className="mt-2 flex flex-wrap gap-2">
           <Button size="sm" disabled={busy} onClick={() => { if (window.confirm("¿Repetir la acción? Puede duplicar cambios o cobros.")) act((c) => resolveReview(c, pid, r.id, t.id, "retry")); }}>Confirmar reintento</Button>

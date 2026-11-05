@@ -9,6 +9,7 @@ import { extractJson } from "../core/ai";
 import { invokeTool, fileLocks, getTool, TOOL_IDS, DEFAULT_LIMITS, type Limits, type ToolCtx, type ToolDef, toolSchemaFor } from "./tools";
 import { workingMemory } from "./working-memory";
 import { approvals } from "./approvals";
+import { agentModels, assignRoleModels, type RoleModels } from "./role-models";
 
 export const ROLES = {
   coordinator: { name: "Coordinador general", focus: "Divide el objetivo, asigna y replanifica." },
@@ -31,14 +32,21 @@ const roleIds = Object.keys(ROLES) as [Role, ...Role[]];
 export type AutoRun = { id: string; project_id: string; goal: string; kind: "team" | "builder" | "voice" | "chat"; status: "active" | "paused" | "waiting" | "review_required" | "needs_human" | "completed" | "cancelled" | "failed"; phase: "plan" | "execute" | "final_audit" | "done"; plan: string; limits: string; acceptance: string; spent_usd: number; unknown_cost_calls: number; tokens: number; calls: number; env: string; result: string; error: string | null; created_at: number; updated_at: number };
 export type AutoTask = { id: string; project_id: string; run_id: string; title: string; role: Role; deps: string; files: string; tools: string; contract: string; status: "pending" | "active" | "waiting_approval" | "review_required" | "audit" | "approved" | "failed" | "replaced" | "cancelled"; attempts: number; max_attempts: number; turns: number; result: string; review: string; error: string | null; updated_at: number };
 /** modelId = model chosen by the person (null = automatic); sshId = saved server/VM the agents may use through ssh.exec. */
-type Env = { nodeId: string | null; folderId: string | null; modelId?: string | null; sshId?: string | null; sshName?: string | null };
+type Env = { nodeId: string | null; folderId: string | null; modelId?: string | null; roleModels?: RoleModels; roleChoices?: Partial<Record<Role, string>>; sshId?: string | null; sshName?: string | null };
+
+function normalizeRole(value: unknown) {
+  if (typeof value !== "string") return value;
+  const name = value.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const aliases: Record<string, Role> = { investigador: "analyst", researcher: "analyst", analista: "analyst", coordinador: "coordinator", arquitecto: "architect", auditor: "auditor", documentador: "documenter" };
+  return aliases[name] ?? name;
+}
 
 export const planTaskSchema = z.object({
-  id: z.string().regex(/^[A-Za-z0-9_-]{1,40}$/), title: z.string().min(1).max(200), role: z.enum(roleIds),
+  id: z.string().regex(/^[A-Za-z0-9_-]{1,40}$/), title: z.string().min(1).max(200), role: z.preprocess(normalizeRole, z.enum(roleIds)),
   deps: z.array(z.string()).max(20).default([]), files: z.array(z.string().max(400)).max(50).default([]),
   tools: z.array(z.string()).max(30).default([]), contract: z.string().min(1).max(4000),
 }).strict();
-export const planSchema = z.object({ tasks: z.array(planTaskSchema).min(1).max(40), acceptance: z.array(z.string().min(1).max(500)).max(20).default([]) }).strict();
+export const planSchema = z.object({ tasks: z.array(planTaskSchema).min(1).max(40), acceptance: z.array(z.string().min(1).max(500)).max(20).default([]), assignments: z.record(z.string()).optional() }).strict();
 export type PlanTask = z.infer<typeof planTaskSchema>;
 
 /** Validates a model-proposed DAG: unique ids, known deps, acyclic, registered tools only, no path escapes. */
@@ -105,7 +113,7 @@ export const autoRuns = {
   },
 };
 
-export async function createRun(core: Core, p: string, o: { goal: string; acceptance?: string[]; limits?: Partial<Limits>; nodeId?: string | null; folderId?: string | null; modelId?: string | null; sshId?: string | null; kind?: AutoRun["kind"]; plan?: { tasks: PlanTask[]; acceptance: string[] } }) {
+export async function createRun(core: Core, p: string, o: { goal: string; acceptance?: string[]; limits?: Partial<Limits>; nodeId?: string | null; folderId?: string | null; modelId?: string | null; roleChoices?: Partial<Record<Role, string>>; sshId?: string | null; kind?: AutoRun["kind"]; plan?: { tasks: PlanTask[]; acceptance: string[] } }) {
   need(p); if (!await core.repo.getProject(p)) throw new Error("Proyecto inexistente");
   const goal = o.goal.trim(); if (!goal || goal.length > 20_000) throw new Error("Describe el objetivo (máximo 20 000 caracteres).");
   if (o.folderId) { const [f] = await core.repo.sql.all<{ node_id: string }>("SELECT node_id FROM node_folders WHERE project_id=? AND id=?", [p, o.folderId]); if (!f || f.node_id !== o.nodeId) throw new Error("Carpeta ajena al proyecto o al nodo"); }
@@ -117,8 +125,11 @@ export async function createRun(core: Core, p: string, o: { goal: string; accept
     sshName = c.name;
   }
   const id = crypto.randomUUID();
+  const roleChoices = { ...o.roleChoices, ...(o.modelId ? { coordinator: o.modelId } : {}) };
+  if (Object.keys(roleChoices).some((r) => !roleIds.includes(r as Role))) throw new Error("Rol de equipo desconocido.");
+  if (Object.values(roleChoices).some(Boolean)) assignRoleModels(await core.repo.registry.listModels(), [], {}, roleChoices);
   await core.repo.sql.run("INSERT INTO auto_runs (id,project_id,goal,kind,status,phase,plan,limits,acceptance,env,created_at,updated_at) VALUES (?,?,?,?,'active','plan','',?,?,?,?,?)",
-    [id, p, goal, o.kind ?? "team", JSON.stringify(limits), JSON.stringify(o.acceptance ?? []), JSON.stringify({ nodeId: o.nodeId ?? null, folderId: o.folderId ?? null, modelId: o.modelId ?? null, sshId: o.sshId ?? null, sshName } satisfies Env), now(), now()]);
+    [id, p, goal, o.kind ?? "team", JSON.stringify(limits), JSON.stringify(o.acceptance ?? []), JSON.stringify({ nodeId: o.nodeId ?? null, folderId: o.folderId ?? null, roleChoices, roleModels: {}, sshId: o.sshId ?? null, sshName } satisfies Env), now(), now()]);
   await workingMemory.add(core.repo, p, id, "goal", goal);
   if (o.plan) await insertPlan(core, p, id, validatePlan(o.plan));
   return id;
@@ -146,7 +157,11 @@ async function think(core: Core, p: string, run: AutoRun, role: Role, prompt: st
   // Consumption is persisted before the call so a crash cannot restore budget.
   await core.repo.sql.run("UPDATE auto_runs SET calls=calls+1, tokens=tokens+?, updated_at=? WHERE id=?", [Math.ceil(prompt.length / 4), now(), run.id]);
   let out: Awaited<ReturnType<ModelCall>>;
-  try { out = await model({ core, projectId: p, role, prompt, tools, modelId: (JSON.parse(run.env || "{}") as Env).modelId ?? null }); }
+  try {
+    const env = JSON.parse(fresh.env || "{}") as Env;
+    if (model === realModel && !env.roleModels?.[role]) throw new NoRequestSent(`Falta asignar un modelo distinto al rol «${role}».`);
+    out = await model({ core, projectId: p, role, prompt, tools, modelId: env.roleModels?.[role]?.modelId ?? null });
+  }
   catch (e) {
     // Nothing left the phone (no compatible model, budget refusal): undo the pre-counted consumption.
     if (e instanceof NoRequestSent || (e instanceof Error && e.name === "BudgetError")) await core.repo.sql.run("UPDATE auto_runs SET calls=calls-1, tokens=MAX(0, tokens-?) WHERE id=?", [Math.ceil(prompt.length / 4), run.id]);
@@ -195,6 +210,16 @@ export async function stepRun(core: Core, p: string, id: string, model: ModelCal
     const env = JSON.parse(run.env) as Env;
     const limits = JSON.parse(run.limits) as Limits;
     try {
+      const models = await core.repo.registry.listModels();
+      // Empty registries only bypass allocation with an explicitly injected scripted provider.
+      if (model === realModel || models.length) {
+        const tasks = await autoRuns.tasks(core, p, id);
+        const roles: Role[] = run.phase === "plan" ? ["coordinator", "auditor"] : ["coordinator", "auditor", ...tasks.filter((t) => t.status !== "cancelled").map((t) => t.role)];
+        env.roleModels = assignRoleModels(models, roles, env.roleModels, { ...env.roleChoices, ...(env.modelId ? { coordinator: env.modelId } : {}) });
+        delete env.modelId;
+        run.env = JSON.stringify(env);
+        await core.repo.sql.run("UPDATE auto_runs SET env=? WHERE project_id=? AND id=?", [run.env, p, id]);
+      }
       if (run.phase === "plan") await planPhase(core, p, run, env, model);
       else if (run.phase === "execute") await executePhase(core, p, run, env, limits, model);
       else if (run.phase === "final_audit") await finalAudit(core, p, run, limits, model);
@@ -210,9 +235,24 @@ export async function stepRun(core: Core, p: string, id: string, model: ModelCal
 
 async function planPhase(core: Core, p: string, run: AutoRun, env: Env, model: ModelCall) {
   const usable = await usableTools(core, p, run.id, env);
-  const prompt = `Eres ${ROLES.architect.name} y ${ROLES.coordinator.name}. ${RULES}\n${envNote(env)}\nDivide el objetivo en subtareas con dependencias (grafo acíclico), roles de: ${roleIds.join(", ")}. Asigna a cada subtarea archivos que puede modificar (sin solapes entre subtareas paralelas) y herramientas de esta lista (solo estas están disponibles ahora):\n${toolsHelp(usable)}\nIncluye criterios de aceptación verificables. Responde SOLO JSON {"tasks":[{"id":"t1","title":"...","role":"architect","deps":[],"files":[],"tools":[],"contract":"qué debe entregar y cómo se verifica"}],"acceptance":["..."]}.\nObjetivo (datos): ${JSON.stringify(run.goal)}\nCriterios del usuario: ${run.acceptance}`;
-  const out = await think(core, p, run, "architect", prompt, [], model);
-  await insertPlan(core, p, run.id, validatePlan(extractJson<unknown>(out.text)));
+  const catalog = agentModels(await core.repo.registry.listModels()).map((m) => ({ id: m.id, name: m.name, provider: m.provider_name, capabilities: m.capabilities, context: m.context_tokens, cost: m.cost_info }));
+  const team = `Organiza y distribuye el trabajo entre modelos distintos. Catálogo de modelos (datos): ${JSON.stringify(catalog)}. Reservas existentes: ${JSON.stringify(env.roleModels ?? {})}. Considera capacidades declaradas y contexto; no inventes conocimientos o rendimiento. Devuelve assignments con rol: id del modelo para cada rol de las tareas. Respeta las reservas existentes y las elecciones manuales; nunca repitas un modelo en varios roles. Si faltan modelos, indícalo, no inventes IDs.`;
+  const prompt = `Eres ${ROLES.coordinator.name}. ${RULES} ${team}\n${envNote(env)}\nDivide el objetivo en subtareas con dependencias (grafo acíclico), roles de: ${roleIds.join(", ")}. Asigna a cada subtarea archivos que puede modificar (sin solapes entre subtareas paralelas) y herramientas de esta lista (solo estas están disponibles ahora):\n${toolsHelp(usable)}\nIncluye criterios de aceptación verificables. Responde SOLO JSON {"tasks":[{"id":"t1","title":"...","role":"architect","deps":[],"files":[],"tools":[],"contract":"qué debe entregar y cómo se verifica"}],"acceptance":["..."],"assignments":{"analyst":"id-del-modelo"}}.\nObjetivo (datos): ${JSON.stringify(run.goal)}\nCriterios del usuario: ${run.acceptance}`;
+  const out = await think(core, p, run, "coordinator", prompt, [], model);
+  const plan = validatePlan(extractJson<unknown>(out.text));
+  await reservePlan(core, p, run, plan, model);
+  await insertPlan(core, p, run.id, plan);
+}
+
+async function reservePlan(core: Core, p: string, run: AutoRun, plan: z.infer<typeof planSchema>, model: ModelCall) {
+  const models = await core.repo.registry.listModels();
+  if (model !== realModel && !models.length) return;
+  const env = JSON.parse(run.env) as Env;
+  const proposed = plan.assignments ?? {};
+  if (Object.keys(proposed).some((r) => !roleIds.includes(r as Role))) throw new Error("El coordinador propuso un rol desconocido.");
+  env.roleModels = assignRoleModels(models, ["coordinator", "auditor", ...plan.tasks.map((t) => t.role)], env.roleModels, { ...proposed, ...env.roleChoices });
+  run.env = JSON.stringify(env);
+  await core.repo.sql.run("UPDATE auto_runs SET env=? WHERE project_id=? AND id=?", [run.env, p, run.id]);
 }
 
 async function executePhase(core: Core, p: string, run: AutoRun, env: Env, limits: Limits, model: ModelCall) {
@@ -304,10 +344,13 @@ async function replan(core: Core, p: string, run: AutoRun, failed: AutoTask, lim
   const replans = (await core.repo.sql.all<{ n: number }>("SELECT COUNT(*) n FROM auto_tasks WHERE project_id=? AND run_id=? AND status='replaced'", [p, run.id]))[0]!.n;
   if (replans >= limits.maxReplans) { await autoRuns.setStatus(core, p, run.id, "needs_human", `La subtarea «${failed.title}» falló y se agotaron las replanificaciones.`); return; }
   const approved = (await autoRuns.tasks(core, p, run.id)).filter((t) => t.status === "approved").map((t) => t.id);
-  const prompt = `Eres ${ROLES.coordinator.name}. ${RULES}\nLa subtarea falló. Propón subtareas de reemplazo (pueden reasignar a otro rol) que eviten la causa. Pueden depender de subtareas aprobadas: ${approved.join(", ") || "ninguna"}.\nSubtarea fallida: ${failed.title}\nContrato: ${failed.contract}\nMotivo: ${failed.error}\n${envNote(JSON.parse(run.env) as Env)}\nHerramientas:\n${toolsHelp(await usableTools(core, p, run.id, JSON.parse(run.env) as Env))}\nResponde SOLO JSON {"tasks":[...],"acceptance":[]} con el mismo formato del plan.`;
+  const catalog = agentModels(await core.repo.registry.listModels()).map((m) => ({ id: m.id, name: m.name, capabilities: m.capabilities, context: m.context_tokens }));
+  const assignmentNote = `Modelos (datos): ${JSON.stringify(catalog)}. Reservas: ${JSON.stringify((JSON.parse(run.env) as Env).roleModels ?? {})}. Propón assignments para los nuevos roles según capacidades declaradas, sin repetir modelos ni inventar conocimientos.`;
+  const prompt = `Eres ${ROLES.coordinator.name}. ${RULES} ${assignmentNote}\nLa subtarea falló. Propón subtareas de reemplazo (pueden reasignar a otro rol) que eviten la causa. Pueden depender de subtareas aprobadas: ${approved.join(", ") || "ninguna"}.\nSubtarea fallida: ${failed.title}\nContrato: ${failed.contract}\nMotivo: ${failed.error}\n${envNote(JSON.parse(run.env) as Env)}\nHerramientas:\n${toolsHelp(await usableTools(core, p, run.id, JSON.parse(run.env) as Env))}\nUsa únicamente roles de: ${roleIds.join(", ")}. Responde SOLO JSON {"tasks":[{"id":"r1","title":"...","role":"analyst","deps":[],"files":[],"tools":[],"contract":"..."}],"acceptance":[]} con el mismo formato del plan.`;
   const out = await think(core, p, run, "coordinator", prompt, [], model);
   const n = replans + 1;
   const plan = validatePlan(extractJson<unknown>(out.text), approved);
+  await reservePlan(core, p, run, plan, model);
   await insertPlan(core, p, run.id, plan, `r${n}-`, approved);
   const newIds = plan.tasks.map((t) => `${run.id.slice(0, 8)}-r${n}-${t.id}`);
   for (const t of await autoRuns.tasks(core, p, run.id)) {

@@ -1,7 +1,7 @@
 // @vitest-environment node
 // Autonomy without a PC: phone workspace, phone-mode runs, tool availability, delegation gate and ZIP delivery.
 // Provider responses are scripted (no credentials, no cost) — simulation, stated as such.
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import initSqlJs from "sql.js";
 import { Repo } from "@/lib/db/repo";
 import { wrapSqlJs } from "@/lib/db/sql";
@@ -56,6 +56,28 @@ describe("Espacio de trabajo del teléfono", () => {
 });
 
 describe("Agentes sin PC", () => {
+  it("el coordinador distribuye entre modelos distintos y las reservas sobreviven cada turno", async () => {
+    const p = (await repo.createProject("Equipo")).id;
+    const models = ["small", "gpt", "kimi"].map((id) => ({ id, provider_id: "azure", remote_id: id, name: id, status: "active" as const, source: "manual" as const, favorite: 0, cost_info: null, privacy: "external" as const, context_tokens: 100000, updated_at: 0, capabilities: ["chat"], provider_kind: "azure_openai", provider_name: "Azure", provider_enabled: 1, tests: [] }));
+    vi.spyOn(repo.registry, "listModels").mockResolvedValue(models);
+    const seen: { role: string; id: string | null | undefined }[] = [];
+    const model: ModelCall = async ({ role, modelId }) => {
+      seen.push({ role, id: modelId });
+      if (role === "coordinator") return { text: JSON.stringify({ tasks: [{ id: "a", title: "Investigar", role: "Investigador", tools: ["note.save"], contract: "Informe" }], assignments: { analyst: "gpt" } }) };
+      if (role === "analyst") return { text: JSON.stringify({ kind: "final", result: "Informe preparado" }) };
+      return { text: JSON.stringify({ verdict: "approve", reasons: "Revisado", missing: [] }) };
+    };
+    const id = await createRun(core, p, { goal: "Investigación", roleChoices: { coordinator: "small", auditor: "kimi" } });
+    let run = await stepRun(core, p, id, model);
+    for (let i = 0; i < 8 && run.status === "active"; i++) run = await stepRun(core, p, id, model);
+    expect(run.status).toBe("completed");
+    expect(seen).toContainEqual({ role: "coordinator", id: "small" });
+    expect(seen).toContainEqual({ role: "analyst", id: "gpt" });
+    expect(seen).toContainEqual({ role: "auditor", id: "kimi" });
+    const saved = JSON.parse((await autoRuns.get(core, p, id))?.env ?? "{}");
+    expect(saved.roleModels.analyst.modelId).toBe("gpt");
+    vi.restoreAllMocks();
+  });
   it("las herramientas de archivos funcionan en el teléfono sin PC Node", async () => {
     const p = (await repo.createProject("A")).id;
     const runId = await createRun(core, p, { goal: "x" });
@@ -77,7 +99,7 @@ describe("Agentes sin PC", () => {
     const p = (await repo.createProject("A")).id;
     const plan = JSON.stringify({ tasks: [{ id: "a", title: "Escribir guía", role: "documenter", deps: [], files: ["GUIA.md"], tools: ["fs.write"], contract: "GUIA.md" }], acceptance: ["Guía escrita"] });
     const write = JSON.stringify({ kind: "tool", tool: "fs.write", input: { path: "GUIA.md", content: "# Guía", baseHash: null } });
-    const q: Record<string, string[]> = { architect: [plan], documenter: [write, JSON.stringify({ kind: "final", result: "GUIA.md escrita" })], auditor: [JSON.stringify({ verdict: "approve", reasons: "Archivo observado", missing: [] })] };
+    const q: Record<string, string[]> = { coordinator: [plan], documenter: [write, JSON.stringify({ kind: "final", result: "GUIA.md escrita" })], auditor: [JSON.stringify({ verdict: "approve", reasons: "Archivo observado", missing: [] })] };
     const m: ModelCall = async ({ role }) => { const l = q[role]!; return { text: l.length > 1 ? l.shift()! : l[0]! }; };
     const id = await createRun(core, p, { goal: "Guía", nodeId: null, folderId: null });
     let run = await stepRun(core, p, id, m);
