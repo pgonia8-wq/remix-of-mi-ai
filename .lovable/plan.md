@@ -4,7 +4,7 @@
 - Una dirección web de MI AI que se abre en cualquier navegador y se **instala como app** (icono propio, ventana sin barra del navegador):
   - Windows y Mac: Chrome o Edge, botón "Instalar".
   - iPhone y iPad: Safari, Compartir → "Añadir a pantalla de inicio".
-  - Android: Chrome "Instalar app" (la APK sigue existiendo).
+  - Android no se toca: sigue siendo la APK actual.
 - **Cuenta con correo y contraseña**: tus proyectos, chats y modelos aparecen en todos tus equipos.
 - **Nada descifrable en la nube**: todo se cifra en tu equipo con una clave derivada de tu contraseña antes de subir. Ni el servidor ni nosotros podemos leerlo. Si olvidas la contraseña, se ofrece una **clave de recuperación** impresa al registrarte; sin ella los datos no se recuperan.
 - **Funciona sin internet**: la app abre y muestra tus proyectos guardados en ese equipo; al volver la conexión se sincroniza. Las respuestas de IA sí necesitan internet.
@@ -16,7 +16,7 @@
 4. **Sincronización cifrada**: subida/bajada de cambios por proyecto, resolviendo conflictos (gana el cambio más reciente por registro, sin mezclar proyectos).
 5. **Llamadas a proveedores desde la web**: Azure y otros bloquean llamadas directas desde navegadores; se usa un paso intermedio que solo reenvía la solicitud, sin guardar ni registrar tus claves.
 6. **Ajustes por plataforma**: escritorio con barra lateral amplia, iPhone/iPad con márgenes seguros; funciones exclusivas de Android (Bluetooth, SSH nativo, compartir del sistema) se ocultan en web con aviso.
-7. **Publicar** y probar instalación en Windows, Mac, iPhone y Android.
+7. **Publicar** y probar instalación en Windows, Mac, iPhone e iPad.
 
 ## Límites honestos
 - Apps de **tienda** para iPhone/Mac (App Store) requieren compilar en una Mac con Xcode y cuenta de Apple; no se puede desde aquí. La versión instalable cubre iPhone/iPad sin tienda.
