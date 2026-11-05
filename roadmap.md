@@ -1,16 +1,18 @@
 # MI AI — Roadmap
 
 ## Auditoría adversarial solicitada (5 nov)
-- [ ] Ejecutar toda la suite y revisar integración de módulos/modelos, fallos y funciones incompletas; informar evidencia y límites, sin prometer exhaustividad.
+- [x] Ejecutar toda la suite: 463 aprobadas, 1 omitida; revisión de integración confirmó seis defectos funcionales. No certifica Azure/Android ni exhaustividad.
+- [ ] Corregir seis hallazgos: selección manual de chat, costos por turno, PC/VM al delegar, medios diferidos en chat, resultados al regenerar y falsa finalización; espera aprobación de Fer.
 - [ ] Obtener resultados de seguridad y revisión profunda; no corregir hallazgos nuevos sin aprobación.
 
 ## Solicitud actual — roles autónomos distintos (5 nov)
-- [ ] Permitir un coordinador pequeño para distribuir, reservando modelos avanzados para especialistas.
-- [ ] Un coordinador distinto planifica y distribuye tareas considerando capacidades declaradas de los modelos, sin inventar conocimientos.
-- [ ] Permitir elegir los modelos avanzados de Fer por rol, sin concentrar el equipo en DeepSeek.
-- [ ] Distribuir cada rol entre modelos/deployments distintos, también en delegación y replanificación; impedir reutilización silenciosa.
-- [ ] Corregir el rol «Investigador» rechazado que aparece en la captura y probar las reglas con respuestas controladas.
-- [ ] Mostrar las asignaciones del equipo; verificación real Azure y Android depende de los equipos/cuentas de Fer.
+- [x] Permitir un coordinador pequeño para distribuir, reservando modelos avanzados para especialistas.
+- [x] Un coordinador distinto planifica y distribuye tareas considerando capacidades declaradas de los modelos, sin inventar conocimientos.
+- [x] Permitir elegir los modelos avanzados de Fer por rol, sin concentrar el equipo en DeepSeek.
+- [x] Distribuir cada rol entre modelos/deployments distintos, también en delegación y replanificación; impedir reutilización silenciosa.
+- [x] Corregir el rol «Investigador» rechazado que aparece en la captura y probar las reglas con respuestas controladas.
+- [x] Mostrar las asignaciones del equipo en ambas pantallas.
+- [ ] Verificar Azure y Android reales: requiere cuentas/equipo de Fer; la comprobación visual web se bloqueó durante apertura inicial, sin causa confirmada.
 
 ## Error de Cosmos posterior a build.22
 - [x] Leer bloques de texto estructurado sin convertir objetos a «[object Object]» y ocultar claves en diagnósticos; 12 pruebas Cosmos pasan.
