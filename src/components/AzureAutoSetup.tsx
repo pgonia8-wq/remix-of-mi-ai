@@ -8,7 +8,7 @@ import { getRepo } from "@/lib/app-db";
 import { useCoreQuery, useMutate } from "@/lib/use-app";
 import { testProvider } from "@/lib/providers";
 import { azureKindParams, type AzureDeploymentKind } from "@/lib/azure-url";
-import { AUTO_KIND_LABEL, LEGACY_FALLBACK_VERSION, baseOf, discoverAzureDeployments, parseDeploymentLines, type AutoKind, type AutoRow } from "@/lib/azure-autosetup";
+import { AUTO_KIND_LABEL, LEGACY_FALLBACK_VERSION, baseOf, cosmosRowFromUrl, discoverAzureDeployments, originOf, parseDeploymentLines, type AutoKind, type AutoRow } from "@/lib/azure-autosetup";
 
 type Status = { state: "idle" | "testing" | "saved" | "error"; message?: string };
 const KINDS = Object.keys(AUTO_KIND_LABEL) as AutoKind[];
@@ -34,13 +34,21 @@ export function AzureAutoSetup() {
   async function search() {
     setBusy("search"); setNote("");
     try {
+      // Target URI of a managed-compute deployment (NVIDIA Cosmos): one row, tested with its own key.
+      const cosmos = cosmosRowFromUrl(url, names);
+      if (cosmos) {
+        setRows([cosmos]); setStatus({});
+        setNote(key.trim() ? "Detecté un endpoint de NVIDIA Cosmos (video e imágenes). Toca «Probar y guardar todo»." : "Detecté un endpoint de NVIDIA Cosmos. Escribe la clave de ese deployment (aparece junto al URI de destino en Foundry) y toca «Probar y guardar todo».");
+        return;
+      }
       const k = await resolveKey();
       if (!base || !k) { setNote(!base ? "Pega la URL de tu recurso de Azure (cualquier URL que te muestre el portal sirve)." : "Escribe tu API Key."); return; }
       const found = await discoverAzureDeployments(url, k);
       const typed = parseDeploymentLines(names, url);
       const merged = new Map([...found, ...typed].map((r) => [r.deployment.toLowerCase(), r]));
       setRows([...merged.values()]); setStatus({});
-      setNote(found.length ? `Encontré ${found.length} modelos en tu recurso y detecté para qué sirve cada uno.` : typed.length ? "Tu recurso no permite listar sus modelos; usaré los nombres que escribiste." : "Tu recurso no permite listar sus modelos automáticamente. Escribe abajo los nombres de tus deployments (uno por línea) o pega sus URLs, y vuelve a tocar «Buscar».");
+      const cosmosHere = [...merged.values()].some((r) => r.kind === "cosmos");
+      setNote(found.length ? `Encontré ${found.length} modelos en tu recurso y detecté para qué sirve cada uno.${cosmosHere ? " NVIDIA Cosmos no responde en la URL del recurso: para configurarlo pega arriba su «URI de destino» (Target URI) de Foundry y su clave." : ""}` : typed.length ? "Tu recurso no permite listar sus modelos; usaré los nombres que escribiste." : "Tu recurso no permite listar sus modelos automáticamente. Escribe abajo los nombres de tus deployments (uno por línea) o pega sus URLs, y vuelve a tocar «Buscar».");
     } catch (e) { setNote(e instanceof Error ? e.message : "No se pudo consultar Azure."); }
     finally { setBusy(""); }
   }
@@ -51,6 +59,7 @@ export function AzureAutoSetup() {
     if (!confirm(`Probaré ${todo.length} modelo(s) con una solicitud real corta cada uno (en imágenes se genera 1 imagen pequeña). Puede tener un costo mínimo. Solo se guardan los que respondan bien. ¿Continuar?`)) return;
     setBusy("test");
     const k = await resolveKey();
+    if (!k) { setBusy(""); setNote("Escribe la API Key."); return; }
     let saved = 0;
     const repo = await getRepo();
     const existing = await repo.listProviders();
@@ -61,15 +70,15 @@ export function AzureAutoSetup() {
       let used = call(r.endpoint, r.apiVersion ?? "");
       let out = await testProvider(used, 30000);
       // Some deployments (older voice/transcription) only answer on the classic route with an API version.
-      if (!out.ok && r.endpoint.endsWith("/openai/v1") && (out.httpStatus === 404 || out.httpStatus === 400)) {
+      if (!out.ok && kind !== "cosmos" && r.endpoint.endsWith("/openai/v1") && (out.httpStatus === 404 || out.httpStatus === 400)) {
         const legacy = call(r.endpoint.replace(/\/openai\/v1$/, ""), LEGACY_FALLBACK_VERSION);
         const retry = await testProvider(legacy, 30000);
         if (retry.ok) { used = legacy; out = retry; }
       }
       if (!out.ok) { setStatus((s) => ({ ...s, [r.deployment]: { state: "error", message: out.message } })); continue; }
-      const same = existing.find((p) => p.kind === "azure_openai" && (p.deployment ?? "").toLowerCase() === r.deployment.toLowerCase() && baseOf(p.endpoint ?? "")?.origin === baseOf(used.endpoint)?.origin);
+      const same = existing.find((p) => p.kind === "azure_openai" && (p.deployment ?? "").toLowerCase() === r.deployment.toLowerCase() && originOf(p.endpoint) === originOf(used.endpoint));
       try {
-        await mutate(async (repo) => { const id = await repo.saveProvider({ name: `Azure OpenAI · ${r.deployment}`, kind: "azure_openai", endpoint: used.endpoint, apiKey: k, model: r.deployment, deployment: r.deployment, apiVersion: used.apiVersion, extraParams: used.extraParams }, same?.id); await repo.setProviderVerification(id, "verified"); });
+        await mutate(async (repo) => { const id = await repo.saveProvider({ name: kind === "cosmos" ? `NVIDIA Cosmos · ${r.deployment}` : `Azure OpenAI · ${r.deployment}`, kind: "azure_openai", endpoint: used.endpoint, apiKey: k, model: r.deployment, deployment: r.deployment, apiVersion: used.apiVersion, extraParams: used.extraParams }, same?.id); await repo.setProviderVerification(id, "verified"); });
         saved++;
         setStatus((s) => ({ ...s, [r.deployment]: { state: "saved" } }));
       } catch { setStatus((s) => ({ ...s, [r.deployment]: { state: "error", message: "No se pudo guardar en el teléfono." } })); }
@@ -81,7 +90,7 @@ export function AzureAutoSetup() {
   const videos = rows.filter((r) => r.kind === "video");
   return <section className="space-y-3 rounded-xl border bg-card p-3 text-sm">
     <div className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" /><h2 className="font-semibold">Configuración automática de Azure</h2></div>
-    <p className="text-xs text-muted-foreground">Pega la URL de tu recurso y tu API Key. MI AI busca todos tus modelos (chat, imágenes, voz, transcripción, video…), detecta para qué sirve cada uno, los prueba y los deja listos.</p>
+    <p className="text-xs text-muted-foreground">Pega la URL de tu recurso y tu API Key. MI AI busca todos tus modelos (chat, imágenes, voz, transcripción, video…), detecta para qué sirve cada uno, los prueba y los deja listos. Para NVIDIA Cosmos pega su «URI de destino» y su clave.</p>
     <input className={inputCls} aria-label="URL de Azure" placeholder="https://tu-recurso.openai.azure.com (cualquier URL del portal)" value={url} onChange={(e) => setUrl(e.target.value)} />
     <input className={inputCls} aria-label="API Key de Azure" type="password" autoComplete="off" placeholder={azure.length ? "API Key (vacío = usar la ya guardada)" : "API Key"} value={key} onChange={(e) => setKey(e.target.value)} />
     <details><summary className="cursor-pointer text-xs text-primary">¿No los encuentra? Escribe tus deployments</summary>
@@ -99,6 +108,7 @@ export function AzureAutoSetup() {
       </div>
       {st?.state === "error" && <p className="break-words text-xs text-destructive">{st.message}</p>}
       {r.kind === "video" && <p className="text-xs text-muted-foreground">Video: su prueba genera un clip real de 4 s (con costo); se hace aparte, abajo.</p>}
+      {r.kind === "cosmos" && <p className="text-xs text-muted-foreground">NVIDIA Cosmos: se prueba generando una imagen pequeña real y queda listo para crear videos e imágenes.</p>}
     </li>; })}</ul>}
     {rows.some((r) => r.kind !== "video") && <Button className="w-full" variant="outline" disabled={!!busy} onClick={testAndSave}>{busy === "test" ? <LoaderCircle className="animate-spin" /> : <Check />}{busy === "test" ? "Probando…" : "Probar y guardar todo"}</Button>}
     {videos.length > 0 && (azure.length
