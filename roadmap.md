@@ -1,5 +1,10 @@
 # MI AI — Roadmap
 
+## Solicitud actual — configuración fácil y agentes sin PC
+- [x] Configuración automática de Azure: URL + clave → detecta deployments, tipo, prueba real y guarda los que responden; video con su prueba aparte.
+- [x] Agentes: pantalla simple (una caja + Empezar), trabajan en el teléfono por defecto; PC/VM agrupado como opcional; aviso si falta modelo.
+- [ ] Probar con tu cuenta real de Azure y en el teléfono (sin APK nueva aún).
+
 ## Entrega actual — cristal premium y múltiples dispositivos
 - [x] Aplicar el prompt visual conservando estructura, funciones y navegación; cristal visible, adaptación a móviles de gama media/alta y Poco C40.
 - [x] Verificar 27 pantallas y chat en cuatro tamaños; creación/recarga/chat/menú comprobados. Rendimiento físico pendiente de equipos.
