@@ -1,32 +1,51 @@
-# MI AI Web: app instalable en Windows, Mac, iPhone, iPad y Android
+# Auditoría de lanzamiento de MI AI (Google Play) y plan de cierre
 
-## Qué tendrás
-- Una dirección web de MI AI que se abre en cualquier navegador y se **instala como app** (icono propio, ventana sin barra del navegador):
-  - Windows y Mac: Chrome o Edge, botón "Instalar".
-  - iPhone y iPad: Safari, Compartir → "Añadir a pantalla de inicio".
-  - Android no se toca: sigue siendo la APK actual.
-- **Cuenta con correo y contraseña**: tus proyectos, chats y modelos aparecen en todos tus equipos.
-- **Nada descifrable en la nube**: todo se cifra en tu equipo con una clave derivada de tu contraseña antes de subir. Ni el servidor ni nosotros podemos leerlo. Si olvidas la contraseña, se ofrece una **clave de recuperación** impresa al registrarte; sin ella los datos no se recuperan.
-- **Funciona sin internet**: la app abre y muestra tus proyectos guardados en ese equipo; al volver la conexión se sincroniza. Las respuestas de IA sí necesitan internet.
+Veredicto: **todavía no está lista para publicarse en Google Play.** Las funciones están construidas; lo que falta es sobre todo empaquetado de tienda, requisitos legales y de seguridad, y pruebas reales.
 
-## Fases
-1. **Instalable y sin conexión**: icono, nombre, colores grafito/violeta y modo sin conexión solo en la versión publicada (nunca en la vista previa).
-2. **Cuentas**: registro, inicio de sesión, recuperación de contraseña y pantalla de clave de recuperación.
-3. **Almacén web cifrado**: la misma base de datos de la app, guardada cifrada en el equipo para funcionar sin internet.
-4. **Sincronización cifrada**: subida/bajada de cambios por proyecto, resolviendo conflictos (gana el cambio más reciente por registro, sin mezclar proyectos).
-5. **Llamadas a proveedores desde la web**: Azure y otros bloquean llamadas directas desde navegadores; se usa un paso intermedio que solo reenvía la solicitud, sin guardar ni registrar tus claves.
-6. **Ajustes por plataforma**: escritorio con barra lateral amplia, iPhone/iPad con márgenes seguros; funciones exclusivas de Android (Bluetooth, SSH nativo, compartir del sistema) se ocultan en web con aviso.
-7. **Publicar** y probar instalación en Windows, Mac, iPhone e iPad.
+## 1. Bloqueadores (sin esto Play la rechaza o es riesgoso)
+1. **Formato de tienda**: hoy solo se produce APK. Play exige paquete AAB firmado con clave de producción.
+2. **Firma de producción**: el proceso publica como "estable" una APK firmada con la clave de pruebas (contraseña conocida). Debe exigir la clave definitiva.
+3. **Botón "Reportar contenido"** en respuestas, imágenes, videos y audio generados: obligatorio en Play para apps de IA.
+4. **Política de privacidad y términos** dentro de la app y en una dirección pública, más la ficha de "Seguridad de los datos" (micrófono, VPN, archivos, agentes en segundo plano).
+5. **Versión de Android objetivo**: está en 35; desde el 31 de agosto de 2026 Play exige 36 para apps nuevas. Ya aplica hoy.
 
-## Límites honestos
-- Apps de **tienda** para iPhone/Mac (App Store) requieren compilar en una Mac con Xcode y cuenta de Apple; no se puede desde aquí. La versión instalable cubre iPhone/iPad sin tienda.
-- iPhone puede borrar datos web locales tras semanas sin uso; la nube cifrada los restaura.
-- Las cuentas permiten después montar suscripciones y niveles (siguiente proyecto).
+## 2. Mal configurado
+- El número de versión vuelve a 1 al compilar fuera del proceso automático: rechazaría actualizaciones.
+- El proceso de compilación acepta dependencias distintas a las fijadas si falla la instalación exacta.
+- No hay optimización/ofuscación del código de Android confirmada.
+
+## 3. A medio hacer
+- **Cosmos video**: se ofrece como generador pero solo está comprobado por chat. Se ocultará como opción de video hasta tener la dirección real (sin más pruebas que cuesten cuota).
+- Suscripciones/niveles y versión web (PWA): sin construir; no bloquean un lanzamiento gratuito.
+- Pruebas con cuenta Azure real, teléfono físico y Demucs real: pendientes.
+
+## 4. Faltante
+- Reporte de fallos de la APK en producción (hoy solo existe en la vista previa).
+- Pantalla de soporte/contacto y versión visible de la app.
+
+## 5. Riesgos de seguridad
+- Herramientas de internet del teléfono: una dirección que redirija a la red local podría alcanzarse antes de bloquearse. Se bloquearán redirecciones y se validará la IP real.
+- Registros de errores sin borrar datos sensibles: se filtrarán claves y tokens.
+- Permisos de servicio en segundo plano (VPN, agentes) requieren justificación en Play.
+
+## Orden de trabajo
+1. Seguridad: bloquear redirecciones/red local y filtrar secretos en registros (con pruebas).
+2. Ocultar video de Cosmos hasta verificarlo.
+3. Botón "Reportar contenido" con envío al desarrollador sin salir de la app.
+4. Pantallas de Privacidad, Términos, Soporte y "Acerca de" con versión; texto borrador para que lo revises.
+5. Android: objetivo 36, numeración de versión fija, optimización activada, dependencias exactas.
+6. Compilación de tienda: AAB + APK firmados con clave de producción; la publicación "estable" falla sin ella.
+7. Reporte de fallos local opcional (sin enviar datos sin tu permiso).
+8. Compilar build.23 y checklist de Play Console (ficha de seguridad de datos, permisos, clasificación de contenido).
+
+## Lo que necesito de ti después
+- Crear la clave de producción (te guío) y guardarla como secretos de GitHub.
+- Correo de soporte y nombre legal del titular para privacidad/términos.
 
 ## Detalles técnicos
-- Cambia la regla "sin backend obligatorio" solo para la web: se activa Lovable Cloud (auth + tabla `encrypted_records` con `user_id, project_id, record_id, ciphertext, iv, updated_at, deleted`, RLS por `auth.uid()`, GRANTs). La APK sigue local-first; la sincronización será opcional allí. Actualizar AGENTS.md.
-- Cifrado: Argon2id/PBKDF2 sobre contraseña → KEK; DEK aleatoria envuelta con KEK y con clave de recuperación; AES-GCM por registro (reutiliza formato de backups v3). Claves API van cifradas igual y nunca en logs.
-- Almacenamiento web: sql.js persistido cifrado en OPFS/IndexedDB solo como contenedor de ciphertext, detrás del mismo `SqlDb`/`Repo`; pruebas de aislamiento existentes se extienden.
-- PWA: `vite-plugin-pwa` generateSW, `injectRegister:null`, `devOptions.enabled:false`, wrapper con guardas de preview/iframe y `?sw=off`, NetworkFirst para navegación, excluir `/~oauth` y rutas `/api`.
-- Proxy: ruta servidor sin estado que reenvía a hosts de proveedor permitidos (allowlist, sin redirecciones, sin logs de cabeceras); clave viaja por solicitud.
-- Pruebas: cifrado/descifrado y contraseña errónea, aislamiento por usuario/proyecto en sync, guardas del service worker.
+- SSRF: `CapacitorHttp` sin seguir redirecciones, validar cada salto y resolver DNS para rechazar rangos privados (`src/lib/core/research.ts`, `src/lib/automation/phone-tools.ts`).
+- Redacción en `src/lib/error-capture.ts` (patrones de claves, Bearer, api-key).
+- Cosmos: quitar `video.generate` salvo endpoint `inference.ml.azure.com` verificado (`src/lib/providers.ts`, `adapters/cosmos.ts`).
+- Reporte: tabla local `content_reports` vía Repo + `mailto`/compartir al correo de soporte con hash del contenido, sin claves.
+- `scripts/android-prepare.sh`: target/compile 36, `minifyEnabled true` + reglas ProGuard para Capacitor/SQLCipher, versionCode obligatorio.
+- `.github/workflows/android.yml`: `bundleRelease`, `--frozen-lockfile` estricto, fallar release sin keystore, prueba en emulador API 35/36.
