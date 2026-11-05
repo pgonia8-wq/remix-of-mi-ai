@@ -3,6 +3,7 @@
 ## Solicitud actual (5 nov) — build.20, suscripciones, PC Node, PWA
 - [x] Compilar build.20 (incluye NVIDIA Cosmos y opciones de video).
 - [x] Agentes: elegir modelo y servidor/VM por SSH en Opciones; «Modelo predeterminado por función» en Modelos que respeta toda la app (sin APK nueva aún).
+- [ ] Cosmos vía https://<recurso>.services.ai.azure.com/openai/v1/chat/completions debe conectar (urgente).
 - [ ] Seguir revisando opciones configurables en el resto de pantallas.
 - [ ] Modelo de suscripción por tiers con registro y contraseña de acceso generada — espera respuestas de Fer (servidor obligatorio, tiers, precios).
 - [x] PC Node: ya construido (pc-node/, emparejamiento, carpetas, túneles, FFmpeg/Demucs).
