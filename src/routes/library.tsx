@@ -104,15 +104,25 @@ function useAssetUrl(a: Asset | null, enabled = true) {
   return { url, err };
 }
 
+async function downloadAsset(a: Asset) {
+  try {
+    const c = await getCore();
+    await saveExport(c.assets.stream(a.project_id, a.id), a.name ?? `miai-${a.id.slice(0, 8)}.${a.format ?? "mp4"}`, a.mime);
+  } catch (e) { toast.error((e as Error).message); }
+}
+
 function Thumb({ a, onOpen }: { a: Asset; onOpen: () => void }) {
   const { url, err } = useAssetUrl(a, a.kind === "image" || (a.kind === "video" && (a.size ?? 0) < 60 * 1024 * 1024));
   return (
-    <button onClick={onOpen} className="overflow-hidden rounded-xl border bg-card text-left">
+    <div className="relative">
+    {a.kind === "video" && <button type="button" aria-label={`Descargar ${a.name ?? "video"}`} onClick={() => void downloadAsset(a)} className="absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full border bg-background/80"><Download className="h-4 w-4" /></button>}
+    <button onClick={onOpen} className="w-full overflow-hidden rounded-xl border bg-card text-left">
       <div className="flex aspect-square items-center justify-center bg-secondary/40">
         {a.kind === "image" && url ? <img src={url} alt={a.prompt ?? a.name ?? "imagen"} className="h-full w-full object-cover" /> : a.kind === "video" ? <span className="relative flex h-full w-full items-center justify-center">{url && <video src={`${url}#t=0.5`} muted playsInline preload="metadata" className="absolute inset-0 h-full w-full object-cover" />}<span className="relative flex h-10 w-10 items-center justify-center rounded-full bg-background/70"><Play className="h-5 w-5" /></span></span> : <span className="text-xs text-muted-foreground">{err ? "Archivo dañado" : a.kind === "audio" ? "Audio" : a.kind}</span>}
       </div>
       <div className="truncate p-2 text-xs">{a.name ?? a.prompt ?? a.id.slice(0, 8)} {a.version > 1 && `· v${a.version}`}</div>
     </button>
+    </div>
   );
 }
 
@@ -252,7 +262,7 @@ function AssetDetail({ a, onClose, onOpen }: { a: Asset; onClose: () => void; on
           </div>
         )}
         <div className="grid grid-cols-3 gap-2">
-          <Button variant="outline" onClick={exportFile}><Download /> Guardar como</Button>
+          <Button variant="outline" onClick={exportFile}><Download /> {a.kind === "video" ? "Descargar video" : "Guardar como"}</Button>
           <Button variant="outline" onClick={shareFile}><Share2 /> Compartir en…</Button>
           <Button variant="outline" onClick={() => getCore().then((c) => c.assets.verify(a.project_id, a.id)).then(() => toast.success("Integridad verificada"), (e) => toast.error((e as Error).message))}><ShieldCheck /> Verificar</Button>
           <Button variant="outline" onClick={() => confirm("¿Eliminar este activo?") && mutate((c) => c.assets.remove(a.project_id, a.id)).then(onClose)}><Trash2 /> Borrar</Button>
