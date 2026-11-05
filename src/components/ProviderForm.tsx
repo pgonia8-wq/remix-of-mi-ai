@@ -36,7 +36,6 @@ export function ProviderForm({ provider, onClose }: { provider?: Provider | unde
   const mutate = useMutate();
   const { data: azureProviders = [] } = useCoreQuery(["providers-azure"], async (c) => (await c.repo.registry.listProviders()).filter((p) => p.adapter === "azure_openai"));
   const azureKind: AzureDeploymentKind = formKind === "video" ? "chat" : formKind;
-  const setAzureKind = (k: AzureDeploymentKind) => setFormKind(k);
   const sora = form.kind === "azure_openai" && formKind === "video";
   const azureOpenAI = form.kind === "azure_openai";
   const call: ProviderCall = { kind: form.kind, endpoint: form.endpoint, apiKey: form.apiKey, model: azureOpenAI ? form.deployment.trim() : form.model, deployment: form.deployment, apiVersion: form.apiVersion, extraParams: azureOpenAI ? azureKindParams(azureKind) : form.extraParams };
