@@ -1,0 +1,14 @@
+{
+  "numTotalTests": 464,
+  "numPassedTests": 463,
+  "numFailedTests": 0,
+  "numPendingTests": 1,
+  "success": true,
+  "files": 54,
+  "omitted": [
+    {
+      "file": "src/test/block4.test.ts",
+      "test": "Git real en PC Node init, commit, diff y versión anterior mediante la herramienta git con aprobación"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "backup": {
+    "sourceContext": 80,
+    "restoredContext": 20,
+    "sourceStatus": [
+      {
+        "message_id": "243bb003-1a32-4377-99eb-f63d15e408d1",
+        "status": "interrupted"
+      }
+    ],
+    "restoredStatus": [],
+    "omittedTables": [
+      "chat_settings",
+      "message_status",
+      "auto_runs",
+      "local_ws_files"
+    ]
+  },
+  "duplicate": {
+    "context": 20,
+    "statuses": []
+  },
+  "failure": "Error: synthetic storage failure",
+  "partialDuplicate": {
+    "before": 2,
+    "after": 3
+  }
+}
