@@ -34,6 +34,31 @@ function Studio({ pid, kind }: { pid: string; kind: StudioKind }) {
   const [ratio, setRatio] = useState("1280:720"), [license, setLicense] = useState(""), [busy, setBusy] = useState(false), [file, setFile] = useState<File | null>(null), [open, setOpen] = useState<Asset | null>(null);
   const compatible = models.filter((m) => isCompatible(m, { capability, mode: "auto" }));
   async function act(fn: Parameters<typeof mutate>[0]) { setBusy(true); try { await mutate(fn); } catch (e) { toast.error(e instanceof Error ? e.message : "Operación no confirmada."); } finally { setBusy(false); } }
+  const result = useRef<HTMLDivElement | null>(null);
+  /** Opens a finished file right away so it plays here without searching for it. */
+  async function showAsset(core: Awaited<ReturnType<typeof getCore>>, assetId: string | undefined) {
+    if (!assetId) return;
+    const a = (await core.assets.list(pid)).find((x) => x.id === assetId);
+    if (a) { setOpen(a); setTimeout(() => result.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 300); }
+  }
+  // Videos that take minutes are checked automatically every 20 s while this screen is open (never re-generated).
+  const pendingIds = jobs.filter((j) => !!j.remote_id && j.status === "processing").map((j) => j.id).join(",");
+  useEffect(() => {
+    if (!pendingIds) return;
+    let live = true;
+    const tick = async () => {
+      for (const id of pendingIds.split(",")) {
+        try {
+          const core = await getCore();
+          const r = await pollRemoteJob(core, pid, id);
+          if (!live) return;
+          if (!r.pending) { await mutate(async () => undefined); toast.success(kind === "video" ? "Tu video está listo: se reproduce abajo." : "Tu archivo está listo."); await showAsset(core, r.assets[0]?.id); }
+        } catch { /* a manual «Consultar» shows the reason */ }
+      }
+    };
+    const t = setInterval(() => { void tick(); }, 20_000);
+    return () => { live = false; clearInterval(t); };
+  }, [pendingIds, pid]);
   async function generate() {
     if (!confirm("¿Enviar al proveedor con tu clave? Puede tener costo. La licencia depende del proveedor y de tu plan.")) return;
     await act(async (core) => {
@@ -41,8 +66,8 @@ function Studio({ pid, kind }: { pid: string; kind: StudioKind }) {
       if (!decision.ok) throw new Error(decision.reason);
       const files = file ? [{ bytes: new Uint8Array(await file.arrayBuffer()), mime: file.type, name: file.name }] : undefined;
       const result = await execute(core, pid, decision.model, { capability, prompt, params: { seconds, instrumental, ratio, license: license.trim() || "No verificada; revisar términos del proveedor", ...(open ? { parentAssetId: open.id } : {}) }, ...(files ? { files } : {}), parentAssetId: open?.id ?? null });
-      if (result.pending) toast.success("Trabajo enviado. Consulta su estado sin volver a generar.");
-      else toast.success("Resultado guardado cifrado en Biblioteca.");
+      if (result.pending) toast.success(kind === "video" ? "Video en proceso. Tarda unos minutos: MI AI lo revisa solo y lo abre aquí abajo cuando esté listo." : "Trabajo enviado. Se revisa solo y aparecerá abajo.");
+      else { toast.success(kind === "video" ? "Video listo: se reproduce abajo." : "Listo: se abre abajo."); await showAsset(core, result.assets[0]?.id); }
     });
   }
   return <div className="space-y-4 p-4">
@@ -59,17 +84,18 @@ function Studio({ pid, kind }: { pid: string; kind: StudioKind }) {
     <p className="text-xs text-muted-foreground">Uso comercial no verificado. Revisa la licencia del proveedor y de tu plan.</p>
     {open && <p className="text-xs">Nueva versión de {open.name}</p>}
     <Button disabled={busy || !compatible.length || !prompt.trim()} onClick={generate}><Play />{busy ? "Procesando…" : "Generar"}</Button>
-    {jobs.filter((j) => !!j.remote_id && ["processing", "interrupted", "recovery_required"].includes(j.status)).map((j) => <div key={j.id} className="flex items-center gap-2 border-b py-2 text-xs"><span className="min-w-0 flex-1">{j.capability_id} · {j.status}{j.progress !== null ? ` · ${Math.round(j.progress * 100)} %` : ""}</span><Button variant="outline" size="sm" disabled={busy} onClick={() => act(async (core) => { const r = await pollRemoteJob(core, pid, j.id); toast.success(r.pending ? "Sigue procesando" : "Archivo guardado cifrado"); })}><RefreshCw />Consultar</Button></div>)}
-    <div className="space-y-2 border-t pt-3"><div className="flex items-center justify-between"><h2 className="font-semibold">Biblioteca</h2><Button variant="outline" size="sm" onClick={() => importInput.current?.click()}><Upload />Importar</Button></div>
+    {jobs.filter((j) => !!j.remote_id && ["processing", "interrupted", "recovery_required"].includes(j.status)).map((j) => <div key={j.id} className="flex items-center gap-2 border-b py-2 text-xs"><span className="min-w-0 flex-1">{j.capability_id === "video.generate" ? "Video" : j.capability_id} · {j.status === "processing" ? "generándose (se revisa solo cada 20 s)" : j.status}{j.progress !== null ? ` · ${Math.round(j.progress * 100)} %` : ""}</span><Button variant="outline" size="sm" disabled={busy} onClick={() => act(async (core) => { const r = await pollRemoteJob(core, pid, j.id); toast.success(r.pending ? "Sigue procesando" : "Listo: se abre abajo."); if (!r.pending) await showAsset(core, r.assets[0]?.id); })}><RefreshCw />Consultar</Button></div>)}
+    <div className="space-y-2 border-t pt-3"><div className="flex items-center justify-between"><h2 className="font-semibold">{kind === "video" ? "Tus videos (toca uno para verlo)" : "Biblioteca"}</h2><Button variant="outline" size="sm" onClick={() => importInput.current?.click()}><Upload />Importar</Button></div>
       <input ref={importInput} type="file" aria-label="Importar archivo de medios" className="hidden" accept={kind === "model3d" ? ".glb" : kind === "music" ? "audio/*" : "video/mp4"} onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; act(async (core) => {
         if (f.size > (kind === "model3d" ? 200 : 2048) * 1024 * 1024) throw new Error(kind === "model3d" ? "Máximo 200 MB para modelos 3D." : "Máximo 2 GB por archivo.");
         if (kind === "model3d" && new TextDecoder().decode(new Uint8Array(await f.slice(0, 4).arrayBuffer())) !== "glTF") throw new Error("El archivo no es GLB.");
         const asset = await core.assets.put(pid, blobChunks(f), { kind: kind === "music" ? "audio" : kind, mime: kind === "model3d" ? "model/gltf-binary" : f.type || "video/mp4", name: f.name, capability: kind === "music" ? "music.generate" : null, params: { license: license.trim() || "Licencia del archivo importado no verificada", source: "import" } });
         setOpen(asset);
       }); e.target.value = ""; }} />
-      {assets.map((a) => <Button variant="outline" key={a.id} className="w-full justify-start truncate" onClick={() => setOpen(a)}>{a.name} · v{a.version}</Button>)}
+      {!assets.length && <p className="text-xs text-muted-foreground">Aún no hay archivos. Lo que generes aparece aquí y también en Biblioteca.</p>}
+      {assets.map((a) => <Button variant={open?.id === a.id ? "default" : "outline"} key={a.id} className="w-full justify-start truncate" onClick={() => { setOpen(a); setTimeout(() => result.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100); }}><Play />{a.name} · v{a.version}</Button>)}
     </div>
-    {open && <MediaPreview asset={open} onClose={() => setOpen(null)} />}
+    <div ref={result}>{open && <MediaPreview asset={open} onClose={() => setOpen(null)} />}</div>
   </div>;
 }
 function MediaPreview({ asset, onClose }: { asset: Asset; onClose: () => void }) {
@@ -82,7 +108,7 @@ function MediaPreview({ asset, onClose }: { asset: Asset; onClose: () => void })
   return <section className="space-y-3 border-t pt-3"><div className="flex items-center justify-between"><h2 className="min-w-0 break-words font-semibold">{asset.name}</h2><Button variant="ghost" onClick={onClose}>Cerrar</Button></div>
     {error && <p className="text-destructive">{error}</p>}
     {url && asset.kind === "audio" && <audio controls src={url} className="w-full" />}
-    {url && asset.kind === "video" && <video controls src={url} className="max-h-96 w-full" />}
+    {url && asset.kind === "video" && <video controls playsInline autoPlay muted src={url} className="max-h-[70dvh] w-full rounded-lg bg-muted" />}
     {bytes && asset.kind === "model3d" && <Model3DViewer bytes={bytes} name={asset.name ?? "modelo"} />}
     <p className="text-xs text-muted-foreground">{asset.params ? String((JSON.parse(asset.params) as Record<string, unknown>)["license"] ?? "Licencia no verificada") : "Licencia no verificada"}</p>
     <Button variant="outline" disabled={!bytes} onClick={() => { if (bytes && confirm("¿Exportar una copia sin cifrar?")) saveExport(bytes, asset.name ?? "resultado", asset.mime).catch(() => toast.error("No se pudo exportar.")); }}>Exportar</Button>
