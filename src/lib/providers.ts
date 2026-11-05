@@ -1,5 +1,5 @@
 import type { ProviderKind } from "./db/repo";
-import { azureKindOf, parseAzureUrl, type AzureDeploymentKind } from "./azure-url";
+import { azureKindOf, isAzureResourceHost, parseAzureUrl, type AzureDeploymentKind } from "./azure-url";
 
 export const PROVIDER_KINDS: { kind: ProviderKind; label: string; endpoint: string; model: string; needsDeployment?: boolean; needsVersion?: boolean }[] = [
   { kind: "openai", label: "OpenAI", endpoint: "https://api.openai.com/v1", model: "gpt-4o-mini" },
@@ -412,6 +412,10 @@ async function testAzureKind(p: ProviderCall, kind: Exclude<AzureDeploymentKind,
   const { azureAdapter } = await import("./core/adapters/azure");
   const { testWav } = await import("./core/adapters/audio");
   const creds = { kind: p.kind, endpoint: p.endpoint, apiKey: p.apiKey, deployment, apiVersion: p.apiVersion ?? null, model: deployment, extraParams: p.extraParams ?? null };
+  if (kind === "cosmos") {
+    let resource = false; try { resource = isAzureResourceHost(new URL((p.endpoint ?? "").trim()).hostname); } catch { /* checked by the adapter */ }
+    if (resource) { const { probeCosmosChat } = await import("./core/adapters/cosmos"); await probeCosmosChat(creds, deployment, signal); return; }
+  }
   const out = kind === "cosmos" ? await azureAdapter.run(creds, { capability: "image.generate", model: deployment, prompt: "A small blue ball on a white table, studio light", params: { num_inference_steps: 8 }, signal })
     : kind === "tts" || kind === "audio-chat" ? await azureAdapter.run(creds, { capability: "audio.tts", model: deployment, prompt: "OK", signal })
     : kind === "transcribe" ? await azureAdapter.run(creds, { capability: "audio.transcribe", model: deployment, files: [{ bytes: testWav(), mime: "audio/wav", name: "prueba.wav" }], params: { allowEmpty: true }, signal })
