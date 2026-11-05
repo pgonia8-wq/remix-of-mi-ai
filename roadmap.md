@@ -1,5 +1,11 @@
 # MI AI — Roadmap
 
+## Solicitud actual (5 nov) — build.20, suscripciones, PC Node, PWA
+- [ ] Compilar build.20 (incluye NVIDIA Cosmos y opciones de video).
+- [ ] Modelo de suscripción por tiers con registro y contraseña de acceso generada (requiere decisiones de Fer y servidor).
+- [ ] PC Node: ya existe (pc-node/); revisar si falta algo.
+- [ ] PWA: versión web instalable (requiere decisión sobre almacenamiento y alcance).
+
 ## Solicitud actual — configuración fácil y agentes sin PC
 - [x] Configuración automática de Azure: URL + clave → detecta deployments, tipo, prueba real y guarda los que responden; video con su prueba aparte.
 - [x] Agentes: pantalla simple (una caja + Empezar), trabajan en el teléfono por defecto; PC/VM agrupado como opcional; aviso si falta modelo.
