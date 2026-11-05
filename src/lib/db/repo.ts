@@ -87,6 +87,8 @@ export class Repo {
     await this.db.run(`CREATE TABLE IF NOT EXISTS chat_settings (chat_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, context_messages INTEGER NOT NULL, updated_at INTEGER NOT NULL)`);
     // Provider "thinking" text some models (DeepSeek, Kimi) require back with tools; never shown, never exported.
     await this.db.run(`CREATE TABLE IF NOT EXISTS message_reasoning (message_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, chat_id TEXT NOT NULL, content TEXT NOT NULL)`);
+    // Answers saved while the model is still writing: "streaming" during generation, "interrupted" if it was cut off.
+    await this.db.run(`CREATE TABLE IF NOT EXISTS message_status (message_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, chat_id TEXT NOT NULL, status TEXT NOT NULL)`);
     for (const s of SCHEMA_B4) await this.db.run(s);
     await this.registry.seedCapabilities();
     await this.registry.syncLegacyProviders();
@@ -135,7 +137,7 @@ export class Repo {
     await this.db.run(`UPDATE projects SET name=?, description=? WHERE id=?`, [name, description, id]);
   }
   async deleteProject(id: string) {
-    for (const t of ["cost_ledger", "project_budgets", "chat_settings", "message_reasoning", "messages", "chats", "memory_versions", "memory_items", "documents", ...PROJECT_TABLES_V3, ...PROJECT_TABLES_B4])
+    for (const t of ["cost_ledger", "project_budgets", "chat_settings", "message_reasoning", "message_status", "messages", "chats", "memory_versions", "memory_items", "documents", ...PROJECT_TABLES_V3, ...PROJECT_TABLES_B4])
       await this.db.run(`DELETE FROM ${t} WHERE project_id=?`, [id]);
     await this.db.run(`DELETE FROM projects WHERE id=?`, [id]);
   }
@@ -220,6 +222,7 @@ export class Repo {
     await this.db.run(`DELETE FROM chat_attachments WHERE project_id=? AND chat_id=?`, [projectId, chatId]);
     await this.db.run(`DELETE FROM chat_settings WHERE project_id=? AND chat_id=?`, [projectId, chatId]);
     await this.db.run(`DELETE FROM message_reasoning WHERE project_id=? AND chat_id=?`, [projectId, chatId]);
+    await this.db.run(`DELETE FROM message_status WHERE project_id=? AND chat_id=?`, [projectId, chatId]);
     await this.db.run(`DELETE FROM messages WHERE project_id=? AND chat_id=?`, [projectId, chatId]);
     await this.db.run(`DELETE FROM chats WHERE project_id=? AND id=?`, [projectId, chatId]);
   }
@@ -250,6 +253,24 @@ export class Repo {
   async updateMessage(projectId: string, messageId: string, content: string) {
     need(projectId);
     await this.db.run(`UPDATE messages SET content=? WHERE id=? AND project_id=?`, [content, messageId, projectId]);
+  }
+  async setMessageStatus(projectId: string, chatId: string, messageId: string, status: "streaming" | "interrupted" | null) {
+    const [m] = await this.db.all("SELECT id FROM messages WHERE project_id=? AND chat_id=? AND id=?", [projectId, chatId, messageId]);
+    if (!m) throw new IsolationError("Mensaje ajeno al proyecto");
+    if (!status) { await this.db.run("DELETE FROM message_status WHERE project_id=? AND message_id=?", [projectId, messageId]); return; }
+    await this.db.run("INSERT OR REPLACE INTO message_status (message_id, project_id, chat_id, status) VALUES (?,?,?,?)", [messageId, projectId, chatId, status]);
+  }
+  listMessageStatus(projectId: string, chatId: string) {
+    need(projectId);
+    return this.db.all<{ message_id: string; status: "streaming" | "interrupted" }>("SELECT message_id, status FROM message_status WHERE project_id=? AND chat_id=?", [projectId, chatId]);
+  }
+  /** Answers left "streaming" by a closed/killed app become "interrupted" (except ones still being written now). */
+  async interruptStaleMessages(projectId: string, chatId: string, active: string[] = []) {
+    need(projectId);
+    const rows = await this.listMessageStatus(projectId, chatId);
+    let n = 0;
+    for (const r of rows) if (r.status === "streaming" && !active.includes(r.message_id)) { await this.db.run("UPDATE message_status SET status='interrupted' WHERE project_id=? AND message_id=?", [projectId, r.message_id]); n++; }
+    return n;
   }
   async setMessageReasoning(projectId: string, chatId: string, messageId: string, content: string) {
     const [m] = await this.db.all("SELECT id FROM messages WHERE project_id=? AND chat_id=? AND id=?", [projectId, chatId, messageId]);
