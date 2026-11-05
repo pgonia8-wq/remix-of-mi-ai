@@ -23,6 +23,6 @@ describe("Modelo elegido por la persona", () => {
     expect(d.ok && d.model.id).toBe("azure_openai");
   });
   it("el servidor/VM elegido se comunica a los agentes con su id para ssh.exec", () => {
-    expect(envNote({ nodeId: null, folderId: null, sshId: "11111111-1111-1111-1111-111111111111", sshName: "Mi VM" })).toMatch(/ssh\.exec.*11111111-1111-1111-1111-111111111111/);
+    expect(envNote({ nodeId: null, folderId: null, sshId: "11111111-1111-1111-1111-111111111111", sshName: "Mi VM" })).toMatch(/connectionId 11111111-1111-1111-1111-111111111111\): usa ssh\.exec/);
   });
 });
