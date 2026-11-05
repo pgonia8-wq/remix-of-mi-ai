@@ -1,0 +1,19 @@
+{
+  "exit": 1,
+  "scope": "src; prettier/prettier desactivado solo en comando, configuración intacta",
+  "files": 307,
+  "errors": 62,
+  "warnings": 14,
+  "rules": {
+    "react-hooks/exhaustive-deps": 5,
+    "react-refresh/only-export-components": 9,
+    "no-control-regex": 7,
+    "@typescript-eslint/no-explicit-any": 48,
+    "prefer-const": 2,
+    "no-useless-catch": 1,
+    "no-useless-escape": 1,
+    "@typescript-eslint/no-unused-expressions": 1,
+    "no-regex-spaces": 1,
+    "no-unsafe-optional-chaining": 1
+  }
+}

@@ -1,0 +1,15 @@
+import initSqlJs from '/dev-server/node_modules/sql.js/dist/sql-wasm.js';
+import { Repo } from '/dev-server/src/lib/db/repo.ts';
+import { wrapSqlJs } from '/dev-server/src/lib/db/sql.ts';
+const SQL = await initSqlJs({ locateFile: () => '/dev-server/node_modules/sql.js/dist/sql-wasm.wasm' });
+const vault = { encrypt: async (v:string) => v, decrypt: async (v:string) => v }; // Synthetic data, no credentials; not a crypto test.
+const db=wrapSqlJs(new SQL.Database()); const r=new Repo(db,vault);await r.migrate();
+const p=await r.createProject('synthetic-audit');const c=await r.createChat(p.id);await r.setChatContextLimit(p.id,c.id,80);
+const m=await r.addMessage(p.id,c.id,'assistant','respuesta parcial sintética');await r.setMessageStatus(p.id,c.id,m.id,'interrupted');
+const dump=await r.dumpAll();const restored=new Repo(wrapSqlJs(new SQL.Database()),vault);await restored.migrate();await restored.restoreAll(dump as any);
+const results:any={backup:{sourceContext:await r.getChatContextLimit(p.id,c.id),restoredContext:await restored.getChatContextLimit(p.id,c.id),sourceStatus:await r.listMessageStatus(p.id,c.id),restoredStatus:await restored.listMessageStatus(p.id,c.id),omittedTables:['chat_settings','message_status','auto_runs','local_ws_files'].filter(t=>!(t in dump.tables))}};
+const copy=await r.duplicateProject(p.id);const [cc]=await r.listChats(copy.id);results.duplicate={context:await r.getChatContextLimit(copy.id,cc.id),statuses:await r.listMessageStatus(copy.id,cc.id)};
+let armed=false; const failing=new Repo({all:(...args:any[])=>db.all(...args),run:async(sql:string,params:any[])=>{if(armed && sql.startsWith('INSERT INTO messages'))throw new Error('synthetic storage failure');await db.run(sql,params)}},vault);
+const before=await r.listProjects();armed=true;try{await failing.duplicateProject(p.id)}catch(e){results.failure=String(e)};const after=await r.listProjects();results.partialDuplicate={before:before.length,after:after.length};
+console.log(JSON.stringify(results,null,2));
+await Bun.write('/tmp/miai-audit/reproductions.json',JSON.stringify(results,null,2));
