@@ -1,5 +1,9 @@
 # MI AI — Roadmap
 
+## Error de Cosmos posterior a build.22
+- [x] Leer bloques de texto estructurado sin convertir objetos a «[object Object]» y ocultar claves en diagnósticos; 12 pruebas Cosmos pasan.
+- [ ] Identificar el contrato real de generación del deployment de Fer: falta respuesta estructurada del proveedor (sin claves).
+
 ## Entrega solicitada — build.22
 - [x] Compilar build.22 con descarga de videos, Biblioteca y revisión global de trabajos remotos; 447 pruebas pasan, 1 omitida.
 - [x] Verificar firma igual a build.21, Android 11+ y ARM64/ARMv7; APK entregada, descarga alternativa POST byteidéntica. Video importado persiste tras recarga y se descarga idéntico en navegador; teléfono y generación Azure reales pendientes.
