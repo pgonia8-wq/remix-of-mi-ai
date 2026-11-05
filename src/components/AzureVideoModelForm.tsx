@@ -4,11 +4,11 @@ import { Button } from "./ui/button";
 import { useActiveProjectId, useCoreMutate, useCoreQuery } from "@/lib/use-app";
 import { submitAzureVideoTest, finishAzureVideoTest } from "@/lib/core/azure-video-verification";
 
-export function AzureVideoModelForm({ providers }: { providers: { id: string; name: string; adapter: string }[] }) {
+export function AzureVideoModelForm({ providers, initialModel = "" }: { providers: { id: string; name: string; adapter: string }[]; initialModel?: string }) {
   const projectId = useActiveProjectId();
   const azure = providers.filter(p => p.adapter === "azure_openai");
   const [providerId, setProviderId] = useState(azure[0]?.id ?? "");
-  const [model, setModel] = useState("");
+  const [model, setModel] = useState(initialModel);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const mutate = useCoreMutate();
@@ -18,7 +18,7 @@ export function AzureVideoModelForm({ providers }: { providers: { id: string; na
     try { await mutate(fn); } catch (error) { setMessage(error instanceof Error ? error.message : "Operación no confirmada."); } finally { setBusy(false); }
   }
   return <section className="space-y-3 border-t pt-3">
-    <h2 className="font-semibold">Video Azure · Sora 2 v1</h2>
+    <h2 className="font-semibold">Video Azure · {initialModel || "Sora 2 v1"}</h2>
     <select aria-label="Conexión Azure de video" className={inputCls} disabled={busy} value={providerId} onChange={e => setProviderId(e.target.value)}><option value="">Seleccionar Azure</option>{azure.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
     <input aria-label="Deployment de video Azure" className={inputCls} disabled={busy} value={model} onChange={e => setModel(e.target.value)} placeholder="Modelo/deployment de video provisionado" />
     {!projectId && <p className="text-sm text-muted-foreground">Selecciona un proyecto para guardar la prueba.</p>}

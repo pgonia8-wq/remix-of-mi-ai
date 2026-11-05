@@ -13,6 +13,7 @@ import { MediaProviderForm } from "@/components/MediaProviderForm";
 import { SearxngForm } from "@/components/SearxngForm";
 import { AzureVideoModelForm } from "@/components/AzureVideoModelForm";
 import { ModelsTransfer } from "@/components/ModelsTransfer";
+import { AzureAutoSetup } from "@/components/AzureAutoSetup";
 
 export const Route = createFileRoute("/models")({
   head: () => ({
@@ -60,13 +61,16 @@ function Models() {
 
   return (
     <div className="space-y-4 p-4">
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold">Modelos</h1>
-        <Button size="sm" onClick={() => setAdding((v) => !v)}><Plus /> Registrar</Button>
-      </div>
-      <p className="text-xs text-muted-foreground">Cada modelo muestra solo las capacidades que tú o su catálogo declaran. «Probar» hace una operación real con tu clave (puede tener costo). Los proveedores de texto se agregan en Ajustes.</p>
+      <h1 className="text-2xl font-bold">Modelos</h1>
+      <AzureAutoSetup />
+      <div className="flex flex-wrap gap-2"><ModelsTransfer /></div>
+
+      <details className="rounded-xl border bg-card p-3 text-sm">
+        <summary className="cursor-pointer font-semibold">Configuración manual y otros proveedores</summary>
+        <div className="mt-3 space-y-3">
+      <p className="text-xs text-muted-foreground">Solo si necesitas algo especial. Cada modelo muestra solo las capacidades que tú o su catálogo declaran. «Probar» hace una operación real con tu clave (puede tener costo).</p>
+      <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => setAdding((v) => !v)}><Plus /> Registrar modelo</Button><Button size="sm" variant="outline" onClick={() => setAzureVideo(v => !v)}>Video Azure</Button></div>
       {adding && <RegisterModel providers={providers} caps={caps.map((c) => c.id)} onDone={() => setAdding(false)} />}
-      <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => setAzureVideo(v => !v)}>Video Azure</Button><ModelsTransfer /></div>
       {azureVideo && <AzureVideoModelForm providers={providers} />}
 
       <section className="space-y-2 rounded-xl border bg-card p-3 text-sm">
@@ -88,7 +92,10 @@ function Models() {
           </div>
         ))}
       </section>
+        </div>
+      </details>
 
+      {models.length > 0 && <h2 className="pt-2 font-semibold">Tus modelos</h2>}
       {models.map((m) => <ModelCard key={m.id} m={m} allCaps={caps.map((c) => c.id)} />)}
       {!models.length && <p className="text-center text-sm text-muted-foreground">Aún no hay modelos registrados.</p>}
     </div>

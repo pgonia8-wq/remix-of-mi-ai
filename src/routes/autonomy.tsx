@@ -1,4 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { route } from "@/lib/core/router";
 import { useEffect, useState } from "react";
 import { Check, X, Pause, Play, Square, RefreshCw, Link2, FolderPlus, Cable, Package } from "lucide-react";
 import { toast } from "sonner";
@@ -26,7 +27,8 @@ export const Route = createFileRoute("/autonomy")({ head: () => ({ meta: [
   { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" },
 ] }), component: Page });
 function Page() { const pid = useActiveProjectId(); return pid ? <Autonomy key={pid} pid={pid} /> : <NeedProject />; }
-const TABS = [["runs", "Ejecuciones"], ["inbox", "Aprobaciones"], ["phone", "Archivos del teléfono"], ["nodes", "PC Node / VM"], ["folders", "Carpetas"], ["tunnels", "Túneles"], ["tools", "Herramientas"]] as const;
+const TABS = [["runs", "Tareas"], ["inbox", "Aprobaciones"], ["phone", "Archivos"], ["pc", "PC o VM (opcional)"]] as const;
+const PC_TABS = [["nodes", "Conectar PC/VM"], ["folders", "Carpetas"], ["tunnels", "Túneles"], ["tools", "Herramientas"]] as const;
 const STATUS: Record<string, string> = { active: "en curso", paused: "en pausa", waiting: "esperando aprobación", review_required: "requiere revisión", needs_human: "requiere intervención", completed: "terminada", cancelled: "detenida", failed: "fallida" };
 const gb = (n?: number | null) => n == null ? "?" : `${(n / 2 ** 30).toFixed(1)} GB`;
 
@@ -37,16 +39,24 @@ function Autonomy({ pid }: { pid: string }) {
   const act: Act = async (fn, ok) => { setBusy(true); try { const r = await mutate(fn); if (ok) toast.success(ok); return r; } catch (e) { toast.error(e instanceof Error ? e.message : "No se pudo completar."); return undefined; } finally { setBusy(false); } };
   const { data: pending = [] } = useCoreQuery(["auto-approvals", pid], (c) => approvals.pending(c.repo, pid));
   return <div className="space-y-4 p-4">
-    <h1 className="text-2xl font-bold">Sistema autónomo</h1>
+    <h1 className="text-2xl font-bold">Agentes autónomos</h1>
     <div role="tablist" className="flex flex-wrap gap-2">{TABS.map(([k, l]) => <Button key={k} role="tab" aria-selected={tab === k} variant={tab === k ? "default" : "outline"} size="sm" onClick={() => setTab(k)}>{l}{k === "inbox" && pending.length ? ` (${pending.length})` : ""}</Button>)}</div>
     {tab === "runs" && <Runs pid={pid} act={act} busy={busy} />}
     {tab === "inbox" && <Inbox pid={pid} act={act} busy={busy} />}
     {tab === "phone" && <PhoneFiles pid={pid} />}
-    {tab === "nodes" && <Nodes act={act} busy={busy} />}
-    {tab === "folders" && <Folders pid={pid} act={act} busy={busy} />}
-    {tab === "tunnels" && <Tunnels pid={pid} act={act} busy={busy} />}
-    {tab === "tools" && <Tools pid={pid} />}
+    {tab === "pc" && <PcArea pid={pid} act={act} busy={busy} />}
   </div>;
+}
+function PcArea({ pid, act, busy }: { pid: string; act: Act; busy: boolean }) {
+  const [sub, setSub] = useState<(typeof PC_TABS)[number][0]>("nodes");
+  return <section className="space-y-3">
+    <p className="rounded-md border p-3 text-sm text-muted-foreground">Esto es opcional. Los agentes ya trabajan solos en tu teléfono. Conecta una PC o una VM solo si quieres que además compilen apps nativas, usen Docker o programas pesados.</p>
+    <div role="tablist" className="flex flex-wrap gap-2">{PC_TABS.map(([k, l]) => <Button key={k} role="tab" aria-selected={sub === k} variant={sub === k ? "secondary" : "ghost"} size="sm" onClick={() => setSub(k)}>{l}</Button>)}</div>
+    {sub === "nodes" && <Nodes act={act} busy={busy} />}
+    {sub === "folders" && <Folders pid={pid} act={act} busy={busy} />}
+    {sub === "tunnels" && <Tunnels pid={pid} act={act} busy={busy} />}
+    {sub === "tools" && <Tools pid={pid} />}
+  </section>;
 }
 type Act = <T>(fn: (c: import("@/lib/core").Core) => Promise<T>, ok?: string) => Promise<T | undefined>;
 
@@ -56,6 +66,7 @@ function Runs({ pid, act, busy }: { pid: string; act: Act; busy: boolean }) {
   const { data: fl = [] } = useCoreQuery(["node-folders", pid], (c) => folders.list(c.repo, pid));
   const { data: due = [] } = useCoreQuery(["due-reviews", pid], (c) => dueReviews(c.repo, pid));
   const [mode, setMode] = useState<"team" | "builder">("team"), [goal, setGoal] = useState(""), [acc, setAcc] = useState(""), [folder, setFolder] = useState(""), [kind, setKind] = useState<DeliverableKind>("web"), [usd, setUsd] = useState(""), [conc, setConc] = useState(2), [open, setOpen] = useState<string | null>(null);
+  const { data: brain = null } = useCoreQuery(["auto-brain"], async (c) => { const models = await c.repo.registry.listModels(); const d = route(models, { capability: "chat.tools", mode: "auto" }); const e = d.ok ? d : route(models, { capability: "chat", mode: "auto" }); return e.ok ? { ok: true as const, name: e.model.name } : { ok: false as const, name: "" }; });
   const f = fl.find((x) => x.id === folder);
   const create = () => act(async (c) => {
     const limits = { maxUsd: usd ? Number(usd) : null, concurrency: conc };
@@ -66,18 +77,26 @@ function Runs({ pid, act, busy }: { pid: string; act: Act; busy: boolean }) {
   }, "Ejecución creada");
   return <section className="space-y-4">
     {due.length > 0 && <div className="rounded-md border p-3 text-sm">{due.map((d) => <p key={d.id}>Recordatorio: revisar ejecución ({d.kind}) {d.note}</p>)}</div>}
-    <div className="space-y-2 rounded-md border p-3">
-      <div className="flex gap-2"><Button size="sm" variant={mode === "team" ? "default" : "outline"} onClick={() => setMode("team")}>Equipo de agentes</Button><Button size="sm" variant={mode === "builder" ? "default" : "outline"} onClick={() => setMode("builder")}>AI Builder</Button></div>
-      <label className="block text-sm">{mode === "builder" ? "Qué quieres construir" : "Objetivo"}<textarea className={inputCls} rows={3} value={goal} onChange={(e) => setGoal(e.target.value)} /></label>
-      {mode === "team" && <label className="block text-sm">Criterios de aceptación (uno por línea)<textarea className={inputCls} rows={2} value={acc} onChange={(e) => setAcc(e.target.value)} /></label>}
-      {mode === "builder" && <label className="block text-sm">Tipo de entregable<select className={inputCls} value={kind} onChange={(e) => setKind(e.target.value as DeliverableKind)}>{(["web", "android", "api", "backend", "desktop", "script", "automation", "database", "multi-module", "multi-service"] as const).map((k) => <option key={k} value={k}>{k}</option>)}</select></label>}
-      <label className="block text-sm">Dónde trabajan los agentes<select className={inputCls} value={folder} onChange={(e) => setFolder(e.target.value)}><option value="">Teléfono (sin PC)</option>{fl.map((x) => <option key={x.id} value={x.id}>{x.label} · {nodeList.find((n) => n.id === x.node_id)?.name ?? "nodo"}</option>)}</select></label>
-      <div className="grid grid-cols-2 gap-2">
-        <label className="block text-sm">Presupuesto máx. (US$)<input className={inputCls} inputMode="decimal" value={usd} onChange={(e) => setUsd(e.target.value)} placeholder="sin límite propio" /></label>
-        <label className="block text-sm">Agentes en paralelo<input className={inputCls} type="number" min={1} max={6} value={conc} onChange={(e) => setConc(Number(e.target.value))} /></label>
-      </div>
-      {!f && <p className="text-xs text-muted-foreground">En el teléfono los agentes escriben archivos, investigan, crean documentos y prueban JavaScript. Para compilar apps nativas usa una carpeta de un PC Node instalado en tu PC o VM.</p>}
-      <Button disabled={busy || !goal.trim()} onClick={create}><Play />Crear</Button>
+    <div className="space-y-3 rounded-md border p-3">
+      <p className="text-sm">Pide algo y un equipo de agentes lo planifica, lo hace y lo revisa por su cuenta, <b>aquí en tu teléfono</b>. No necesitas PC ni VM.</p>
+      {brain === null ? null : brain.ok
+        ? <p className="text-xs text-muted-foreground">Trabajarán con: <b>{brain.name}</b></p>
+        : <p className="text-xs text-destructive">Primero configura un modelo de chat en <Link to="/models" className="underline">Modelos</Link> (la configuración automática lo hace por ti).</p>}
+      <div className="flex gap-2"><Button size="sm" variant={mode === "team" ? "default" : "outline"} onClick={() => setMode("team")}>Hacer una tarea</Button><Button size="sm" variant={mode === "builder" ? "default" : "outline"} onClick={() => setMode("builder")}>Construir una app</Button></div>
+      <label className="block text-sm">{mode === "builder" ? "¿Qué app o programa quieres?" : "¿Qué quieres que hagan?"}<textarea className={inputCls} rows={3} value={goal} onChange={(e) => setGoal(e.target.value)} placeholder={mode === "builder" ? "Ej.: una página web para mi negocio con menú, precios y formulario de contacto" : "Ej.: investiga los 5 mejores celulares de 2026 y hazme un informe en Word con tabla comparativa"} /></label>
+      <details className="text-sm"><summary className="cursor-pointer text-xs text-primary">Opciones avanzadas (no son necesarias)</summary>
+        <div className="mt-2 space-y-2">
+          {mode === "team" && <label className="block text-sm">Cómo sabrán que terminaron (uno por línea)<textarea className={inputCls} rows={2} value={acc} onChange={(e) => setAcc(e.target.value)} placeholder="Si lo dejas vacío, los agentes lo deciden" /></label>}
+          {mode === "builder" && <label className="block text-sm">Tipo de entregable<select className={inputCls} value={kind} onChange={(e) => setKind(e.target.value as DeliverableKind)}>{(["web", "android", "api", "backend", "desktop", "script", "automation", "database", "multi-module", "multi-service"] as const).map((k) => <option key={k} value={k}>{k}</option>)}</select></label>}
+          <label className="block text-sm">Dónde trabajan<select className={inputCls} value={folder} onChange={(e) => setFolder(e.target.value)}><option value="">En este teléfono</option>{fl.map((x) => <option key={x.id} value={x.id}>{x.label} · {nodeList.find((n) => n.id === x.node_id)?.name ?? "PC"}</option>)}</select></label>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block text-sm">Gasto máximo (US$)<input className={inputCls} inputMode="decimal" value={usd} onChange={(e) => setUsd(e.target.value)} placeholder="sin límite propio" /></label>
+            <label className="block text-sm">Agentes a la vez<input className={inputCls} type="number" min={1} max={6} value={conc} onChange={(e) => setConc(Number(e.target.value))} /></label>
+          </div>
+          {!f && <p className="text-xs text-muted-foreground">En el teléfono escriben archivos, investigan, crean documentos y ejecutan código JavaScript/Python. Solo para compilar apps nativas (APK, escritorio) hace falta conectar una PC o VM en la pestaña «PC o VM».</p>}
+        </div>
+      </details>
+      <Button className="w-full" disabled={busy || !goal.trim() || brain?.ok === false} onClick={create}><Play />Empezar</Button>
     </div>
     {runs.map((r) => <RunCard key={r.id} pid={pid} r={r} open={open === r.id} toggle={() => setOpen(open === r.id ? null : r.id)} act={act} busy={busy} />)}
   </section>;

@@ -13,6 +13,7 @@ import { useMutate, useRepoQuery } from "@/lib/use-app";
 import { btnCls, btnGhost, inputCls } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { ProviderForm, ConnectionDiagnostic } from "@/components/ProviderForm";
+import { AzureAutoSetup } from "@/components/AzureAutoSetup";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -54,8 +55,9 @@ function Settings() {
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Proveedores</h1>
-          {!editing && <Button onClick={() => setEditing("new")}><Plus /> Añadir</Button>}
+          {!editing && <Button variant="outline" onClick={() => setEditing("new")}><Plus /> Añadir manual</Button>}
         </div>
+        {!editing && <AzureAutoSetup />}
         {editing && <ProviderForm key={editing === "new" ? "new" : editing.id} provider={editing === "new" ? undefined : editing} onClose={() => setEditing(null)} />}
         {providers.map((p) => (
           <div key={p.id} className="space-y-2 rounded-md border bg-card p-3 text-sm">
