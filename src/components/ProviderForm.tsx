@@ -55,8 +55,9 @@ export function ProviderForm({ provider, onClose }: { provider?: Provider | unde
       }
     }
     if (azureOpenAI && (op || (patch.deployment !== undefined && !kindTouched.current))) {
-      const k = azureDeploymentKind(patch.deployment ?? form.deployment, op);
-      if (op || k !== "chat" || !kindTouched.current) setAzureKind(k);
+      const name = patch.deployment ?? form.deployment;
+      const k: FormKind = op === "videos" || /sora/i.test(name) ? "video" : azureDeploymentKind(name, op);
+      if (op || k !== "chat" || !kindTouched.current) setFormKind(k);
     }
     epoch.current++; setForm({ ...form, ...patch }); setResult(null); setTested(null);
   }
