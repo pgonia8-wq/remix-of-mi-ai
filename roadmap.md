@@ -2,10 +2,11 @@
 
 ## Solicitud actual (5 nov) — build.20, suscripciones, PC Node, PWA
 - [x] Compilar build.20 (incluye NVIDIA Cosmos y opciones de video).
-- [ ] Agentes: elegir modelo (no DeepSeek fijo), conectar VM/PC/SSH visible en «Avanzadas»; revisar toda la app por opciones configurables que falten.
-- [ ] Modelo de suscripción por tiers con registro y contraseña de acceso generada (requiere decisiones de Fer y servidor).
-- [ ] PC Node: ya existe (pc-node/); revisar si falta algo.
-- [ ] PWA: versión web instalable (requiere decisión sobre almacenamiento y alcance).
+- [x] Agentes: elegir modelo y servidor/VM por SSH en Opciones; «Modelo predeterminado por función» en Modelos que respeta toda la app (sin APK nueva aún).
+- [ ] Seguir revisando opciones configurables en el resto de pantallas.
+- [ ] Modelo de suscripción por tiers con registro y contraseña de acceso generada — espera respuestas de Fer (servidor obligatorio, tiers, precios).
+- [x] PC Node: ya construido (pc-node/, emparejamiento, carpetas, túneles, FFmpeg/Demucs).
+- [ ] PWA: versión web instalable — espera decisión de Fer sobre alcance.
 
 ## Solicitud actual — configuración fácil y agentes sin PC
 - [x] Configuración automática de Azure: URL + clave → detecta deployments, tipo, prueba real y guarda los que responden; video con su prueba aparte.
