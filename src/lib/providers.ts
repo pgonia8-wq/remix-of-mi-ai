@@ -209,11 +209,28 @@ export function buildResponsesRequest(p: ProviderCall, messages: ChatMsg[], tool
   return { url, init: { method: "POST", headers, body: JSON.stringify({ model, stream: true, store: false, input, tools: flat, tool_choice: "auto", ...x }) } };
 }
 
+/** Azure Foundry partner models (e.g. NVIDIA Cosmos on *.services.ai.azure.com/openai/v1) can reject the api-key header or
+ *  streaming with "azure-resource-enc"; the variant that worked is remembered per endpoint+deployment for this session. */
+const azureVariant = new Map<string, { bearer: boolean; noStream: boolean }>();
+const variantKey = (p: ProviderCall) => `${p.endpoint ?? ""}|${p.deployment ?? p.model}`;
+export function applyAzureVariant(init: RequestInit, v: { bearer: boolean; noStream: boolean }, key: string): RequestInit {
+  const headers = { ...(init.headers as Record<string, string>) };
+  if (v.bearer) { delete headers["api-key"]; headers["authorization"] = `Bearer ${key}`; }
+  let body = init.body;
+  if (v.noStream && typeof body === "string") { try { const j = JSON.parse(body); j.stream = false; body = JSON.stringify(j); } catch { /* keep */ } }
+  return { ...init, headers, body: body ?? null };
+}
 async function openStream(url: string, init: RequestInit, p: ProviderCall, signal?: AbortSignal): Promise<Response> {
+  const azure = (p.kind === "azure_openai" || p.kind === "azure") && !!(init.headers as Record<string, string> | undefined)?.["api-key"];
+  let variant = azure ? azureVariant.get(variantKey(p)) ?? { bearer: false, noStream: false } : null;
   for (let attempt = 0; ; attempt++) {
-    const res = await fetch(url, { ...init, signal: signal ?? null });
-    if (res.ok && res.body) return res;
+    const res = await fetch(url, { ...(variant ? applyAzureVariant(init, variant, p.apiKey ?? "") : init), signal: signal ?? null });
+    if (res.ok && res.body) { if (variant && (variant.bearer || variant.noStream)) azureVariant.set(variantKey(p), variant); return res; }
     const body = await res.text().catch(() => "");
+    if (variant && /azure-resource-enc/i.test(body) && !(variant.bearer && variant.noStream)) {
+      variant = !variant.bearer ? { bearer: true, noStream: false } : { bearer: true, noStream: true };
+      continue;
+    }
     if (res.status === 429 && attempt < RATE_LIMIT_RETRIES) {
       const wait = rateLimitWaitMs(res, body, attempt);
       if (wait <= MAX_RATE_LIMIT_WAIT_MS) { await sleep(Math.max(0, wait), signal); continue; }
@@ -223,6 +240,14 @@ async function openStream(url: string, init: RequestInit, p: ProviderCall, signa
 }
 
 async function readSse(res: Response, p: ProviderCall, onEvent: (parsed: any) => void) {
+  // Non-streamed JSON answer (fallback variant): present it as one delta event.
+  if ((res.headers.get("content-type") ?? "").includes("application/json")) {
+    const j = await res.json().catch(() => { throw new ProviderError("parameters", "Respuesta inválida: el proveedor no devolvió JSON válido."); });
+    const msg = j?.choices?.[0]?.message;
+    if (msg) onEvent({ ...j, choices: [{ ...j.choices[0], delta: { content: typeof msg.content === "string" ? msg.content : Array.isArray(msg.content) ? msg.content.map((c: any) => c?.text ?? "").join("") : "", ...(msg.reasoning_content ? { reasoning_content: msg.reasoning_content } : {}), ...(Array.isArray(msg.tool_calls) ? { tool_calls: msg.tool_calls.map((t: any, index: number) => ({ index, ...t })) } : {}) } }] });
+    else onEvent(j);
+    return;
+  }
   const reader = res.body!.getReader();
   const dec = new TextDecoder();
   let buf = "";
@@ -340,7 +365,7 @@ export function responseError(status: number, body: string, key?: string | null)
     return new ProviderError("unavailable", label, status, technical);
   }
   // Foundry answers this when a managed-compute model (e.g. NVIDIA Cosmos) is called through the resource URL.
-  if (/azure-resource-enc/.test(msg)) return new ProviderError("endpoint", "Este deployment está en cómputo administrado de Foundry (por ejemplo NVIDIA Cosmos) y no responde en la URL del recurso de Azure OpenAI. En Foundry abre Deployments → ese deployment, copia el «URI de destino» (Target URI) y su clave, y configúralo con el tipo «Video e imágenes (NVIDIA Cosmos)».", status, technical);
+  if (/azure-resource-enc/.test(msg)) return new ProviderError("endpoint", "Azure rechazó la llamada a este deployment de Foundry (falta «azure-resource-enc»). MI AI ya reintentó con la clave como Bearer y sin streaming. Revisa en Foundry que el deployment esté activo y que la clave sea de ese mismo recurso; si el deployment tiene su propio «URI de destino» (Target URI), usa ese URI y su clave.", status, technical);
   // Say why: the provider's own reason (redacted) goes next to the generic label, so chat notices are not a dead end.
   let reason = "";
   try { const j = JSON.parse(technical); reason = String(j?.error?.message ?? j?.message ?? ""); } catch { /* plain text body */ }
