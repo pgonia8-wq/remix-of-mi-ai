@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Download, Eye, Share2, ShieldCheck, Sparkles, Tag, Trash2, Upload, Wand2, X } from "lucide-react";
+import { Download, Eye, Film, Play, RefreshCw, Share2, ShieldCheck, Sparkles, Tag, Trash2, Upload, Wand2, X } from "lucide-react";
 import { saveExport } from "@/lib/save-export";
 import { blobChunks, shareContent } from "@/lib/device";
 import { VISION_MIME } from "@/lib/core/adapters/vision";
@@ -10,6 +10,7 @@ import { useActiveProjectId, useCoreMutate, useCoreQuery } from "@/lib/use-app";
 import { getCore } from "@/lib/core";
 import { route, type RouteMode } from "@/lib/core/router";
 import { execute } from "@/lib/core/executor";
+import { pollRemoteJob } from "@/lib/core/remote-jobs";
 import type { Asset } from "@/lib/core/asset-store";
 import { NeedProject, inputCls } from "@/components/AppShell";
 import { AudioStudio } from "@/components/AudioStudio";
@@ -32,6 +33,7 @@ export const Route = createFileRoute("/library")({
 
 const CREATE_CAPS = [
   { id: "image.generate", label: "Imagen" },
+  { id: "video.generate", label: "Video" },
   { id: "vision", label: "Analizar" },
   { id: "audio.tts", label: "Voz" },
   { id: "audio.transcribe", label: "Transcribir" },
@@ -53,9 +55,10 @@ function Library() {
     <div className="space-y-4 p-4">
       <div className="flex items-center justify-between gap-2"><h1 className="flex-1 text-2xl font-bold">Biblioteca</h1>
         <label className="flex cursor-pointer items-center gap-1 rounded-lg border px-2 py-1 text-xs"><Upload className="h-3.5 w-3.5" /> Subir
-          <input type="file" accept="image/*,audio/*" multiple className="hidden" onChange={(e) => importFiles(pid, Array.from(e.target.files ?? []), mutate)} /></label>
+          <input type="file" accept="image/*,audio/*,video/mp4,video/webm" multiple className="hidden" onChange={(e) => importFiles(pid, Array.from(e.target.files ?? []), mutate)} /></label>
         <Link to="/jobs" className="text-xs text-primary underline">Trabajos</Link></div>
       <Create projectId={pid} />
+      <VideoJobs projectId={pid} />
       <div className="flex gap-2">
         <input className={inputCls} placeholder="Buscar por nombre o prompt" value={search} onChange={(e) => setSearch(e.target.value)} />
         <select className={inputCls + " w-28"} value={kind} onChange={(e) => setKind(e.target.value)}>
@@ -79,8 +82,8 @@ const MAX_IMPORT = 100 * 1024 * 1024;
 async function importFiles(projectId: string, files: File[], mutate: ReturnType<typeof useCoreMutate>) {
   let ok = 0;
   for (const f of files) {
-    if (!/^(image|audio)\//.test(f.type)) { toast.error(`${f.name}: solo imágenes o audio.`); continue; }
-    if (f.size > MAX_IMPORT) { toast.error(`${f.name}: supera 100 MB.`); continue; }
+    if (!/^(image|audio|video)\//.test(f.type)) { toast.error(`${f.name}: solo imágenes, audio o video.`); continue; }
+    if (f.size > (f.type.startsWith("video/") ? 2048 * 1024 * 1024 : MAX_IMPORT)) { toast.error(`${f.name}: ${f.type.startsWith("video/") ? "supera 2 GB" : "supera 100 MB"}.`); continue; }
     try {
       await mutate(async (c) => c.assets.put(projectId, blobChunks(f), { kind: f.type.split("/")[0]!, mime: f.type, name: f.name }));
       ok++;
@@ -102,11 +105,11 @@ function useAssetUrl(a: Asset | null, enabled = true) {
 }
 
 function Thumb({ a, onOpen }: { a: Asset; onOpen: () => void }) {
-  const { url, err } = useAssetUrl(a, a.kind === "image");
+  const { url, err } = useAssetUrl(a, a.kind === "image" || (a.kind === "video" && (a.size ?? 0) < 60 * 1024 * 1024));
   return (
     <button onClick={onOpen} className="overflow-hidden rounded-xl border bg-card text-left">
       <div className="flex aspect-square items-center justify-center bg-secondary/40">
-        {a.kind === "image" && url ? <img src={url} alt={a.prompt ?? a.name ?? "imagen"} className="h-full w-full object-cover" /> : <span className="text-xs text-muted-foreground">{err ? "Archivo dañado" : a.kind === "audio" ? "Audio" : a.kind}</span>}
+        {a.kind === "image" && url ? <img src={url} alt={a.prompt ?? a.name ?? "imagen"} className="h-full w-full object-cover" /> : a.kind === "video" ? <span className="relative flex h-full w-full items-center justify-center">{url && <video src={`${url}#t=0.5`} muted playsInline preload="metadata" className="absolute inset-0 h-full w-full object-cover" />}<span className="relative flex h-10 w-10 items-center justify-center rounded-full bg-background/70"><Play className="h-5 w-5" /></span></span> : <span className="text-xs text-muted-foreground">{err ? "Archivo dañado" : a.kind === "audio" ? "Audio" : a.kind}</span>}
       </div>
       <div className="truncate p-2 text-xs">{a.name ?? a.prompt ?? a.id.slice(0, 8)} {a.version > 1 && `· v${a.version}`}</div>
     </button>
@@ -266,6 +269,8 @@ function Create({ projectId }: { projectId: string }) {
   const [prompt, setPrompt] = useState("");
   const [size, setSize] = useState("1024x1024");
   const [count, setCount] = useState(1);
+  const [seconds, setSeconds] = useState(4);
+  const [ratio, setRatio] = useState("1280:720");
   const [busy, setBusy] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [answer, setAnswer] = useState<string | null>(null);
@@ -291,8 +296,9 @@ function Create({ projectId }: { projectId: string }) {
         setFile(null);
         return;
       }
-      const r = await execute(c, projectId, decision.model, { capability: cap, prompt, params: cap === "image.generate" ? { size, n: count } : {} });
-      toast.success(`${r.assets.length} archivo(s) guardado(s) cifrados`);
+      const r = await execute(c, projectId, decision.model, { capability: cap, prompt, params: cap === "image.generate" ? { size, n: count } : cap === "video.generate" ? { seconds, ratio } : {} });
+      if (r.pending) toast.success("Video en proceso. Tarda unos minutos; MI AI lo revisa solo y aparecerá aquí en Biblioteca.");
+      else toast.success(`${r.assets.length} archivo(s) guardado(s) cifrados`);
       setPrompt("");
     } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); await mutate(async () => undefined); }
   }
@@ -307,13 +313,15 @@ function Create({ projectId }: { projectId: string }) {
           <input type="file" accept={VISION_MIME.join(",")} className="hidden" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setAnswer(null); }} />
         </label>
       )}
-      <textarea className={inputCls} rows={3} placeholder={cap === "audio.tts" ? "Texto para convertir en voz" : cap === "vision" ? "¿Qué quieres saber de la imagen? (opcional)" : "Describe la imagen"} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
+      <textarea className={inputCls} rows={3} placeholder={cap === "audio.tts" ? "Texto para convertir en voz" : cap === "vision" ? "¿Qué quieres saber de la imagen? (opcional)" : cap === "video.generate" ? "Describe el video" : "Describe la imagen"} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
       <div className="flex gap-2">
         <select className={inputCls} value={mode} onChange={(e) => setMode(e.target.value as RouteMode)}>
           <option value="auto">Automático</option><option value="favorite">Favoritos</option><option value="manual">Manual</option>
         </select>
         {mode === "manual" && <select className={inputCls} value={manual} onChange={(e) => setManual(e.target.value)}><option value="">Elige modelo</option>{compatible.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select>}
         {cap === "image.generate" && <select className={inputCls} value={size} onChange={(e) => setSize(e.target.value)}><option>1024x1024</option><option>1024x1536</option><option>1536x1024</option></select>}
+        {cap === "video.generate" && <select aria-label="Orientación del video" className={inputCls} value={ratio} onChange={(e) => setRatio(e.target.value)}><option value="1280:720">Horizontal</option><option value="720:1280">Vertical</option></select>}
+        {cap === "video.generate" && <select aria-label="Duración del video" className={inputCls + " w-20"} value={seconds} onChange={(e) => setSeconds(Number(e.target.value))}>{[4, 8, 12].map((n) => <option key={n} value={n}>{n} s</option>)}</select>}
         {cap === "image.generate" && <select aria-label="Cantidad" className={inputCls + " w-16"} value={count} onChange={(e) => setCount(Number(e.target.value))}>{[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}</select>}
       </div>
       <p className={`text-xs ${decision.ok ? "text-muted-foreground" : "text-destructive"}`}>
@@ -356,6 +364,26 @@ function BatchTools({ images, onDone }: { images: Asset[]; onDone: () => void })
       <ul className="max-h-48 space-y-1 overflow-auto text-xs">{images.map((a) => <li key={a.id}><label className="flex items-center gap-2"><input type="checkbox" checked={sel.includes(a.id)} onChange={(e) => setSel(e.target.checked ? [...sel, a.id] : sel.filter((x) => x !== a.id))} />{a.name ?? a.id.slice(0, 8)}</label></li>)}</ul>
       <Button className="w-full" disabled={!sel.length || !!progress} onClick={run}>{progress ?? `Aplicar a ${sel.length}`}</Button>
       <p className="text-[10px] text-muted-foreground">Se hace en el teléfono, sin costo. Cada resultado es una versión nueva cifrada.</p>
+    </section>
+  );
+}
+
+/** Videos still being created (or that failed), so nothing disappears silently. */
+function VideoJobs({ projectId }: { projectId: string }) {
+  const mutate = useCoreMutate();
+  const { data: jobs = [] } = useCoreQuery(["lib-video-jobs", projectId], async (c) => (await c.jobs.list(projectId)).filter((j) => j.capability_id?.startsWith("video.") && (["processing", "interrupted", "recovery_required"].includes(j.status) || (j.status === "failed" && Date.now() - j.updated_at < 3 * 86_400_000))));
+  if (!jobs.length) return null;
+  return (
+    <section className="space-y-1 rounded-xl border bg-card p-3 text-xs">
+      <h2 className="flex items-center gap-1 text-sm font-semibold"><Film className="h-4 w-4" /> Videos en camino</h2>
+      {jobs.map((j) => (
+        <div key={j.id} className="flex items-center gap-2 border-t py-1.5">
+          <span className={`min-w-0 flex-1 ${j.status === "failed" ? "text-destructive" : ""}`}>
+            {j.status === "failed" ? `No se pudo crear: ${j.error ?? "el proveedor lo rechazó"}` : j.status === "processing" ? `Generándose${j.progress !== null ? ` · ${Math.round(j.progress * 100)} %` : ""} (se revisa solo cada 20 s)` : `Pendiente de revisar: ${j.recovery ?? j.status}`}
+          </span>
+          {j.status !== "failed" && j.remote_id && <Button size="sm" variant="outline" onClick={() => mutate(async (c) => { const r = await pollRemoteJob(c, projectId, j.id); toast.success(r.pending ? "Sigue procesando." : "Video listo: ya está en Biblioteca."); }).catch((e) => toast.error((e as Error).message))}><RefreshCw /> Consultar</Button>}
+        </div>
+      ))}
     </section>
   );
 }
