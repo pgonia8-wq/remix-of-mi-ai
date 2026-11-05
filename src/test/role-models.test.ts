@@ -7,6 +7,11 @@ import type { ModelWithCaps } from "@/lib/core/registry";
 const m = (id: string, remote = id): ModelWithCaps => ({ id, provider_id: "azure-resource", remote_id: remote, name: id, status: "active", source: "manual", favorite: 0, cost_info: null, privacy: "external", context_tokens: 100000, updated_at: 0, capabilities: ["chat"], provider_kind: "azure_openai", provider_name: "Azure", provider_enabled: 1, tests: [] });
 const catalog = [m("gpt"), m("qwen"), m("kimi"), m("deepseek")];
 describe("Modelos independientes por rol", () => {
+  it("un coordinador pequeño deja el modelo avanzado para un especialista", () => {
+    const a = assignRoleModels([m("small"), ...catalog], ["coordinator", "analyst"], {}, { coordinator: "small", analyst: "gpt" });
+    expect(a.coordinator?.modelId).toBe("small");
+    expect(a.analyst?.modelId).toBe("gpt");
+  });
   it("un modelo solo tiene un rol", () => {
     const a = assignRoleModels(catalog, ["coordinator", "analyst", "auditor"]);
     expect(new Set(Object.values(a).map((v) => v.key)).size).toBe(3);
