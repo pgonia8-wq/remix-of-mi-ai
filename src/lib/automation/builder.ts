@@ -42,7 +42,7 @@ export async function createBuilderRun(core: Core, p: string, o: { requirements:
     if (!f || f.node_id !== o.nodeId) throw new Error("La carpeta elegida no pertenece a este proyecto o a ese PC Node.");
   }
   const plan = o.folderId ? builderPlan(o.kind, o.maxFixAttempts ?? 3) : builderPlanPhone(o.kind, o.maxFixAttempts ?? 3);
-  const id = await createRun(core, p, { goal: `Construir (${o.kind}): ${o.requirements}`, acceptance: plan.acceptance, kind: "builder", nodeId: o.folderId ? o.nodeId : null, folderId: o.folderId, modelId: o.modelId ?? null, roleChoices: o.roleChoices, sshId: o.sshId ?? null, plan, limits: { ...o.limits } });
+  const id = await createRun(core, p, { goal: `Construir (${o.kind}): ${o.requirements}`, acceptance: plan.acceptance, kind: "builder", nodeId: o.folderId ? o.nodeId : null, folderId: o.folderId, modelId: o.modelId ?? null, roleChoices: o.roleChoices ?? {}, sshId: o.sshId ?? null, plan, limits: { ...o.limits } });
   await core.repo.sql.run("UPDATE auto_tasks SET max_attempts=? WHERE project_id=? AND run_id=?", [Math.min(Math.max(o.maxFixAttempts ?? 3, 1), 6), p, id]);
   return id;
 }

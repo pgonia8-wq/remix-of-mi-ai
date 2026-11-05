@@ -77,7 +77,7 @@ describe("Agentes sin PC", () => {
     const p = (await repo.createProject("A")).id;
     const plan = JSON.stringify({ tasks: [{ id: "a", title: "Escribir guía", role: "documenter", deps: [], files: ["GUIA.md"], tools: ["fs.write"], contract: "GUIA.md" }], acceptance: ["Guía escrita"] });
     const write = JSON.stringify({ kind: "tool", tool: "fs.write", input: { path: "GUIA.md", content: "# Guía", baseHash: null } });
-    const q: Record<string, string[]> = { architect: [plan], documenter: [write, JSON.stringify({ kind: "final", result: "GUIA.md escrita" })], auditor: [JSON.stringify({ verdict: "approve", reasons: "Archivo observado", missing: [] })] };
+    const q: Record<string, string[]> = { coordinator: [plan], documenter: [write, JSON.stringify({ kind: "final", result: "GUIA.md escrita" })], auditor: [JSON.stringify({ verdict: "approve", reasons: "Archivo observado", missing: [] })] };
     const m: ModelCall = async ({ role }) => { const l = q[role]!; return { text: l.length > 1 ? l.shift()! : l[0]! }; };
     const id = await createRun(core, p, { goal: "Guía", nodeId: null, folderId: null });
     let run = await stepRun(core, p, id, m);

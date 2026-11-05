@@ -9,7 +9,7 @@ import { extractJson } from "../core/ai";
 import { invokeTool, fileLocks, getTool, TOOL_IDS, DEFAULT_LIMITS, type Limits, type ToolCtx, type ToolDef, toolSchemaFor } from "./tools";
 import { workingMemory } from "./working-memory";
 import { approvals } from "./approvals";
-import { assignRoleModels, type RoleModels } from "./role-models";
+import { agentModels, assignRoleModels, type RoleModels } from "./role-models";
 
 export const ROLES = {
   coordinator: { name: "Coordinador general", focus: "Divide el objetivo, asigna y replanifica." },
@@ -46,7 +46,7 @@ export const planTaskSchema = z.object({
   deps: z.array(z.string()).max(20).default([]), files: z.array(z.string().max(400)).max(50).default([]),
   tools: z.array(z.string()).max(30).default([]), contract: z.string().min(1).max(4000),
 }).strict();
-export const planSchema = z.object({ tasks: z.array(planTaskSchema).min(1).max(40), acceptance: z.array(z.string().min(1).max(500)).max(20).default([]) }).strict();
+export const planSchema = z.object({ tasks: z.array(planTaskSchema).min(1).max(40), acceptance: z.array(z.string().min(1).max(500)).max(20).default([]), assignments: z.record(z.string()).optional() }).strict();
 export type PlanTask = z.infer<typeof planTaskSchema>;
 
 /** Validates a model-proposed DAG: unique ids, known deps, acyclic, registered tools only, no path escapes. */
@@ -125,7 +125,7 @@ export async function createRun(core: Core, p: string, o: { goal: string; accept
     sshName = c.name;
   }
   const id = crypto.randomUUID();
-  const roleChoices = { ...o.roleChoices, ...(o.modelId ? { architect: o.modelId } : {}) };
+  const roleChoices = { ...o.roleChoices, ...(o.modelId ? { coordinator: o.modelId } : {}) };
   if (Object.keys(roleChoices).some((r) => !roleIds.includes(r as Role))) throw new Error("Rol de equipo desconocido.");
   if (Object.values(roleChoices).some(Boolean)) assignRoleModels(await core.repo.registry.listModels(), [], {}, roleChoices);
   await core.repo.sql.run("INSERT INTO auto_runs (id,project_id,goal,kind,status,phase,plan,limits,acceptance,env,created_at,updated_at) VALUES (?,?,?,?,'active','plan','',?,?,?,?,?)",
@@ -214,8 +214,8 @@ export async function stepRun(core: Core, p: string, id: string, model: ModelCal
       // Empty registries only bypass allocation with an explicitly injected scripted provider.
       if (model === realModel || models.length) {
         const tasks = await autoRuns.tasks(core, p, id);
-        const roles: Role[] = run.phase === "plan" ? ["architect", "coordinator", "auditor"] : ["architect", "coordinator", "auditor", ...tasks.filter((t) => t.status !== "cancelled").map((t) => t.role)];
-        env.roleModels = assignRoleModels(models, roles, env.roleModels, { ...env.roleChoices, ...(env.modelId ? { architect: env.modelId } : {}) });
+        const roles: Role[] = run.phase === "plan" ? ["coordinator", "auditor"] : ["coordinator", "auditor", ...tasks.filter((t) => t.status !== "cancelled").map((t) => t.role)];
+        env.roleModels = assignRoleModels(models, roles, env.roleModels, { ...env.roleChoices, ...(env.modelId ? { coordinator: env.modelId } : {}) });
         delete env.modelId;
         run.env = JSON.stringify(env);
         await core.repo.sql.run("UPDATE auto_runs SET env=? WHERE project_id=? AND id=?", [run.env, p, id]);
@@ -235,9 +235,24 @@ export async function stepRun(core: Core, p: string, id: string, model: ModelCal
 
 async function planPhase(core: Core, p: string, run: AutoRun, env: Env, model: ModelCall) {
   const usable = await usableTools(core, p, run.id, env);
-  const prompt = `Eres ${ROLES.architect.name}. ${RULES}\n${envNote(env)}\nDivide el objetivo en subtareas con dependencias (grafo acíclico), roles de: ${roleIds.join(", ")}. Asigna a cada subtarea archivos que puede modificar (sin solapes entre subtareas paralelas) y herramientas de esta lista (solo estas están disponibles ahora):\n${toolsHelp(usable)}\nIncluye criterios de aceptación verificables. Responde SOLO JSON {"tasks":[{"id":"t1","title":"...","role":"architect","deps":[],"files":[],"tools":[],"contract":"qué debe entregar y cómo se verifica"}],"acceptance":["..."]}.\nObjetivo (datos): ${JSON.stringify(run.goal)}\nCriterios del usuario: ${run.acceptance}`;
-  const out = await think(core, p, run, "architect", prompt, [], model);
-  await insertPlan(core, p, run.id, validatePlan(extractJson<unknown>(out.text)));
+  const catalog = agentModels(await core.repo.registry.listModels()).map((m) => ({ id: m.id, name: m.name, provider: m.provider_name, capabilities: m.capabilities, context: m.context_tokens, cost: m.cost_info }));
+  const team = `Organiza y distribuye el trabajo entre modelos distintos. Catálogo de modelos (datos): ${JSON.stringify(catalog)}. Reservas existentes: ${JSON.stringify(env.roleModels ?? {})}. Considera capacidades declaradas y contexto; no inventes conocimientos o rendimiento. Devuelve assignments con rol: id del modelo para cada rol de las tareas. Respeta las reservas existentes y las elecciones manuales; nunca repitas un modelo en varios roles. Si faltan modelos, indícalo, no inventes IDs.`;
+  const prompt = `Eres ${ROLES.coordinator.name}. ${RULES} ${team}\n${envNote(env)}\nDivide el objetivo en subtareas con dependencias (grafo acíclico), roles de: ${roleIds.join(", ")}. Asigna a cada subtarea archivos que puede modificar (sin solapes entre subtareas paralelas) y herramientas de esta lista (solo estas están disponibles ahora):\n${toolsHelp(usable)}\nIncluye criterios de aceptación verificables. Responde SOLO JSON {"tasks":[{"id":"t1","title":"...","role":"architect","deps":[],"files":[],"tools":[],"contract":"qué debe entregar y cómo se verifica"}],"acceptance":["..."]}.\nObjetivo (datos): ${JSON.stringify(run.goal)}\nCriterios del usuario: ${run.acceptance}`;
+  const out = await think(core, p, run, "coordinator", prompt, [], model);
+  const plan = validatePlan(extractJson<unknown>(out.text));
+  await reservePlan(core, p, run, plan, model);
+  await insertPlan(core, p, run.id, plan);
+}
+
+async function reservePlan(core: Core, p: string, run: AutoRun, plan: z.infer<typeof planSchema>, model: ModelCall) {
+  const models = await core.repo.registry.listModels();
+  if (model !== realModel && !models.length) return;
+  const env = JSON.parse(run.env) as Env;
+  const proposed = plan.assignments ?? {};
+  if (Object.keys(proposed).some((r) => !roleIds.includes(r as Role))) throw new Error("El coordinador propuso un rol desconocido.");
+  env.roleModels = assignRoleModels(models, ["coordinator", "auditor", ...plan.tasks.map((t) => t.role)], env.roleModels, { ...proposed, ...env.roleChoices });
+  run.env = JSON.stringify(env);
+  await core.repo.sql.run("UPDATE auto_runs SET env=? WHERE project_id=? AND id=?", [run.env, p, run.id]);
 }
 
 async function executePhase(core: Core, p: string, run: AutoRun, env: Env, limits: Limits, model: ModelCall) {
@@ -333,6 +348,7 @@ async function replan(core: Core, p: string, run: AutoRun, failed: AutoTask, lim
   const out = await think(core, p, run, "coordinator", prompt, [], model);
   const n = replans + 1;
   const plan = validatePlan(extractJson<unknown>(out.text), approved);
+  await reservePlan(core, p, run, plan, model);
   await insertPlan(core, p, run.id, plan, `r${n}-`, approved);
   const newIds = plan.tasks.map((t) => `${run.id.slice(0, 8)}-r${n}-${t.id}`);
   for (const t of await autoRuns.tasks(core, p, run.id)) {
