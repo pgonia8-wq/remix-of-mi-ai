@@ -1,5 +1,10 @@
 # MI AI — Roadmap
 
+## Solicitud actual — roles autónomos distintos (5 nov)
+- [ ] Distribuir cada rol entre modelos/deployments distintos, también en delegación y replanificación; impedir reutilización silenciosa.
+- [ ] Corregir el rol «Investigador» rechazado que aparece en la captura y probar las reglas con respuestas controladas.
+- [ ] Mostrar las asignaciones del equipo; verificación real Azure y Android depende de los equipos/cuentas de Fer.
+
 ## Error de Cosmos posterior a build.22
 - [x] Leer bloques de texto estructurado sin convertir objetos a «[object Object]» y ocultar claves en diagnósticos; 12 pruebas Cosmos pasan.
 - [ ] Identificar el contrato real de generación del deployment de Fer: falta respuesta estructurada del proveedor (sin claves).
