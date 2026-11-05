@@ -10,7 +10,7 @@
 <!-- LOVABLE:END -->
 
 # Architecture rules
-- Visual glass is defined centrally in src/styles.css with standard backdrop-filter only, static surfaces, no nested blur and opaque fallbacks. Why: consistent rendering in production Chromium and bounded compositing on different Android devices.
+- Visual glass is defined centrally in src/styles.css with standard backdrop-filter only, static surfaces, no nested blur and opaque fallbacks. Why: consistent rendering and bounded compositing on Android.
 - The product is a native Android app (Capacitor); the Lovable web preview is dev-only. Why: user requirement, the APK is the deliverable.
 - All data access goes through `Repo` (src/lib/db/repo.ts) over the `SqlDb` interface; every project-scoped method requires `projectId` and filters by it. Why: project isolation is a hard requirement and is unit-tested.
 - Native storage = SQLCipher via @capacitor-community/sqlite; preview/tests = sql.js with the same SQL. Never use IndexedDB/localStorage as product storage.
@@ -43,4 +43,4 @@
 - Device integration (Guardar como, Compartir en…, received shares, agents' foreground notice) goes through the MiaiDevice plugin and `src/lib/device.ts`; only app-cache files are saved/shared and the inbox accepts only content:// from other apps. The app is edge-to-edge: MainActivity reports system-bar/cutout/keyboard insets as CSS vars (--sat/--sab/--kb) used by the shell; Bluetooth transfers are password-sealed files inside a ZIP, never with API keys. Why: no confused-deputy access to private data.
 - Large files move in 1 MB pieces (`blobChunks`, `AssetStore.stream`) and native media exchanges cache file paths, never whole-file base64. Why: big media must not exhaust WebView memory.
 - Office editing (`docs/ooxml-edit.ts`) rewrites only touched XML parts; voice cloning requires a single-use on-device verification enforced in the executor. Why: preserve document design and never send someone else's voice.
-- Azure setup defaults to `src/lib/azure-autosetup.ts` + `AzureAutoSetup` (one URL/key → detect deployments, infer type, real test each, save only passing ones); manual forms stay as advanced options. Why: setup must be automatic without bypassing real-response verification.
+- Azure auto-setup (`azure-autosetup.ts`) detects/types deployments and saves only really-tested ones. Why: easy setup, verified.
