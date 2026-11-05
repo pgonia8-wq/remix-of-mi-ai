@@ -1,0 +1,1 @@
+- Chat answers are saved while streaming (`src/lib/chat-draft.ts`, `message_status` streaming/interrupted) under the shared foreground notice; interrupted answers offer "Continuar" appended to the same message. Why: closing the app or locking the screen must never lose generated text.
