@@ -1,7 +1,8 @@
 # MI AI — Roadmap
 
 ## Solicitud actual (5 nov) — build.20, suscripciones, PC Node, PWA
-- [ ] Compilar build.20 (incluye NVIDIA Cosmos y opciones de video).
+- [x] Compilar build.20 (incluye NVIDIA Cosmos y opciones de video).
+- [ ] Agentes: elegir modelo (no DeepSeek fijo), conectar VM/PC/SSH visible en «Avanzadas»; revisar toda la app por opciones configurables que falten.
 - [ ] Modelo de suscripción por tiers con registro y contraseña de acceso generada (requiere decisiones de Fer y servidor).
 - [ ] PC Node: ya existe (pc-node/); revisar si falta algo.
 - [ ] PWA: versión web instalable (requiere decisión sobre almacenamiento y alcance).
