@@ -67,7 +67,7 @@ function ChatPage() {
   const running = busy || streaming !== null;
   useEffect(() => () => { abort.current?.abort(); }, [chatId]);
   // An answer still marked "streaming" when the chat opens was cut off by a closed/killed app.
-  useEffect(() => { if (!pid) return; void getRepo().then((r) => r.interruptStaleMessages(pid, chatId, [...activeDrafts])).then((n) => { if (n) void refetchStatus?.(); }).catch(() => undefined); }, [pid, chatId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!pid) return; void Promise.resolve(mutate((r) => r.interruptStaleMessages(pid, chatId, [...activeDrafts]))).catch(() => undefined); }, [pid, chatId]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { const h = takeChatHandoff(chatId); if (h) { if (h.text) setInput(h.text); if (h.files.length) setFiles(h.files.slice(0, 8)); } }, [chatId]);
   useEffect(() => { const el = composer.current; if (el) { el.style.height = "auto"; el.style.height = `${Math.min(el.scrollHeight, 180)}px`; } }, [input]);
   useEffect(() => {
