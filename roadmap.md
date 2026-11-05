@@ -1,5 +1,9 @@
 # MI AI — Roadmap
 
+## Entrega solicitada — build.22
+- [ ] Compilar build.22 con descarga de videos, Biblioteca y revisión global de trabajos remotos.
+- [ ] Verificar firma igual a build.21, Android 11+ y ARM64/ARMv7; entregar APK descargable.
+
 ## Solicitud actual (5 nov) — build.20, suscripciones, PC Node, PWA
 - [x] Compilar build.20 (incluye NVIDIA Cosmos y opciones de video).
 - [x] Agentes: elegir modelo y servidor/VM por SSH en Opciones; «Modelo predeterminado por función» en Modelos que respeta toda la app (en build.21).
