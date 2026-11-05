@@ -1,7 +1,7 @@
 // NVIDIA Cosmos (NIM "Generator") on Azure Foundry managed compute or any HTTPS NIM.
 // Contract: POST <base>/v1/infer, synchronous JSON → { b64_image } (JPEG) or { b64_video } (MP4).
 // https://docs.nvidia.com/nim/cosmos/latest/api-reference.html
-import { ProviderError, responseError } from "../../providers";
+import { ProviderError, redactSecret, responseError } from "../../providers";
 import { cosmosBase, isAzureResourceHost, parseAzureUrl } from "../../azure-url";
 import { downloadMedia } from "./media-output";
 import { call, requireKey } from "./http";
@@ -99,6 +99,19 @@ export function mediaFromChat(d: any): { b64?: string; url?: string; mime: strin
   return null;
 }
 
+/** Content may be a string, typed blocks, or a provider-specific object. Never coerce objects to strings. */
+export function cosmosResponseText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) return content.map(cosmosResponseText).filter(Boolean).join("\n");
+  if (!content || typeof content !== "object") return "";
+  const block = content as Record<string, unknown>;
+  if (typeof block["text"] === "string") return block["text"];
+  if (block["text"] && typeof block["text"] === "object") return cosmosResponseText(block["text"]);
+  if (typeof block["value"] === "string") return block["value"];
+  if (block["content"] !== undefined) return cosmosResponseText(block["content"]);
+  return "";
+}
+
 /** Connection probe through the resource: any real answer from the deployment counts. */
 export async function probeCosmosChat(c: AdapterCredentials, deployment: string, signal?: AbortSignal): Promise<void> {
   const key = requireKey(c.apiKey);
@@ -119,8 +132,9 @@ async function runCosmosViaChat(c: AdapterCredentials, r: RunRequest): Promise<R
   const d = await postAzureChat(cosmosChatUrl(c.endpoint), key, { model: deployment, messages: [{ role: "system", content: video ? "Generate a video for the user's description." : "Generate an image for the user's description." }, { role: "user", content }], stream: false, ...(video ? { modalities: ["video"] } : { modalities: ["image"] }) }, video ? 15 * 60_000 : 5 * 60_000, r.signal);
   const media = mediaFromChat(d);
   if (!media || (video && media.mime !== "video/mp4") || (!video && !media.mime.startsWith("image/"))) {
-    const said = String(d?.choices?.[0]?.message?.content ?? "").slice(0, 300);
-    throw new ProviderError("parameters", `Cosmos respondió pero no entregó ${video ? "un video" : "una imagen"} por esta ruta.${said ? ` Respuesta: ${said}` : ""}`, 200, JSON.stringify(d).slice(0, 600));
+    const said = redactSecret(cosmosResponseText(d?.choices?.[0]?.message?.content), key).slice(0, 300);
+    const technical = redactSecret(JSON.stringify(d ?? {}), key).slice(0, 2000);
+    throw new ProviderError("parameters", `Cosmos respondió pero no entregó ${video ? "un video" : "una imagen"} por esta ruta. No se creó ningún archivo. Que el modelo responda por chat no verifica su capacidad de generación; revisa la operación de generación admitida por ese deployment en Foundry.${said ? ` Respuesta: ${said}` : " La respuesta estructurada está en Detalle técnico."}`, 200, technical);
   }
   const bytes = media.b64 ? b64ToBytes(media.b64) : await downloadMedia(media.url!, media.mime);
   if (video && new TextDecoder().decode(bytes.subarray(4, 8)) !== "ftyp") throw new ProviderError("parameters", "Cosmos devolvió un archivo que no es MP4 válido.", 200);

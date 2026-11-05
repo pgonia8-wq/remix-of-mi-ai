@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { azureDeploymentKind, azureKindCapabilities, cosmosBase, looksLikeCosmosEndpoint } from "@/lib/azure-url";
 import { cosmosRowFromUrl } from "@/lib/azure-autosetup";
-import { cosmosBody, runCosmos } from "@/lib/core/adapters/cosmos";
+import { cosmosBody, cosmosResponseText, runCosmos } from "@/lib/core/adapters/cosmos";
 import { azureAdapter } from "@/lib/core/adapters/azure";
 import { responseError } from "@/lib/providers";
 
@@ -47,6 +47,22 @@ describe("NVIDIA Cosmos en Azure (cómputo administrado)", () => {
   it("si Cosmos solo responde texto por esa ruta, lo dice en vez de fingir un video", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ choices: [{ message: { content: "Solo puedo describir" } }] }))));
     await expect(azureAdapter.run(creds("https://pgonia8-4510-resource.services.ai.azure.com/openai/v1"), { capability: "video.generate", model: "nvidia--cosmos3-super", prompt: "x" })).rejects.toThrow(/no entregó un video.*Solo puedo describir/);
+  });
+
+  it("lee texto de bloques y objetos estructurados del proveedor", () => {
+    expect(cosmosResponseText([{ type: "text", text: { value: "Primera" } }, { type: "text", text: "Segunda" }])).toBe("Primera\nSegunda");
+    expect(cosmosResponseText({ content: { text: "Respuesta" } })).toBe("Respuesta");
+    expect(cosmosResponseText({ type: "video", data: "sin texto" })).toBe("");
+  });
+
+  it("una respuesta estructurada sin archivo se rechaza y oculta la clave en el diagnóstico", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ choices: [{ message: { content: [{ type: "text", text: "k-123" }] } }] }))));
+    let error: unknown;
+    try { await runCosmos(creds("https://r.services.ai.azure.com/openai/v1"), { capability: "video.generate", model: "nvidia--cosmos3-super", prompt: "x" }); } catch (e) { error = e; }
+    expect(error).toBeInstanceOf(Error);
+    if (!(error instanceof Error)) throw new Error("Se esperaba el rechazo de la respuesta sin video");
+    expect(error.message.includes("k-123")).toBe(false);
+    expect((error as { technical?: string }).technical?.includes("k-123")).toBe(false);
   });
 
   it("el chat de Azure reintenta con Bearer y sin streaming cuando Azure pide azure-resource-enc", async () => {
