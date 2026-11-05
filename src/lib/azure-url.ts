@@ -51,9 +51,10 @@ export function parseAzureUrl(raw: string | null | undefined): AzureUrl | null {
 }
 
 /** What a deployment does, from the URL operation (when pasted) or its name. Drives the connection test and default capability. */
-export type AzureDeploymentKind = "chat" | "realtime" | "tts" | "transcribe" | "audio-chat" | "embedding" | "image";
+export type AzureDeploymentKind = "chat" | "realtime" | "tts" | "transcribe" | "audio-chat" | "embedding" | "image" | "cosmos";
 export function azureDeploymentKind(name: string | null | undefined, op?: AzureOp): AzureDeploymentKind {
   const n = (name ?? "").toLowerCase();
+  if (/cosmos/.test(n)) return "cosmos";
   if (op === "realtime" || /realtime/.test(n)) return "realtime";
   if (op === "tts" || /(^|[-_.])tts([-_.]|$)/.test(n)) return "tts";
   if (op === "transcribe" || op === "translate" || /whisper|transcribe/.test(n)) return "transcribe";
@@ -65,8 +66,30 @@ export function azureDeploymentKind(name: string | null | undefined, op?: AzureO
 /** Default registry capability for a deployment kind. */
 export const AZURE_KIND_CAPABILITY: Record<AzureDeploymentKind, string> = {
   chat: "chat", realtime: "speech.realtime", tts: "audio.tts", transcribe: "audio.transcribe",
-  "audio-chat": "audio.tts", embedding: "embedding", image: "image.generate",
+  "audio-chat": "audio.tts", embedding: "embedding", image: "image.generate", cosmos: "video.generate",
 };
+/** Every capability a kind serves (NVIDIA Cosmos makes both videos and images). */
+export const azureKindCapabilities = (kind: AzureDeploymentKind): string[] => kind === "cosmos" ? ["video.generate", "image.generate"] : [AZURE_KIND_CAPABILITY[kind]];
+
+/** Azure OpenAI / Foundry resource hosts. Models on managed compute (NVIDIA NIM such as Cosmos) are NOT served here. */
+export const isAzureResourceHost = (host: string) => /\.(openai\.azure\.com|cognitiveservices\.azure\.com|services\.ai\.azure\.com)$/i.test(host);
+
+/**
+ * Base URL of an NVIDIA Cosmos endpoint (Foundry managed compute "Target URI", e.g.
+ * https://x.eastus2.inference.ml.azure.com/score, or any HTTPS NIM). Trailing /score or /v1/... is removed.
+ * Returns null for non-HTTPS URLs, embedded credentials or Azure OpenAI resource hosts.
+ */
+export function cosmosBase(raw: string | null | undefined): string | null {
+  let u: URL;
+  try { u = new URL((raw ?? "").trim()); } catch { return null; }
+  if (u.protocol !== "https:" || u.username || u.password || isAzureResourceHost(u.hostname)) return null;
+  const path = u.pathname.replace(/\/+$/, "").replace(/\/(score|v1(\/.*)?)$/i, "");
+  return `${u.origin}${path}`;
+}
+/** True when a pasted URL clearly is a managed-compute / NIM endpoint rather than an Azure OpenAI resource. */
+export function looksLikeCosmosEndpoint(raw: string | null | undefined): boolean {
+  try { const u = new URL((raw ?? "").trim()); return !!cosmosBase(raw) && (/\.inference\.ml\.azure\.com$/i.test(u.hostname) || /\/(score|v1\/infer)\/?$/i.test(u.pathname)); } catch { return false; }
+}
 export const AZURE_KIND_LABEL: Record<AzureDeploymentKind, string> = {
   chat: "", realtime: "Modelo de voz en tiempo real: se prueba abriendo una sesión de voz real y se usará en Conversación por voz, no en el chat de texto.",
   tts: "Modelo de texto a voz: se prueba generando un audio corto real y se usará en Texto a voz, no en el chat de texto.",
@@ -74,9 +97,10 @@ export const AZURE_KIND_LABEL: Record<AzureDeploymentKind, string> = {
   "audio-chat": "Modelo de audio (gpt-audio): se prueba pidiéndole una respuesta hablada real y se usará en Texto a voz, no en el chat de texto.",
   embedding: "Modelo de embeddings: se prueba generando un vector real y se usará para búsquedas en tus documentos.",
   image: "Modelo de imágenes: no se genera una imagen de prueba para no cobrarte; se comprueba que la URL, la clave y el deployment existen.",
+  cosmos: "NVIDIA Cosmos (video e imágenes): en URL pega el «URI de destino» (Target URI) y en API Key la clave que aparecen en Foundry → Deployments → tu deployment de Cosmos. No uses la URL del recurso de Azure OpenAI. Se prueba generando una imagen pequeña real y se usará para crear videos e imágenes.",
 };
 
-const KINDS = new Set<AzureDeploymentKind>(["chat", "realtime", "tts", "transcribe", "audio-chat", "embedding", "image"]);
+const KINDS = new Set<AzureDeploymentKind>(["chat", "realtime", "tts", "transcribe", "audio-chat", "embedding", "image", "cosmos"]);
 /** Azure OpenAI rows store the chosen kind as {"miai_kind": …} in extra_params (never sent to Azure); otherwise it is inferred from the name. */
 export function azureKindOf(p: { deployment?: string | null; extraParams?: string | null }): AzureDeploymentKind {
   try { const k = JSON.parse(p.extraParams || "{}")?.miai_kind; if (KINDS.has(k)) return k; } catch { /* inferred below */ }
