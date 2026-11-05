@@ -30,9 +30,9 @@ describe("respuesta guardada mientras el modelo escribe", () => {
     // The app is killed here: on reopening, the half-written answer is there and becomes "interrupted".
     const msgs = await repo.listMessages(p.id, chat.id);
     expect(msgs).toHaveLength(1);
-    expect(msgs[0].content).toBe("Hola, esto es una respuesta larga que se corta");
+    expect(msgs[0]!.content).toBe("Hola, esto es una respuesta larga que se corta");
     expect(await repo.interruptStaleMessages(p.id, chat.id)).toBe(1);
-    expect(await repo.listMessageStatus(p.id, chat.id)).toEqual([{ message_id: msgs[0].id, status: "interrupted" }]);
+    expect(await repo.listMessageStatus(p.id, chat.id)).toEqual([{ message_id: msgs[0]!.id, status: "interrupted" }]);
   });
 
   it("no marca como interrumpida una respuesta que se sigue escribiendo", async () => {
@@ -50,7 +50,7 @@ describe("respuesta guardada mientras el modelo escribe", () => {
     await saver.settle();
     const msgs = await repo.listMessages(p.id, chat.id);
     expect(msgs).toHaveLength(1);
-    expect(msgs[0].content).toBe("Primera parte y segunda parte");
+    expect(msgs[0]!.content).toBe("Primera parte y segunda parte");
   });
 
   it("el estado de un mensaje no se puede tocar desde otro proyecto", async () => {
