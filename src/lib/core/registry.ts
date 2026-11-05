@@ -1,4 +1,4 @@
-import { AZURE_KIND_CAPABILITY, azureKindOf } from "../azure-url";
+import { azureKindCapabilities, azureKindOf } from "../azure-url";
 import type { SqlDb } from "../db/sql";
 import { INITIAL_CAPABILITIES, validateCapability, type CapabilitySpec } from "./capabilities";
 
@@ -68,8 +68,9 @@ export class Registry {
       if (remote && !["elevenlabs", "tavily", "searxng", "meshy", "runway"].includes(p.kind)) {
         const mid = await this.upsertModel({ providerId: p.id, remoteId: remote, name: remote, source: "legacy" });
         // Default capability only when the model has none yet, so user/voice choices survive every resync.
-        const cap = p.kind === "azure_openai" ? AZURE_KIND_CAPABILITY[azureKindOf({ deployment: remote, extraParams: p.extra_params })] : /realtime/i.test(remote) ? "speech.realtime" : "chat";
-        await this.db.run(`INSERT INTO model_capabilities (model_id, capability_id) SELECT ?, ? WHERE NOT EXISTS (SELECT 1 FROM model_capabilities WHERE model_id=?)`, [mid, cap, mid]);
+        const caps = p.kind === "azure_openai" ? azureKindCapabilities(azureKindOf({ deployment: remote, extraParams: p.extra_params })) : [/realtime/i.test(remote) ? "speech.realtime" : "chat"];
+        const has = await this.db.all<{ one: number }>(`SELECT 1 AS one FROM model_capabilities WHERE model_id=? LIMIT 1`, [mid]);
+        if (!has.length) for (const cap of caps) await this.db.run(`INSERT OR IGNORE INTO model_capabilities (model_id, capability_id) VALUES (?, ?)`, [mid, cap]);
       }
     }
     // Registry rows whose legacy provider was deleted are removed with their models.

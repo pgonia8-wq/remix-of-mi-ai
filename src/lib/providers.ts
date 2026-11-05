@@ -339,6 +339,8 @@ export function responseError(status: number, body: string, key?: string | null)
       + (reason ? ` Detalle del proveedor: ${reason}` : "");
     return new ProviderError("unavailable", label, status, technical);
   }
+  // Foundry answers this when a managed-compute model (e.g. NVIDIA Cosmos) is called through the resource URL.
+  if (/azure-resource-enc/.test(msg)) return new ProviderError("endpoint", "Este deployment está en cómputo administrado de Foundry (por ejemplo NVIDIA Cosmos) y no responde en la URL del recurso de Azure OpenAI. En Foundry abre Deployments → ese deployment, copia el «URI de destino» (Target URI) y su clave, y configúralo con el tipo «Video e imágenes (NVIDIA Cosmos)».", status, technical);
   // Say why: the provider's own reason (redacted) goes next to the generic label, so chat notices are not a dead end.
   let reason = "";
   try { const j = JSON.parse(technical); reason = String(j?.error?.message ?? j?.message ?? ""); } catch { /* plain text body */ }
@@ -385,7 +387,8 @@ async function testAzureKind(p: ProviderCall, kind: Exclude<AzureDeploymentKind,
   const { azureAdapter } = await import("./core/adapters/azure");
   const { testWav } = await import("./core/adapters/audio");
   const creds = { kind: p.kind, endpoint: p.endpoint, apiKey: p.apiKey, deployment, apiVersion: p.apiVersion ?? null, model: deployment, extraParams: p.extraParams ?? null };
-  const out = kind === "tts" || kind === "audio-chat" ? await azureAdapter.run(creds, { capability: "audio.tts", model: deployment, prompt: "OK", signal })
+  const out = kind === "cosmos" ? await azureAdapter.run(creds, { capability: "image.generate", model: deployment, prompt: "A small blue ball on a white table, studio light", params: { num_inference_steps: 8 }, signal })
+    : kind === "tts" || kind === "audio-chat" ? await azureAdapter.run(creds, { capability: "audio.tts", model: deployment, prompt: "OK", signal })
     : kind === "transcribe" ? await azureAdapter.run(creds, { capability: "audio.transcribe", model: deployment, files: [{ bytes: testWav(), mime: "audio/wav", name: "prueba.wav" }], params: { allowEmpty: true }, signal })
     : kind === "embedding" ? await azureAdapter.run(creds, { capability: "embedding", model: deployment, prompt: "prueba", signal })
     : await azureAdapter.run(creds, { capability: "image.generate", model: deployment, prompt: "A small blue circle on a white background", params: /gpt-image/i.test(deployment) ? { quality: "low", n: 1 } : { n: 1 }, signal });
@@ -396,9 +399,11 @@ async function testAzureKind(p: ProviderCall, kind: Exclude<AzureDeploymentKind,
 export async function testProvider(p: ProviderCall, timeoutMs = 20000): Promise<ConnectionResult> {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => { controller.abort(); reject(new ProviderError("timeout", "Error de red o timeout: se agotó el tiempo de espera.")); }, timeoutMs); });
+  const kind = p.kind === "azure_openai" ? azureKindOf(p) : "chat";
+  // A Cosmos test image runs on a GPU endpoint and can take a couple of minutes.
+  const limit = kind === "cosmos" ? Math.max(timeoutMs, 300_000) : timeoutMs;
+  const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => { controller.abort(); reject(new ProviderError("timeout", "Error de red o timeout: se agotó el tiempo de espera.")); }, limit); });
   try {
-    const kind = p.kind === "azure_openai" ? azureKindOf(p) : "chat";
     if (kind === "realtime") {
       await Promise.race([testRealtime(p, controller.signal), timeout]);
       return { ok: true, checkedAt: Date.now() };

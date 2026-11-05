@@ -1,6 +1,6 @@
 // Automatic Azure setup: one resource URL + one key → every deployment detected, typed and tested.
 // Pure helpers live here (unit-tested); the UI only orchestrates them.
-import { azureDeploymentKind, parseAzureUrl, type AzureDeploymentKind } from "./azure-url";
+import { azureDeploymentKind, cosmosBase, looksLikeCosmosEndpoint, parseAzureUrl, type AzureDeploymentKind } from "./azure-url";
 
 export type AutoKind = AzureDeploymentKind | "video";
 export type AutoRow = { deployment: string; model?: string; endpoint: string; apiVersion?: string; kind: AutoKind };
@@ -80,5 +80,21 @@ export async function discoverAzureDeployments(baseUrl: string, apiKey: string, 
 
 export const AUTO_KIND_LABEL: Record<AutoKind, string> = {
   chat: "Chat", realtime: "Voz en tiempo real", tts: "Texto a voz", transcribe: "Transcripción",
-  "audio-chat": "Audio", embedding: "Búsqueda en documentos", image: "Imágenes", video: "Video",
+  "audio-chat": "Audio", embedding: "Búsqueda en documentos", image: "Imágenes", video: "Video (Sora)",
+  cosmos: "Video e imágenes (NVIDIA Cosmos)",
 };
+
+/** A pasted managed-compute endpoint (Foundry "Target URI" of an NVIDIA Cosmos deployment) → one Cosmos row. */
+export function cosmosRowFromUrl(raw: string, names: string): AutoRow | null {
+  if (!looksLikeCosmosEndpoint(raw)) return null;
+  const base = cosmosBase(raw)!;
+  const typed = names.split(/[\n,;]+/).map((l) => l.trim()).find((l) => /^[A-Za-z0-9._-]{1,64}$/.test(l));
+  const host = new URL(base).hostname.split(".")[0] ?? "cosmos";
+  const deployment = typed ?? (/cosmos/i.test(host) ? host : `cosmos-${host}`).slice(0, 64);
+  return { deployment, endpoint: base, kind: "cosmos" };
+}
+
+/** Origin of any saved endpoint (Azure resource or Cosmos), for "same connection" matching. */
+export function originOf(raw: string | null | undefined): string | null {
+  try { return new URL((raw ?? "").trim()).origin; } catch { return null; }
+}
