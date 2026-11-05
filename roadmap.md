@@ -1,9 +1,17 @@
 # MI AI — Roadmap
 
+## Auditoría real por archivo de Fer (5 nov, 20:07 UTC)
+- [x] Identificar checkout limpio fa91b7285de26da76f5a5fe131e9f78b95851503, versión base 0.1.0 y entorno; conservar manifiesto de hashes sin secretos.
+- [x] Conservar índice, diez informes, matrices y evidencias en docs/auditoria-2026-11-05; diagnóstico parcial, sin cambios de código.
+- [x] Ejecutar 464 casos: 463 aprobados, 1 omitido; reproducir restauración/duplicación defectuosa en sql.js desechable y creación/recarga de proyecto en preview.
+- [x] Registrar revisión estática acotada (62 errores, 14 advertencias); lint completo agotó tiempo. Scanner profundo devolvió incomplete con un hallazgo; dependencias reportan 16 avisos.
+- [ ] Aplicar lotes del plan priorizado: bloqueado por autorización previa exigida en el archivo de Fer; no actualizar dependencias ni corregir código todavía.
+- [ ] Verificar proveedores con gasto autorizado, APK Android físico y PC/VM reales; bloqueado por acceso y autorización de operaciones. No certificada para lanzamiento.
+
 ## Auditoría adversarial solicitada (5 nov)
 - [x] Ejecutar toda la suite: 463 aprobadas, 1 omitida; revisión de integración confirmó seis defectos funcionales. No certifica Azure/Android ni exhaustividad.
 - [ ] Corregir seis hallazgos: selección manual de chat, costos por turno, PC/VM al delegar, medios diferidos en chat, resultados al regenerar y falsa finalización; espera aprobación de Fer.
-- [ ] Obtener resultados de seguridad y revisión profunda; no corregir hallazgos nuevos sin aprobación.
+- [x] Obtener resultados de seguridad y revisión profunda: scanner actual incomplete con un hallazgo; revisión de dependencias con 16 avisos. No corregir sin aprobación.
 
 ## Solicitud actual — roles autónomos distintos (5 nov)
 - [x] Permitir un coordinador pequeño para distribuir, reservando modelos avanzados para especialistas.
