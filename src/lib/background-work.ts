@@ -30,20 +30,30 @@ async function fireReaction(p: string, event: "file.added" | "run.completed" | "
   } catch { /* reactions are best-effort and never affect the work that triggered them */ }
 }
 
-let installed = false, asked = false;
+let installed = false, asked = false, agentsActive = 0, answersActive = 0;
+function refreshNotice() {
+  if (!onDevice()) return;
+  if (!agentsActive && !answersActive) { void MiaiDevice.stopWork().catch(() => undefined); return; }
+  void (async () => {
+    if (!asked) { asked = true; try { const { LocalNotifications } = await import("@capacitor/local-notifications"); await LocalNotifications.requestPermissions(); } catch { /* the work keeps going without the visible notice */ } }
+    const title = agentsActive ? "Agentes de MI AI trabajando" : "MI AI está respondiendo…";
+    const text = agentsActive ? (agentsActive === 1 ? "1 trabajo en curso · toca para ver el avance" : `${agentsActive} trabajos en curso · toca para ver el avance`) : "La respuesta se sigue escribiendo y guardando con la pantalla bloqueada.";
+    await MiaiDevice.startWork({ title, text }).catch(() => undefined);
+  })();
+}
+/** Keeps a chat answer alive with the screen locked (same foreground notice as agents). Call the returned function when done. */
+export function beginAnswerWork(): () => void {
+  answersActive++; refreshNotice();
+  let done = false;
+  return () => { if (done) return; done = true; answersActive = Math.max(0, answersActive - 1); refreshNotice(); };
+}
 export function installBackgroundWork() {
   if (installed) return; installed = true;
   void import("@/lib/core/asset-store").then(({ onAssetAdded }) => onAssetAdded((a) => void fireReaction(a.project_id, "file.added", { name: a.name ?? a.id, mime: a.mime, assetId: a.id, capability: a.capability_id })));
   setDriveHooks({
     pause: backgroundPause,
-    busy(active) {
-      if (!onDevice()) return;
-      void (async () => {
-        if (!asked) { asked = true; try { const { LocalNotifications } = await import("@capacitor/local-notifications"); await LocalNotifications.requestPermissions(); } catch { /* the work keeps going without the visible notice */ } }
-        await MiaiDevice.startWork({ title: "Agentes de MI AI trabajando", text: active === 1 ? "1 trabajo en curso · toca para ver el avance" : `${active} trabajos en curso · toca para ver el avance` }).catch(() => undefined);
-      })();
-    },
-    idle() { if (onDevice()) void MiaiDevice.stopWork().catch(() => undefined); },
+    busy(active) { agentsActive = active; refreshNotice(); },
+    idle() { agentsActive = 0; refreshNotice(); },
     settled(p, id, status, goal) {
       if (status === "completed") void fireReaction(p, "run.completed", { name: goal, runId: id });
       else if (["waiting", "review_required", "needs_human"].includes(status)) void fireReaction(p, "run.needs_person", { name: goal, runId: id });
