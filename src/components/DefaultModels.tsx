@@ -12,14 +12,14 @@ export const DEFAULT_FUNCTIONS: [string, string][] = [
 ];
 
 /** One selector per function: "Automático" or a specific model. Every screen and the agents respect it. */
-export function DefaultModels({ models }: { models: ModelWithCaps[] }) {
+export function DefaultModels({ models, only, title = "Modelo predeterminado por función", note }: { models: ModelWithCaps[]; only?: string[]; title?: string; note?: string }) {
   const mutate = useCoreMutate();
   const usable = models.filter((m) => m.status === "active" && m.provider_enabled);
-  const rows = DEFAULT_FUNCTIONS.map(([cap, label]) => ({ cap, label, options: usable.filter((m) => m.capabilities.includes(cap) || (cap === "chat" && m.capabilities.includes("chat.tools"))) })).filter((r) => r.options.length > 0);
+  const rows = DEFAULT_FUNCTIONS.filter(([cap]) => !only || only.includes(cap)).map(([cap, label]) => ({ cap, label, options: usable.filter((m) => m.capabilities.includes(cap) || (cap === "chat" && m.capabilities.includes("chat.tools"))) })).filter((r) => r.options.length > 0);
   if (!rows.length) return null;
   return <section className="space-y-2 rounded-xl border bg-card p-3 text-sm">
-    <div className="flex items-center gap-2"><Star className="h-4 w-4 text-primary" /><h2 className="font-semibold">Modelo predeterminado por función</h2></div>
-    <p className="text-xs text-muted-foreground">Elige qué modelo usa MI AI para cada cosa. «Automático» elige el mejor verificado. El chat y los agentes también te dejan cambiarlo en cada uso.</p>
+    <div className="flex items-center gap-2"><Star className="h-4 w-4 text-primary" /><h2 className="font-semibold">{title}</h2></div>
+    <p className="text-xs text-muted-foreground">{note ?? "Elige qué modelo usa MI AI para cada cosa. «Automático» elige el mejor verificado. El chat y los agentes también te dejan cambiarlo en cada uso."}</p>
     <div className="grid gap-2 sm:grid-cols-2">
       {rows.map((r) => {
         const current = r.options.find((m) => m.defaults?.includes(r.cap))?.id ?? "";
