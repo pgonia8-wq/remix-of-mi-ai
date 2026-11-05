@@ -100,7 +100,7 @@ function ChatPage() {
     abort.current = new AbortController();
     // Continuous save: the answer is written to the encrypted DB while it streams (not for "regenerate", which only
     // replaces the previous answer once complete). "Continuar" keeps appending to the interrupted message.
-    let liveText = cont?.content ?? "";
+    let liveText = cont?.content ?? "", committed = false;
     if (cont) out = cont.content;
     const saver = regenerate ? null : createDraftSaver({
       initialId: cont?.id ?? null,
@@ -216,7 +216,7 @@ function ChatPage() {
       const draftId = saver?.id();
       const saved = regenerate ? (await repo.updateMessage(pid, regenerate.id, out), regenerate) : draftId ? (await repo.updateMessage(pid, draftId, out), { id: draftId }) : await repo.addMessage(pid, chatId, "assistant", out, provider.id, provider.deployment || provider.model);
       if (draftId) { await repo.setMessageStatus(pid, chatId, draftId, null).catch(() => undefined); activeDrafts.delete(draftId); }
-      liveText = "";
+      liveText = ""; committed = true;
       for (const a of produced.splice(0)) await repo.attachToMessage(pid, chatId, saved.id, a.id, null).catch(() => undefined);
       await repo.setMessageReasoning(pid, chatId, saved.id, thinking).catch(() => undefined);
       out = "";
@@ -241,7 +241,7 @@ function ChatPage() {
       // The text streamed in the interrupted turn is kept too, not only completed turns.
       if (liveText.length > out.length && liveText.startsWith(out)) out = liveText;
       await saver?.settle().catch(() => undefined);
-      const draftId = saver?.id() ?? null;
+      const draftId = committed ? null : saver?.id() ?? null;
       if ((out || produced.length || delegated.length || draftId) && repo && !regenerate) {
         if (delegated.length) out = `${out || "El equipo de agentes ya está trabajando."}\n\n${delegated.map(runMarker).join("\n")}`;
         // Partial answer or files already created (and possibly billed) are kept even if a later step failed.
@@ -319,6 +319,7 @@ function ChatPage() {
                 <Button size="icon" variant="ghost" className={`h-8 w-8 ${vote === "like" ? "text-primary" : "text-muted-foreground"}`} aria-label="Buena respuesta" title="Buena respuesta" onClick={() => mutate((r) => r.setMessageFeedback(pid, m.id, vote === "like" ? null : "like"))}><ThumbsUp className="h-4 w-4" /></Button>
                 <Button size="icon" variant="ghost" className={`h-8 w-8 ${vote === "dislike" ? "text-destructive" : "text-muted-foreground"}`} aria-label="Mala respuesta" title="Mala respuesta" onClick={() => mutate((r) => r.setMessageFeedback(pid, m.id, vote === "dislike" ? null : "dislike"))}><ThumbsDown className="h-4 w-4" /></Button>
                 <SpeakButton projectId={pid} text={splitRunMarkers(m.content).text} />
+                {statuses.some((s) => s.message_id === m.id && s.status === "interrupted") && <span className="ml-1 flex items-center gap-1"><span className="text-xs text-muted-foreground">Interrumpida</span>{index === messages.length - 1 && <Button size="sm" variant="outline" className="h-7 rounded-full px-3 text-xs" disabled={running || !provider} aria-label="Continuar respuesta" title="Pedir al modelo que siga donde se quedó" onClick={() => send(undefined, m)}>Continuar</Button>}</span>}
                 {index === messages.length - 1 && <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground" disabled={running || !provider} aria-label="Regenerar respuesta" title="Regenerar respuesta" onClick={() => { if (confirm("¿Generar otra respuesta? Puede tener costo; la anterior solo se sustituye al recibir el resultado completo.")) send(m); }}><RotateCcw className="h-4 w-4" /></Button>}
                 {m.model && <span className="ml-2 truncate text-[10px] text-muted-foreground">{m.model}</span>}
               </>}
