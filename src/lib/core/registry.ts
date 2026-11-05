@@ -7,7 +7,7 @@ export type RegistryModel = {
   id: string; provider_id: string; remote_id: string; name: string; status: "active" | "retired"; source: "manual" | "import" | "legacy";
   favorite: number; cost_info: string | null; privacy: "external" | "local"; context_tokens: number | null; updated_at: number;
 };
-export type ModelWithCaps = RegistryModel & { capabilities: string[]; constraints?: Record<string, Partial<CapabilitySpec>>; provider_kind: string; provider_name: string; provider_enabled: number; adapter_id?: string; tests: CapabilityTest[] };
+export type ModelWithCaps = RegistryModel & { capabilities: string[]; constraints?: Record<string, Partial<CapabilitySpec>>; provider_kind: string; provider_name: string; provider_enabled: number; adapter_id?: string; tests: CapabilityTest[]; defaults?: string[] };
 export type CapabilityTest = { model_id: string; capability_id: string; status: "ok" | "error"; http_status: number | null; message: string | null; checked_at: number };
 
 const uid = () => crypto.randomUUID();
@@ -148,12 +148,19 @@ export class Registry {
     await this.db.run(`INSERT OR REPLACE INTO capability_tests (model_id, capability_id, status, http_status, message, checked_at) VALUES (?,?,?,?,?,?)`, [modelId, capabilityId, ok ? "ok" : "error", httpStatus, message, now()]);
   }
 
+  /** Default model for a function (null clears it → automatic). */
+  async setDefaultModel(capability: string, modelId: string | null) {
+    if (!/^[a-z0-9._-]{1,60}$/.test(capability)) throw new Error("Función inválida.");
+    if (modelId === null) { await this.db.run(`DELETE FROM capability_defaults WHERE capability_id=?`, [capability]); return; }
+    await this.db.run(`INSERT INTO capability_defaults (capability_id, model_id, updated_at) VALUES (?,?,?) ON CONFLICT(capability_id) DO UPDATE SET model_id=excluded.model_id, updated_at=excluded.updated_at`, [capability, modelId, now()]);
+  }
   async listModels(): Promise<ModelWithCaps[]> {
     const models = await this.db.all<RegistryModel & { provider_kind: string; provider_name: string; provider_enabled: number; adapter_id: string }>(
       `SELECT m.*, p.kind AS provider_kind, p.name AS provider_name, p.enabled AS provider_enabled, p.adapter AS adapter_id FROM models m JOIN providers_registry p ON p.id=m.provider_id ORDER BY p.created_at, m.name`,
     );
     const caps = await this.db.all<{ model_id: string; capability_id: string; constraints: string | null }>(`SELECT model_id, capability_id, constraints FROM model_capabilities`);
     const tests = await this.db.all<CapabilityTest>(`SELECT * FROM capability_tests`);
-    return models.map((m) => ({ ...m, capabilities: caps.filter((c) => c.model_id === m.id).map((c) => c.capability_id), constraints: Object.fromEntries(caps.filter((c) => c.model_id === m.id && c.constraints).map((c) => [c.capability_id, JSON.parse(c.constraints ?? "{}") as Partial<CapabilitySpec>])), tests: tests.filter((t) => t.model_id === m.id) }));
+    const defs = await this.db.all<{ capability_id: string; model_id: string }>(`SELECT capability_id, model_id FROM capability_defaults`).catch(() => []);
+    return models.map((m) => ({ ...m, defaults: defs.filter((d) => d.model_id === m.id).map((d) => d.capability_id), capabilities: caps.filter((c) => c.model_id === m.id).map((c) => c.capability_id), constraints: Object.fromEntries(caps.filter((c) => c.model_id === m.id && c.constraints).map((c) => [c.capability_id, JSON.parse(c.constraints ?? "{}") as Partial<CapabilitySpec>])), tests: tests.filter((t) => t.model_id === m.id) }));
   }
 }
