@@ -1,5 +1,7 @@
 # Automation rules (Block 4)
 
+- Autonomous runs persist role-to-deployment reservations in their environment before requests; routing excludes every reserved deployment from other roles, including replans, with manual choices validated first. Why: independent models must not silently collapse into one provider deployment.
+
 - `tools.ts` is the only tool registry; `invokeTool()` order is fixed: registry → task allowlist → role → project policy → zod input → call limits → budget (unknown cost follows run policy, never invented) → availability → exact-action approval → checkpoint → run → observation. Why: model output (JSON or native tool calls) never grants permissions.
 - Approvals bind a SHA-256 fingerprint of run, task, tool, canonical params, target and cost; any change needs a new approval; uses are counted. Why: no stale or widened authorization.
 - Orchestrator persists each model decision as a `decision` checkpoint before acting and keys tool calls by task/attempt/turn; interrupted side effects become `uncertain` and require human review. Why: no repeated billing or duplicate external effects after a crash.
