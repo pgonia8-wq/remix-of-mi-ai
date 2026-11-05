@@ -7,6 +7,6 @@
 5. Reproducción SQL real en sql.js desechable: contexto 80→20 al restaurar, interrupted→sin estado; duplicación mismo fallo; inyección controlada de error INSERT messages deja proyecto parcial, 2→3 proyectos. Vault identidad sobre datos sintéticos: **no prueba criptografía**.
 6. Playwright Chromium: crear proyecto→recargar→abrir conversaciones; persistencia verdadera en preview. Vista 1280×1800 y 390×844; capturas inspeccionadas. Sin pageerror observado, sin overflow móvil en esa página. No conversación con proveedor configurado.
 7. Scanner básico: no backend conectado, varios checks no aplican. Deep: estado incomplete, un hallazgo. Dependencias: 16 avisos.
-8. Build/typecheck manual no ejecutados (harness del entorno); no APK reconstruida, no claim de compilación. Logs observabilidad ausentes al inicio, no evidencia positiva de build.
+8. Build/typecheck manual no ejecutados (harness del entorno). En la comprobación final observabilidad registró `build OK` a las 20:16:02 y 20:16:10 UTC; confirma compilación de preview, no funcionamiento nativo ni typecheck independiente. No APK reconstruida.
 
 Evidencias sanitizadas en evidencia/. Las capturas reflejan solo datos sintéticos. No se efectuaron ataques destructivos, migraciones, deploys, pagos ni cambios de dependencias.
