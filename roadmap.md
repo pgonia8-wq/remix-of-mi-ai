@@ -1,5 +1,9 @@
 # MI AI — Roadmap
 
+## Auditoría adversarial solicitada (5 nov)
+- [ ] Ejecutar toda la suite y revisar integración de módulos/modelos, fallos y funciones incompletas; informar evidencia y límites, sin prometer exhaustividad.
+- [ ] Obtener resultados de seguridad y revisión profunda; no corregir hallazgos nuevos sin aprobación.
+
 ## Solicitud actual — roles autónomos distintos (5 nov)
 - [ ] Permitir un coordinador pequeño para distribuir, reservando modelos avanzados para especialistas.
 - [ ] Un coordinador distinto planifica y distribuye tareas considerando capacidades declaradas de los modelos, sin inventar conocimientos.
