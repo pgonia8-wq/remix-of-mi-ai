@@ -1,51 +1,23 @@
-# Auditoría de lanzamiento de MI AI (Google Play) y plan de cierre
+# Que la respuesta del modelo no se pierda al bloquear o cerrar la app
 
-Veredicto: **todavía no está lista para publicarse en Google Play.** Las funciones están construidas; lo que falta es sobre todo empaquetado de tienda, requisitos legales y de seguridad, y pruebas reales.
+## Qué pasa hoy (confirmado en el código)
+- Lo que el modelo va escribiendo solo vive en pantalla; se guarda **hasta que termina** la respuesta.
+- Si la conexión se corta a mitad (por ejemplo, al bloquear la pantalla Android pausa la app), el texto de esa parte tampoco se guarda: solo se conserva lo de pasos anteriores.
+- Si Android cierra la app, se pierde todo.
 
-## 1. Bloqueadores (sin esto Play la rechaza o es riesgoso)
-1. **Formato de tienda**: hoy solo se produce APK. Play exige paquete AAB firmado con clave de producción.
-2. **Firma de producción**: el proceso publica como "estable" una APK firmada con la clave de pruebas (contraseña conocida). Debe exigir la clave definitiva.
-3. **Botón "Reportar contenido"** en respuestas, imágenes, videos y audio generados: obligatorio en Play para apps de IA.
-4. **Política de privacidad y términos** dentro de la app y en una dirección pública, más la ficha de "Seguridad de los datos" (micrófono, VPN, archivos, agentes en segundo plano).
-5. **Versión de Android objetivo**: está en 35; desde el 31 de agosto de 2026 Play exige 36 para apps nuevas. Ya aplica hoy.
+## Qué cambiará
+1. **Guardado continuo**: la respuesta se guarda cifrada mientras se escribe (cada ~1,5 s y al instante cuando bloqueas la pantalla o sales de la app). Al volver, ves todo lo escrito hasta ese momento.
+2. **Sigue escribiendo con la pantalla bloqueada**: mientras el modelo responde, aparece una notificación "MI AI está respondiendo…" (la misma que ya usan los agentes) para que Android no pause la conexión. Desaparece al terminar.
+3. **Respuesta interrumpida con botón "Continuar"**: si aun así se corta (sin internet, Android cerró la app), el mensaje queda marcado "Interrumpida" con un botón **Continuar** que pide al modelo seguir justo donde quedó, sin repetir lo ya escrito. También **Regenerar**.
+4. Nada se pierde en silencio: si el guardado falla, aparece aviso.
 
-## 2. Mal configurado
-- El número de versión vuelve a 1 al compilar fuera del proceso automático: rechazaría actualizaciones.
-- El proceso de compilación acepta dependencias distintas a las fijadas si falla la instalación exacta.
-- No hay optimización/ofuscación del código de Android confirmada.
-
-## 3. A medio hacer
-- **Cosmos video**: se ofrece como generador pero solo está comprobado por chat. Se ocultará como opción de video hasta tener la dirección real (sin más pruebas que cuesten cuota).
-- Suscripciones/niveles y versión web (PWA): sin construir; no bloquean un lanzamiento gratuito.
-- Pruebas con cuenta Azure real, teléfono físico y Demucs real: pendientes.
-
-## 4. Faltante
-- Reporte de fallos de la APK en producción (hoy solo existe en la vista previa).
-- Pantalla de soporte/contacto y versión visible de la app.
-
-## 5. Riesgos de seguridad
-- Herramientas de internet del teléfono: una dirección que redirija a la red local podría alcanzarse antes de bloquearse. Se bloquearán redirecciones y se validará la IP real.
-- Registros de errores sin borrar datos sensibles: se filtrarán claves y tokens.
-- Permisos de servicio en segundo plano (VPN, agentes) requieren justificación en Play.
-
-## Orden de trabajo
-1. Seguridad: bloquear redirecciones/red local y filtrar secretos en registros (con pruebas).
-2. Ocultar video de Cosmos hasta verificarlo.
-3. Botón "Reportar contenido" con envío al desarrollador sin salir de la app.
-4. Pantallas de Privacidad, Términos, Soporte y "Acerca de" con versión; texto borrador para que lo revises.
-5. Android: objetivo 36, numeración de versión fija, optimización activada, dependencias exactas.
-6. Compilación de tienda: AAB + APK firmados con clave de producción; la publicación "estable" falla sin ella.
-7. Reporte de fallos local opcional (sin enviar datos sin tu permiso).
-8. Compilar build.23 y checklist de Play Console (ficha de seguridad de datos, permisos, clasificación de contenido).
-
-## Lo que necesito de ti después
-- Crear la clave de producción (te guío) y guardarla como secretos de GitHub.
-- Correo de soporte y nombre legal del titular para privacidad/términos.
+## Cómo lo comprobaré
+- Pruebas automáticas: respuesta cortada a mitad queda guardada; recargar la app muestra el texto parcial; "Continuar" envía el texto previo y une la continuación en el mismo mensaje; los chats de otros proyectos no se tocan.
+- En vista previa: simular salir de la app durante una respuesta y recargar.
+- No puedo probar el bloqueo real de pantalla en tu teléfono; queda para la build.23.
 
 ## Detalles técnicos
-- SSRF: `CapacitorHttp` sin seguir redirecciones, validar cada salto y resolver DNS para rechazar rangos privados (`src/lib/core/research.ts`, `src/lib/automation/phone-tools.ts`).
-- Redacción en `src/lib/error-capture.ts` (patrones de claves, Bearer, api-key).
-- Cosmos: quitar `video.generate` salvo endpoint `inference.ml.azure.com` verificado (`src/lib/providers.ts`, `adapters/cosmos.ts`).
-- Reporte: tabla local `content_reports` vía Repo + `mailto`/compartir al correo de soporte con hash del contenido, sin claves.
-- `scripts/android-prepare.sh`: target/compile 36, `minifyEnabled true` + reglas ProGuard para Capacitor/SQLCipher, versionCode obligatorio.
-- `.github/workflows/android.yml`: `bundleRelease`, `--frozen-lockfile` estricto, fallar release sin keystore, prueba en emulador API 35/36.
+- `src/routes/chat.$chatId.tsx`: crear el mensaje assistant al primer token (`repo.addMessage` con estado `streaming`), `repo.updateMessage` con `out + turnText` limitado a 1 escritura/1,5 s y forzada en `visibilitychange`/`pagehide` y `App.addListener('pause')`; al finalizar, actualizar en vez de insertar; quitar el insert duplicado del `finally`.
+- Nueva columna `status` (`streaming|done|interrupted`) en mensajes vía migración del esquema SQL de Repo; al abrir el chat, cualquier `streaming` huérfano pasa a `interrupted`.
+- Foreground service: reutilizar el aviso de agentes de `src/lib/device.ts` con texto de chat, iniciado/parado alrededor de `streamChat`.
+- "Continuar": reenviar historial + parcial como assistant y petición de continuar; concatenar al mismo mensaje. Reasoning y adjuntos se mantienen ligados al mismo ID.
