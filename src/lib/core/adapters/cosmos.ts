@@ -2,15 +2,13 @@
 // Contract: POST <base>/v1/infer, synchronous JSON → { b64_image } (JPEG) or { b64_video } (MP4).
 // https://docs.nvidia.com/nim/cosmos/latest/api-reference.html
 import { ProviderError, responseError } from "../../providers";
-import { cosmosBase, isAzureResourceHost } from "../../azure-url";
+import { cosmosBase, isAzureResourceHost, parseAzureUrl } from "../../azure-url";
+import { downloadMedia } from "./media-output";
 import { call, requireKey } from "./http";
 import { b64ToBytes, type AdapterCredentials, type RunRequest, type RunResult } from "./types";
 
-export const COSMOS_RESOURCE_HINT = "Este modelo (NVIDIA Cosmos) está desplegado en cómputo administrado y no responde en la URL del recurso de Azure OpenAI. En Foundry abre Deployments → tu deployment de Cosmos, copia el «URI de destino» (Target URI) y su clave, y pégalos aquí con el tipo «Video e imágenes (NVIDIA Cosmos)».";
 
 export function cosmosInferUrl(endpoint: string | null | undefined): string {
-  try { if (isAzureResourceHost(new URL((endpoint ?? "").trim()).hostname)) throw new ProviderError("endpoint", COSMOS_RESOURCE_HINT); }
-  catch (e) { if (e instanceof ProviderError) throw e; }
   const base = cosmosBase(endpoint);
   if (!base) throw new ProviderError("endpoint", "URL de Cosmos incorrecta: usa el URI de destino HTTPS del deployment (sin usuario ni contraseña en la URL).");
   return `${base}/v1/infer`;
@@ -53,8 +51,8 @@ export function cosmosBody(r: RunRequest): Record<string, unknown> {
 }
 
 /** On Android the request goes through native HTTP (managed endpoints don't send CORS headers to the WebView). */
-async function postJson(url: string, key: string, body: unknown, timeoutMs: number, signal?: AbortSignal): Promise<any> {
-  const headers = { authorization: `Bearer ${key}`, "api-key": key, "content-type": "application/json", accept: "application/json" };
+async function postJson(url: string, key: string, body: unknown, timeoutMs: number, signal?: AbortSignal, auth: "both" | "api-key" | "bearer" = "both"): Promise<any> {
+  const headers: Record<string, string> = { "content-type": "application/json", accept: "application/json", ...(auth !== "api-key" ? { authorization: `Bearer ${key}` } : {}), ...(auth !== "bearer" ? { "api-key": key } : {}) };
   let native = false;
   try { const { Capacitor } = await import("@capacitor/core"); native = Capacitor.isNativePlatform(); } catch { native = false; }
   if (native) {
@@ -70,7 +68,67 @@ async function postJson(url: string, key: string, body: unknown, timeoutMs: numb
   return res.json().catch(() => { throw new ProviderError("parameters", "Cosmos devolvió una respuesta que no es JSON.", res.status); });
 }
 
+const onResourceHost = (endpoint: string | null | undefined) => { try { return isAzureResourceHost(new URL((endpoint ?? "").trim()).hostname); } catch { return false; } };
+
+/** Foundry resource route: https://<res>.services.ai.azure.com/openai/v1/chat/completions with the deployment as "model". */
+export function cosmosChatUrl(endpoint: string | null | undefined): string {
+  const a = parseAzureUrl(endpoint);
+  if (!a) throw new ProviderError("endpoint", "URL de Azure incorrecta para Cosmos: pega la URL …/openai/v1/chat/completions de tu recurso.");
+  return `${a.endpoint.replace(/\/openai\/v1$/, "")}/openai/v1/chat/completions`;
+}
+
+/** POST JSON to the resource; on "azure-resource-enc" retry with the key as Bearer (Foundry partner models). */
+async function postAzureChat(url: string, key: string, body: unknown, timeoutMs: number, signal?: AbortSignal): Promise<any> {
+  try { return await postJson(url, key, body, timeoutMs, signal, "api-key"); }
+  catch (e) {
+    if (!(e instanceof ProviderError) || !/azure-resource-enc/i.test(e.technical ?? "")) throw e;
+    return postJson(url, key, body, timeoutMs, signal, "bearer");
+  }
+}
+
+/** Finds generated media in a chat answer: data URLs, b64 fields or https links to mp4/images. */
+export function mediaFromChat(d: any): { b64?: string; url?: string; mime: string } | null {
+  const text = JSON.stringify(d ?? {});
+  const data = /data:(video\/mp4|image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]{100,})/.exec(text);
+  if (data) return { b64: data[2]!, mime: data[1]! };
+  const find = (o: any): any => { if (!o || typeof o !== "object") return null; for (const [k, v] of Object.entries(o)) { if ((k === "b64_video" || k === "b64_image" || k === "b64_json") && typeof v === "string" && v.length > 100) return { k, v }; const r = find(v); if (r) return r; } return null; };
+  const b = find(d);
+  if (b) return { b64: b.v, mime: b.k === "b64_video" ? "video/mp4" : "image/jpeg" };
+  const link = /https:\/\/[^\s"'<>()]+?\.(mp4|png|jpe?g|webp)(\?[^\s"'<>()]*)?/i.exec(text.replace(/\\\//g, "/"));
+  if (link) return { url: link[0], mime: link[1]!.toLowerCase() === "mp4" ? "video/mp4" : link[1]!.toLowerCase() === "png" ? "image/png" : link[1]!.toLowerCase() === "webp" ? "image/webp" : "image/jpeg" };
+  return null;
+}
+
+/** Connection probe through the resource: any real answer from the deployment counts. */
+export async function probeCosmosChat(c: AdapterCredentials, deployment: string, signal?: AbortSignal): Promise<void> {
+  const key = requireKey(c.apiKey);
+  const d = await postAzureChat(cosmosChatUrl(c.endpoint), key, { model: deployment, messages: [{ role: "user", content: "Responde solo: OK" }], stream: false }, 120_000, signal);
+  if (!d?.choices?.length && !mediaFromChat(d)) throw new ProviderError("parameters", "Respuesta inválida: el deployment no devolvió una respuesta.", 200);
+}
+
+async function runCosmosViaChat(c: AdapterCredentials, r: RunRequest): Promise<RunResult> {
+  const key = requireKey(c.apiKey);
+  const deployment = (r.model || c.deployment || "").trim();
+  if (!deployment) throw new ProviderError("model", "Indica el deployment de Cosmos.");
+  const video = r.capability === "video.generate";
+  if (r.capability !== "image.generate" && !video) throw new ProviderError("parameters", `NVIDIA Cosmos se usa para crear videos e imágenes, no para «${r.capability}».`);
+  const prompt = r.prompt?.trim();
+  if (!prompt) throw new ProviderError("parameters", video ? "Describe el video." : "Describe la imagen.");
+  const file = r.files?.find((f) => f.mime.startsWith("image/"));
+  const content = file ? [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: toDataUrl(file.bytes, file.mime) } }] : prompt;
+  const d = await postAzureChat(cosmosChatUrl(c.endpoint), key, { model: deployment, messages: [{ role: "system", content: video ? "Generate a video for the user's description." : "Generate an image for the user's description." }, { role: "user", content }], stream: false, ...(video ? { modalities: ["video"] } : { modalities: ["image"] }) }, video ? 15 * 60_000 : 5 * 60_000, r.signal);
+  const media = mediaFromChat(d);
+  if (!media || (video && media.mime !== "video/mp4") || (!video && !media.mime.startsWith("image/"))) {
+    const said = String(d?.choices?.[0]?.message?.content ?? "").slice(0, 300);
+    throw new ProviderError("parameters", `Cosmos respondió pero no entregó ${video ? "un video" : "una imagen"} por esta ruta.${said ? ` Respuesta: ${said}` : ""}`, 200, JSON.stringify(d).slice(0, 600));
+  }
+  const bytes = media.b64 ? b64ToBytes(media.b64) : await downloadMedia(media.url!, media.mime);
+  if (video && new TextDecoder().decode(bytes.subarray(4, 8)) !== "ftyp") throw new ProviderError("parameters", "Cosmos devolvió un archivo que no es MP4 válido.", 200);
+  return { kind: "files", files: [{ bytes, mime: media.mime, name: video ? "cosmos.mp4" : `cosmos.${media.mime.split("/")[1]}` }] };
+}
+
 export async function runCosmos(c: AdapterCredentials, r: RunRequest): Promise<RunResult> {
+  if (onResourceHost(c.endpoint)) return runCosmosViaChat(c, r);
   const url = cosmosInferUrl(c.endpoint);
   const key = requireKey(c.apiKey);
   const body = cosmosBody(r);

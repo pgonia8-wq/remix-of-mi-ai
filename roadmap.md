@@ -2,7 +2,8 @@
 
 ## Solicitud actual (5 nov) — build.20, suscripciones, PC Node, PWA
 - [x] Compilar build.20 (incluye NVIDIA Cosmos y opciones de video).
-- [x] Agentes: elegir modelo y servidor/VM por SSH en Opciones; «Modelo predeterminado por función» en Modelos que respeta toda la app (sin APK nueva aún).
+- [x] Agentes: elegir modelo y servidor/VM por SSH en Opciones; «Modelo predeterminado por función» en Modelos que respeta toda la app (en build.21).
+- [x] Cosmos vía URL del recurso Foundry …/openai/v1/chat/completions: reintento Bearer/sin streaming; video/imagen leídos de la respuesta (build.21; sin probar con cuenta real).
 - [ ] Seguir revisando opciones configurables en el resto de pantallas.
 - [ ] Modelo de suscripción por tiers con registro y contraseña de acceso generada — espera respuestas de Fer (servidor obligatorio, tiers, precios).
 - [x] PC Node: ya construido (pc-node/, emparejamiento, carpetas, túneles, FFmpeg/Demucs).
@@ -11,7 +12,7 @@
 ## Solicitud actual — configuración fácil y agentes sin PC
 - [x] Configuración automática de Azure: URL + clave → detecta deployments, tipo, prueba real y guarda los que responden; video con su prueba aparte.
 - [x] Agentes: pantalla simple (una caja + Empezar), trabajan en el teléfono por defecto; PC/VM agrupado como opcional; aviso si falta modelo.
-- [ ] Probar con tu cuenta real de Azure y en el teléfono (sin APK nueva aún).
+- [ ] Probar con tu cuenta real de Azure y en el teléfono (en build.21).
 
 ## Entrega actual — cristal premium y múltiples dispositivos
 - [x] Aplicar el prompt visual conservando estructura, funciones y navegación; cristal visible, adaptación a móviles de gama media/alta y Poco C40.
