@@ -1,6 +1,7 @@
 # MI AI — Roadmap
 
 ## Solicitud actual — roles autónomos distintos (5 nov)
+- [ ] Permitir un coordinador pequeño para distribuir, reservando modelos avanzados para especialistas.
 - [ ] Un coordinador distinto planifica y distribuye tareas considerando capacidades declaradas de los modelos, sin inventar conocimientos.
 - [ ] Permitir elegir los modelos avanzados de Fer por rol, sin concentrar el equipo en DeepSeek.
 - [ ] Distribuir cada rol entre modelos/deployments distintos, también en delegación y replanificación; impedir reutilización silenciosa.
