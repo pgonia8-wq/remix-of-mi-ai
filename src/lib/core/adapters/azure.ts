@@ -10,6 +10,7 @@ import { b64ToBytes, sync, trimSlash, type AdapterCredentials, type ProviderAdap
 import { azureKindOf, parseAzureUrl } from "../../azure-url";
 import { toolCallBody, parseToolCalls } from "./tool-calls";
 import { azureVideoSupport, runAzureVideo, pollAzureVideo } from "./azure-video";
+import { runCosmos } from "./cosmos";
 
 export function azureUrl(c: AdapterCredentials, deployment: string, op: "images/generations" | "images/edits" | "chat/completions" | "audio/speech" | "audio/transcriptions" | "audio/translations" | "embeddings"): { url: string; v1: boolean } {
   const raw = trimSlash(c.endpoint?.trim() ?? "");
@@ -45,6 +46,8 @@ export const azureAdapter: ProviderAdapter = {
   async listVoices() { return OPENAI_VOICES.map((v) => ({ id: v, name: v })); },
   supports(cap) { return cap in this.operations; },
   async run(c, r) {
+    // NVIDIA Cosmos on managed compute: its own endpoint and contract (videos and images).
+    if (azureKindOf({ deployment: r.model || c.deployment, extraParams: c.extraParams }) === "cosmos") return runCosmos(c, r);
     if (r.capability === "video.generate") return runAzureVideo(c, r);
     const key = requireKey(c.apiKey);
     if (r.capability === "image.upscale" || r.capability === "image.remove_bg") return azureAdapter.run(c, derivedEdit(r));
