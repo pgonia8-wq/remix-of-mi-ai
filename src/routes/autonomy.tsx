@@ -67,28 +67,38 @@ function Runs({ pid, act, busy }: { pid: string; act: Act; busy: boolean }) {
   const { data: due = [] } = useCoreQuery(["due-reviews", pid], (c) => dueReviews(c.repo, pid));
   const [mode, setMode] = useState<"team" | "builder">("team"), [goal, setGoal] = useState(""), [acc, setAcc] = useState(""), [folder, setFolder] = useState(""), [kind, setKind] = useState<DeliverableKind>("web"), [usd, setUsd] = useState(""), [conc, setConc] = useState(2), [open, setOpen] = useState<string | null>(null);
   const { data: brain = null } = useCoreQuery(["auto-brain"], async (c) => { const models = await c.repo.registry.listModels(); const d = route(models, { capability: "chat.tools", mode: "auto" }); const e = d.ok ? d : route(models, { capability: "chat", mode: "auto" }); return e.ok ? { ok: true as const, name: e.model.name } : { ok: false as const, name: "" }; });
+  // Every usable chat model can be chosen; "" = automatic.
+  const { data: chatModels = [] } = useCoreQuery(["auto-chat-models"], async (c) => (await c.repo.registry.listModels()).filter((m) => m.status === "active" && m.provider_enabled && (m.capabilities.includes("chat") || m.capabilities.includes("chat.tools"))).map((m) => ({ id: m.id, name: m.name, provider: m.provider_name })));
+  const { data: servers = [] } = useCoreQuery(["connections", pid], (c) => connections.list(c.repo, pid));
+  const sshServers = servers.filter((x) => x.kind === "ssh");
+  const [modelId, setModelId] = useState(""), [sshId, setSshId] = useState("");
+  const chosen = chatModels.find((m) => m.id === modelId);
   const f = fl.find((x) => x.id === folder);
   const create = () => act(async (c) => {
     const limits = { maxUsd: usd ? Number(usd) : null, concurrency: conc };
     const id = mode === "builder"
-      ? await createBuilderRun(c, pid, { requirements: goal, kind, nodeId: f?.node_id ?? null, folderId: f?.id ?? null, limits })
-      : await createRun(c, pid, { goal, acceptance: acc.split("\n").map((s) => s.trim()).filter(Boolean), limits, nodeId: f?.node_id ?? null, folderId: f?.id ?? null });
+      ? await createBuilderRun(c, pid, { requirements: goal, kind, nodeId: f?.node_id ?? null, folderId: f?.id ?? null, modelId: modelId || null, sshId: sshId || null, limits })
+      : await createRun(c, pid, { goal, acceptance: acc.split("\n").map((s) => s.trim()).filter(Boolean), limits, nodeId: f?.node_id ?? null, folderId: f?.id ?? null, modelId: modelId || null, sshId: sshId || null });
     setOpen(id); setGoal(""); driveRun(c, pid, id); return id;
   }, "Ejecución creada");
   return <section className="space-y-4">
     {due.length > 0 && <div className="rounded-md border p-3 text-sm">{due.map((d) => <p key={d.id}>Recordatorio: revisar ejecución ({d.kind}) {d.note}</p>)}</div>}
     <div className="space-y-3 rounded-md border p-3">
       <p className="text-sm">Pide algo y un equipo de agentes lo planifica, lo hace y lo revisa por su cuenta, <b>aquí en tu teléfono</b>. No necesitas PC ni VM.</p>
-      {brain === null ? null : brain.ok
-        ? <p className="text-xs text-muted-foreground">Trabajarán con: <b>{brain.name}</b></p>
+      {brain === null ? null : brain.ok || chosen
+        ? <label className="block text-sm">Modelo con el que trabajan<select aria-label="Modelo de los agentes" className={inputCls} value={modelId} onChange={(e) => setModelId(e.target.value)}><option value="">Automático{brain.ok ? ` (ahora: ${brain.name})` : ""}</option>{chatModels.map((m) => <option key={m.id} value={m.id}>{m.name} · {m.provider}</option>)}</select></label>
         : <p className="text-xs text-destructive">Primero configura un modelo de chat en <Link to="/models" className="underline">Modelos</Link> (la configuración automática lo hace por ti).</p>}
       <div className="flex gap-2"><Button size="sm" variant={mode === "team" ? "default" : "outline"} onClick={() => setMode("team")}>Hacer una tarea</Button><Button size="sm" variant={mode === "builder" ? "default" : "outline"} onClick={() => setMode("builder")}>Construir una app</Button></div>
       <label className="block text-sm">{mode === "builder" ? "¿Qué app o programa quieres?" : "¿Qué quieres que hagan?"}<textarea className={inputCls} rows={3} value={goal} onChange={(e) => setGoal(e.target.value)} placeholder={mode === "builder" ? "Ej.: una página web para mi negocio con menú, precios y formulario de contacto" : "Ej.: investiga los 5 mejores celulares de 2026 y hazme un informe en Word con tabla comparativa"} /></label>
-      <details className="text-sm"><summary className="cursor-pointer text-xs text-primary">Opciones avanzadas (no son necesarias)</summary>
+      <details className="text-sm"><summary className="cursor-pointer text-xs text-primary">Opciones: dónde trabajan (teléfono, PC, VM o servidor), gasto y agentes</summary>
         <div className="mt-2 space-y-2">
           {mode === "team" && <label className="block text-sm">Cómo sabrán que terminaron (uno por línea)<textarea className={inputCls} rows={2} value={acc} onChange={(e) => setAcc(e.target.value)} placeholder="Si lo dejas vacío, los agentes lo deciden" /></label>}
           {mode === "builder" && <label className="block text-sm">Tipo de entregable<select className={inputCls} value={kind} onChange={(e) => setKind(e.target.value as DeliverableKind)}>{(["web", "android", "api", "backend", "desktop", "script", "automation", "database", "multi-module", "multi-service"] as const).map((k) => <option key={k} value={k}>{k}</option>)}</select></label>}
-          <label className="block text-sm">Dónde trabajan<select className={inputCls} value={folder} onChange={(e) => setFolder(e.target.value)}><option value="">En este teléfono</option>{fl.map((x) => <option key={x.id} value={x.id}>{x.label} · {nodeList.find((n) => n.id === x.node_id)?.name ?? "PC"}</option>)}</select></label>
+          <label className="block text-sm">Dónde guardan y compilan<select aria-label="Dónde trabajan" className={inputCls} value={folder} onChange={(e) => setFolder(e.target.value)}><option value="">En este teléfono</option>{fl.map((x) => <option key={x.id} value={x.id}>Carpeta «{x.label}» en {nodeList.find((n) => n.id === x.node_id)?.name ?? "PC"} (PC Node)</option>)}</select></label>
+          {fl.length === 0 && <p className="text-xs text-muted-foreground">Para trabajar en una carpeta de tu PC o VM con MI AI PC Node, conéctala en la pestaña «PC o VM».</p>}
+          <label className="block text-sm">Servidor o VM por SSH (opcional)<select aria-label="Servidor o VM" className={inputCls} value={sshId} onChange={(e) => setSshId(e.target.value)}><option value="">Ninguno</option>{sshServers.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
+          {sshServers.length === 0 ? <p className="text-xs text-muted-foreground">Aún no tienes servidores ni VMs. <Link to="/servers" className="underline">Añade uno en Servidores</Link> (IP, usuario y clave o llave) y aparecerá aquí.</p>
+            : sshId ? <p className="text-xs text-muted-foreground">Los agentes podrán ejecutar comandos en ese servidor; cada comando te lo pide confirmar el teléfono.</p> : null}
           <div className="grid grid-cols-2 gap-2">
             <label className="block text-sm">Gasto máximo (US$)<input className={inputCls} inputMode="decimal" value={usd} onChange={(e) => setUsd(e.target.value)} placeholder="sin límite propio" /></label>
             <label className="block text-sm">Agentes a la vez<input className={inputCls} type="number" min={1} max={6} value={conc} onChange={(e) => setConc(Number(e.target.value))} /></label>
@@ -96,7 +106,7 @@ function Runs({ pid, act, busy }: { pid: string; act: Act; busy: boolean }) {
           {!f && <p className="text-xs text-muted-foreground">En el teléfono escriben archivos, investigan, crean documentos y ejecutan código JavaScript/Python. Solo para compilar apps nativas (APK, escritorio) hace falta conectar una PC o VM en la pestaña «PC o VM».</p>}
         </div>
       </details>
-      <Button className="w-full" disabled={busy || !goal.trim() || brain?.ok === false} onClick={create}><Play />Empezar</Button>
+      <Button className="w-full" disabled={busy || !goal.trim() || (brain?.ok === false && !chosen)} onClick={create}><Play />Empezar</Button>
     </div>
     {runs.map((r) => <RunCard key={r.id} pid={pid} r={r} open={open === r.id} toggle={() => setOpen(open === r.id ? null : r.id)} act={act} busy={busy} />)}
   </section>;

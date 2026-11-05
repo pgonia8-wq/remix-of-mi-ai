@@ -59,6 +59,9 @@ export function route(models: ModelWithCaps[], req: RouteRequest): RouterDecisio
     if (!m) return { ok: false, reason: "El modelo elegido no admite esta operación. No se ejecutó ninguna solicitud." };
     return { ok: true, model: m, reasons: ["elegido manualmente", ...score(m, req).why], alternatives: candidates.filter((c) => c.id !== m.id) };
   }
+  // The default the person chose for this function wins in automatic mode, as long as it is compatible.
+  const chosenDefault = req.mode === "auto" ? candidates.find((m) => m.defaults?.includes(req.capability)) ?? (req.capability === "chat.tools" ? candidates.find((m) => m.defaults?.includes("chat")) : undefined) : undefined;
+  if (chosenDefault) return { ok: true, model: chosenDefault, reasons: ["modelo predeterminado que elegiste para esta función", ...score(chosenDefault, req).why], alternatives: candidates.filter((c) => c.id !== chosenDefault.id) };
   const azure = candidates.filter((m) => ["azure", "azure_openai"].includes(m.provider_kind) && testOf(m, req.capability)?.status === "ok");
   const openSearch = candidates.filter((m) => m.adapter_id === "searxng" || m.provider_kind === "searxng").filter((m) => testOf(m, req.capability)?.status === "ok");
   const preferred = req.capability === "research.web" ? openSearch : azure;

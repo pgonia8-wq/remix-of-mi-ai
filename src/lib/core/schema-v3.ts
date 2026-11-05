@@ -9,6 +9,8 @@ export const SCHEMA_V3 = [
   `CREATE TABLE IF NOT EXISTS endpoints (id TEXT PRIMARY KEY, provider_id TEXT NOT NULL UNIQUE, url TEXT, api_version TEXT, deployment TEXT)`,
   // Points at the existing encrypted credential (providers.api_key_enc); never stores a key itself.
   `CREATE TABLE IF NOT EXISTS auth_refs (id TEXT PRIMARY KEY, provider_id TEXT NOT NULL UNIQUE, legacy_provider_id TEXT NOT NULL)`,
+  // The person's default model for each function (chat, images, video…); automatic routing uses it first when compatible.
+  `CREATE TABLE IF NOT EXISTS capability_defaults (capability_id TEXT PRIMARY KEY, model_id TEXT NOT NULL, updated_at INTEGER NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS capability_tests (model_id TEXT NOT NULL, capability_id TEXT NOT NULL, status TEXT NOT NULL, http_status INTEGER, message TEXT, checked_at INTEGER NOT NULL, PRIMARY KEY (model_id, capability_id))`,
   `CREATE TABLE IF NOT EXISTS key_versions (id INTEGER PRIMARY KEY, status TEXT NOT NULL, protection TEXT NOT NULL, created_at INTEGER NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS device_reports (id TEXT PRIMARY KEY, device TEXT NOT NULL, report TEXT NOT NULL, created_at INTEGER NOT NULL)`,

@@ -14,6 +14,7 @@ import { SearxngForm } from "@/components/SearxngForm";
 import { AzureVideoModelForm } from "@/components/AzureVideoModelForm";
 import { ModelsTransfer } from "@/components/ModelsTransfer";
 import { AzureAutoSetup } from "@/components/AzureAutoSetup";
+import { DefaultModels } from "@/components/DefaultModels";
 
 export const Route = createFileRoute("/models")({
   head: () => ({
@@ -63,6 +64,7 @@ function Models() {
     <div className="space-y-4 p-4">
       <h1 className="text-2xl font-bold">Modelos</h1>
       <AzureAutoSetup />
+      <DefaultModels models={models} />
       <div className="flex flex-wrap gap-2"><ModelsTransfer /></div>
 
       <details className="rounded-xl border bg-card p-3 text-sm">
