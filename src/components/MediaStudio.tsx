@@ -108,7 +108,7 @@ function MediaPreview({ asset, onClose }: { asset: Asset; onClose: () => void })
   return <section className="space-y-3 border-t pt-3"><div className="flex items-center justify-between"><h2 className="min-w-0 break-words font-semibold">{asset.name}</h2><Button variant="ghost" onClick={onClose}>Cerrar</Button></div>
     {error && <p className="text-destructive">{error}</p>}
     {url && asset.kind === "audio" && <audio controls src={url} className="w-full" />}
-    {url && asset.kind === "video" && <video controls playsInline autoPlay muted src={url} className="max-h-[70dvh] w-full rounded-lg bg-black/40" />}
+    {url && asset.kind === "video" && <video controls playsInline autoPlay muted src={url} className="max-h-[70dvh] w-full rounded-lg bg-muted" />}
     {bytes && asset.kind === "model3d" && <Model3DViewer bytes={bytes} name={asset.name ?? "modelo"} />}
     <p className="text-xs text-muted-foreground">{asset.params ? String((JSON.parse(asset.params) as Record<string, unknown>)["license"] ?? "Licencia no verificada") : "Licencia no verificada"}</p>
     <Button variant="outline" disabled={!bytes} onClick={() => { if (bytes && confirm("¿Exportar una copia sin cifrar?")) saveExport(bytes, asset.name ?? "resultado", asset.mime).catch(() => toast.error("No se pudo exportar.")); }}>Exportar</Button>
