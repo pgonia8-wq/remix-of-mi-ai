@@ -215,6 +215,7 @@ function ChatPage() {
       await saver?.settle();
       const draftId = saver?.id();
       const saved = regenerate ? (await repo.updateMessage(pid, regenerate.id, out), regenerate) : draftId ? (await repo.updateMessage(pid, draftId, out), { id: draftId }) : await repo.addMessage(pid, chatId, "assistant", out, provider.id, provider.deployment || provider.model);
+      if (regenerate) await repo.setMessageStatus(pid, chatId, regenerate.id, null).catch(() => undefined);
       if (draftId) { await repo.setMessageStatus(pid, chatId, draftId, null).catch(() => undefined); activeDrafts.delete(draftId); }
       liveText = ""; committed = true;
       for (const a of produced.splice(0)) await repo.attachToMessage(pid, chatId, saved.id, a.id, null).catch(() => undefined);
