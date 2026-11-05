@@ -5,7 +5,7 @@
 - [x] Agentes: elegir modelo y servidor/VM por SSH en Opciones; «Modelo predeterminado por función» en Modelos que respeta toda la app (en build.21).
 - [x] Cosmos vía URL del recurso Foundry …/openai/v1/chat/completions: reintento Bearer/sin streaming; video/imagen leídos de la respuesta (build.21; sin probar con cuenta real).
 - [x] Chat: imágenes ya no bloquean; «Modelos para crear» en el chat.
-- [ ] Video generado en Herramientas: mostrar dónde queda y reproducirlo.
+- [x] Video en Herramientas: se abre y reproduce solo al terminar; los lentos se revisan cada 20 s (sin APK nueva aún).
 - [ ] Seguir revisando opciones configurables en el resto de pantallas.
 - [ ] Modelo de suscripción por tiers con registro y contraseña de acceso generada — espera respuestas de Fer (servidor obligatorio, tiers, precios).
 - [x] PC Node: ya construido (pc-node/, emparejamiento, carpetas, túneles, FFmpeg/Demucs).
