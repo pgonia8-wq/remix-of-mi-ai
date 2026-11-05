@@ -1,7 +1,7 @@
 import { Star } from "lucide-react";
 import { toast } from "sonner";
 import { inputCls } from "@/components/AppShell";
-import { useCoreMutate } from "@/lib/use-app";
+import { useMutate } from "@/lib/use-app";
 import type { ModelWithCaps } from "@/lib/core/registry";
 
 /** Functions a person usually wants to pin to one model. "Chat" also drives the agents and chat tools. */
@@ -13,7 +13,7 @@ export const DEFAULT_FUNCTIONS: [string, string][] = [
 
 /** One selector per function: "Automático" or a specific model. Every screen and the agents respect it. */
 export function DefaultModels({ models, only, title = "Modelo predeterminado por función", note }: { models: ModelWithCaps[]; only?: string[]; title?: string; note?: string }) {
-  const mutate = useCoreMutate();
+  const mutate = useMutate();
   const usable = models.filter((m) => m.status === "active" && m.provider_enabled);
   const rows = DEFAULT_FUNCTIONS.filter(([cap]) => !only || only.includes(cap)).map(([cap, label]) => ({ cap, label, options: usable.filter((m) => m.capabilities.includes(cap) || (cap === "chat" && m.capabilities.includes("chat.tools"))) })).filter((r) => r.options.length > 0);
   if (!rows.length) return null;
@@ -26,7 +26,7 @@ export function DefaultModels({ models, only, title = "Modelo predeterminado por
         return <label key={r.cap} className="block text-xs">{r.label}
           <select aria-label={`Modelo para ${r.label}`} className={inputCls} value={current} onChange={(e) => {
             const id = e.target.value || null;
-            void mutate((c) => c.repo.registry.setDefaultModel(r.cap, id)).then(() => toast.success(id ? `${r.label}: usará ${r.options.find((m) => m.id === id)?.name}` : `${r.label}: automático`)).catch((err) => toast.error(err instanceof Error ? err.message : "No se pudo guardar."));
+            void mutate((repo) => repo.registry.setDefaultModel(r.cap, id)).then(() => toast.success(id ? `${r.label}: usará ${r.options.find((m) => m.id === id)?.name}` : `${r.label}: automático`)).catch((err) => toast.error(err instanceof Error ? err.message : "No se pudo guardar."));
           }}>
             <option value="">Automático</option>
             {r.options.map((m) => <option key={m.id} value={m.id}>{m.name} · {m.provider_name}</option>)}
