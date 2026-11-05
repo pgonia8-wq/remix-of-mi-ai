@@ -36,8 +36,8 @@ export function parseDeploymentLines(text: string, baseUrl: string): AutoRow[] {
       const a = parseAzureUrl(line);
       if (!a?.deployment) continue;
       const endpoint = a.v1 ? a.endpoint : a.apiVersion ? a.endpoint : `${a.endpoint}/openai/v1`;
-      out.set(a.deployment.toLowerCase(), { deployment: a.deployment, endpoint, ...(a.apiVersion && !a.v1 ? { apiVersion: a.apiVersion } : {}), kind: inferAutoKind(a.deployment, undefined, a.op) });
-    } else if (base && /^[A-Za-z0-9._-]{1,64}$/.test(line)) {
+      if (!out.has(a.deployment.toLowerCase())) out.set(a.deployment.toLowerCase(), { deployment: a.deployment, endpoint, ...(a.apiVersion && !a.v1 ? { apiVersion: a.apiVersion } : {}), kind: inferAutoKind(a.deployment, undefined, a.op) });
+    } else if (base && /^[A-Za-z0-9._-]{1,64}$/.test(line) && !out.has(line.toLowerCase())) {
       out.set(line.toLowerCase(), { deployment: line, endpoint: base.v1, kind: inferAutoKind(line) });
     }
   }
