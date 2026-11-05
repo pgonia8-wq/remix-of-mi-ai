@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { ShareInbox } from "./ShareInbox";
 import { installBackgroundWork } from "@/lib/background-work";
 import { installInsets } from "@/lib/device";
+import { useRemoteJobWatcher } from "@/lib/use-remote-jobs";
 import { setActiveProject, useActiveProjectId, useMutate, useRepoQuery } from "@/lib/use-app";
 import { Button } from "./ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "./ui/sheet";
@@ -28,6 +29,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const mutate = useMutate(), navigate = useNavigate();
   const inChat = path.startsWith("/chat/");
   useEffect(() => { installBackgroundWork(); installInsets(); }, []);
+  useRemoteJobWatcher(pid);
   async function newChat() {
     if (!pid) { await navigate({ to: "/" }); setOpen(false); return; }
     try { const c = await mutate((r) => r.createChat(pid)); await navigate({ to: "/chat/$chatId", params: { chatId: c.id } }); setOpen(false); }

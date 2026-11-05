@@ -13,6 +13,7 @@ import { pollRemoteJob } from "@/lib/core/remote-jobs";
 import type { Asset } from "@/lib/core/asset-store";
 import { getCore } from "@/lib/core";
 import { saveExport } from "@/lib/save-export";
+import { JOB_DONE_EVENT, type JobDoneDetail } from "@/lib/use-remote-jobs";
 
 export type StudioKind = "music" | "video" | "model3d";
 const OPTIONS = {
@@ -41,24 +42,16 @@ function Studio({ pid, kind }: { pid: string; kind: StudioKind }) {
     const a = (await core.assets.list(pid)).find((x) => x.id === assetId);
     if (a) { setOpen(a); setTimeout(() => result.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 300); }
   }
-  // Videos that take minutes are checked automatically every 20 s while this screen is open (never re-generated).
-  const pendingIds = jobs.filter((j) => !!j.remote_id && j.status === "processing").map((j) => j.id).join(",");
+  // Slow jobs are checked app-wide (useRemoteJobWatcher); here the finished file opens right away.
   useEffect(() => {
-    if (!pendingIds) return;
-    let live = true;
-    const tick = async () => {
-      for (const id of pendingIds.split(",")) {
-        try {
-          const core = await getCore();
-          const r = await pollRemoteJob(core, pid, id);
-          if (!live) return;
-          if (!r.pending) { await mutate(async () => undefined); toast.success(kind === "video" ? "Tu video está listo: se reproduce abajo." : "Tu archivo está listo."); await showAsset(core, r.assets[0]?.id); }
-        } catch { /* a manual «Consultar» shows the reason */ }
-      }
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<JobDoneDetail>).detail;
+      if (d.projectId !== pid || !OPTIONS[kind].some((o) => o.id === d.capability)) return;
+      void getCore().then((core) => showAsset(core, d.assetIds[0]));
     };
-    const t = setInterval(() => { void tick(); }, 20_000);
-    return () => { live = false; clearInterval(t); };
-  }, [pendingIds, pid]);
+    window.addEventListener(JOB_DONE_EVENT, on);
+    return () => window.removeEventListener(JOB_DONE_EVENT, on);
+  }, [pid, kind]);
   async function generate() {
     if (!confirm("¿Enviar al proveedor con tu clave? Puede tener costo. La licencia depende del proveedor y de tu plan.")) return;
     await act(async (core) => {
@@ -85,6 +78,7 @@ function Studio({ pid, kind }: { pid: string; kind: StudioKind }) {
     {open && <p className="text-xs">Nueva versión de {open.name}</p>}
     <Button disabled={busy || !compatible.length || !prompt.trim()} onClick={generate}><Play />{busy ? "Procesando…" : "Generar"}</Button>
     {jobs.filter((j) => !!j.remote_id && ["processing", "interrupted", "recovery_required"].includes(j.status)).map((j) => <div key={j.id} className="flex items-center gap-2 border-b py-2 text-xs"><span className="min-w-0 flex-1">{j.capability_id === "video.generate" ? "Video" : j.capability_id} · {j.status === "processing" ? "generándose (se revisa solo cada 20 s)" : j.status}{j.progress !== null ? ` · ${Math.round(j.progress * 100)} %` : ""}</span><Button variant="outline" size="sm" disabled={busy} onClick={() => act(async (core) => { const r = await pollRemoteJob(core, pid, j.id); toast.success(r.pending ? "Sigue procesando" : "Listo: se abre abajo."); if (!r.pending) await showAsset(core, r.assets[0]?.id); })}><RefreshCw />Consultar</Button></div>)}
+    {jobs.filter((j) => j.status === "failed" && Date.now() - j.updated_at < 3 * 86_400_000).slice(0, 3).map((j) => <p key={j.id} className="rounded-lg border border-destructive/40 p-2 text-xs text-destructive">{j.capability_id?.startsWith("video") ? "Un video no se pudo crear" : "Un trabajo falló"}: {j.error ?? "el proveedor lo rechazó"}</p>)}
     <div className="space-y-2 border-t pt-3"><div className="flex items-center justify-between"><h2 className="font-semibold">{kind === "video" ? "Tus videos (toca uno para verlo)" : "Biblioteca"}</h2><Button variant="outline" size="sm" onClick={() => importInput.current?.click()}><Upload />Importar</Button></div>
       <input ref={importInput} type="file" aria-label="Importar archivo de medios" className="hidden" accept={kind === "model3d" ? ".glb" : kind === "music" ? "audio/*" : "video/mp4"} onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; act(async (core) => {
         if (f.size > (kind === "model3d" ? 200 : 2048) * 1024 * 1024) throw new Error(kind === "model3d" ? "Máximo 200 MB para modelos 3D." : "Máximo 2 GB por archivo.");
