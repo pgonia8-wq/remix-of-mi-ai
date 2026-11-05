@@ -97,7 +97,7 @@ export const AZURE_KIND_LABEL: Record<AzureDeploymentKind, string> = {
   "audio-chat": "Modelo de audio (gpt-audio): se prueba pidiéndole una respuesta hablada real y se usará en Texto a voz, no en el chat de texto.",
   embedding: "Modelo de embeddings: se prueba generando un vector real y se usará para búsquedas en tus documentos.",
   image: "Modelo de imágenes: no se genera una imagen de prueba para no cobrarte; se comprueba que la URL, la clave y el deployment existen.",
-  cosmos: "NVIDIA Cosmos (video e imágenes): en URL pega el «URI de destino» (Target URI) y en API Key la clave que aparecen en Foundry → Deployments → tu deployment de Cosmos. No uses la URL del recurso de Azure OpenAI. Se prueba generando una imagen pequeña real y se usará para crear videos e imágenes.",
+  cosmos: "NVIDIA Cosmos (video e imágenes): sirve la URL de tu recurso de Foundry (…services.ai.azure.com/openai/v1/chat/completions) con el nombre del deployment, o el «URI de destino» si lo desplegaste en cómputo administrado. Se prueba con una respuesta real y se usará para crear videos e imágenes.",
 };
 
 const KINDS = new Set<AzureDeploymentKind>(["chat", "realtime", "tts", "transcribe", "audio-chat", "embedding", "image", "cosmos"]);

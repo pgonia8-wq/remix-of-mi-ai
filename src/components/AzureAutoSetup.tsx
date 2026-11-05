@@ -48,7 +48,7 @@ export function AzureAutoSetup() {
       const merged = new Map([...found, ...typed].map((r) => [r.deployment.toLowerCase(), r]));
       setRows([...merged.values()]); setStatus({});
       const cosmosHere = [...merged.values()].some((r) => r.kind === "cosmos");
-      setNote(found.length ? `Encontré ${found.length} modelos en tu recurso y detecté para qué sirve cada uno.${cosmosHere ? " NVIDIA Cosmos no responde en la URL del recurso: para configurarlo pega arriba su «URI de destino» (Target URI) de Foundry y su clave." : ""}` : typed.length ? "Tu recurso no permite listar sus modelos; usaré los nombres que escribiste." : "Tu recurso no permite listar sus modelos automáticamente. Escribe abajo los nombres de tus deployments (uno por línea) o pega sus URLs, y vuelve a tocar «Buscar».");
+      setNote(found.length ? `Encontré ${found.length} modelos en tu recurso y detecté para qué sirve cada uno.${cosmosHere ? " NVIDIA Cosmos quedó como «Video e imágenes»." : ""}` : typed.length ? "Tu recurso no permite listar sus modelos; usaré los nombres que escribiste." : "Tu recurso no permite listar sus modelos automáticamente. Escribe abajo los nombres de tus deployments (uno por línea) o pega sus URLs, y vuelve a tocar «Buscar».");
     } catch (e) { setNote(e instanceof Error ? e.message : "No se pudo consultar Azure."); }
     finally { setBusy(""); }
   }

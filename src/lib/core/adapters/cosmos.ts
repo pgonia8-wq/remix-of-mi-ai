@@ -7,11 +7,8 @@ import { downloadMedia } from "./media-output";
 import { call, requireKey } from "./http";
 import { b64ToBytes, type AdapterCredentials, type RunRequest, type RunResult } from "./types";
 
-export const COSMOS_RESOURCE_HINT = "Este modelo (NVIDIA Cosmos) está desplegado en cómputo administrado y no responde en la URL del recurso de Azure OpenAI. En Foundry abre Deployments → tu deployment de Cosmos, copia el «URI de destino» (Target URI) y su clave, y pégalos aquí con el tipo «Video e imágenes (NVIDIA Cosmos)».";
 
 export function cosmosInferUrl(endpoint: string | null | undefined): string {
-  try { if (isAzureResourceHost(new URL((endpoint ?? "").trim()).hostname)) throw new ProviderError("endpoint", COSMOS_RESOURCE_HINT); }
-  catch (e) { if (e instanceof ProviderError) throw e; }
   const base = cosmosBase(endpoint);
   if (!base) throw new ProviderError("endpoint", "URL de Cosmos incorrecta: usa el URI de destino HTTPS del deployment (sin usuario ni contraseña en la URL).");
   return `${base}/v1/infer`;

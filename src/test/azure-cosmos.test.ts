@@ -29,16 +29,45 @@ describe("NVIDIA Cosmos en Azure (cómputo administrado)", () => {
     expect(cosmosRowFromUrl("https://cosmos-ep.eastus2.inference.ml.azure.com/score", "nvidia--cosmos3-super")).toEqual({ deployment: "nvidia--cosmos3-super", endpoint: "https://cosmos-ep.eastus2.inference.ml.azure.com", kind: "cosmos" });
   });
 
-  it("con la URL del recurso de Azure OpenAI explica que hay que usar el URI de destino, sin llamar a Azure", async () => {
-    const fetcher = vi.fn(); vi.stubGlobal("fetch", fetcher);
-    await expect(azureAdapter.run(creds("https://pgonia8-4510-resource.openai.azure.com/openai/v1"), { capability: "video.generate", model: "nvidia--cosmos3-super", prompt: "x" })).rejects.toThrow(/URI de destino/);
-    expect(fetcher).not.toHaveBeenCalled();
+  it("con la URL del recurso de Foundry usa /openai/v1/chat/completions y reintenta con Bearer si Azure pide azure-resource-enc", async () => {
+    const calls: { url: string; headers: Record<string, string>; body: any }[] = [];
+    const vid = b64(mp4());
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
+      const headers = init.headers as Record<string, string>; calls.push({ url, headers, body: JSON.parse(init.body as string) });
+      if (headers["api-key"]) return new Response('{"error":{"code":"DeploymentError","message":"Required header \'azure-resource-enc\' is missing or empty."}}', { status: 400 });
+      return new Response(JSON.stringify({ choices: [{ message: { content: [{ type: "video", b64_video: vid }] } }] }));
+    }));
+    const out = await azureAdapter.run(creds("https://pgonia8-4510-resource.services.ai.azure.com/openai/v1/chat/completions"), { capability: "video.generate", model: "nvidia--cosmos3-super", prompt: "un robot" });
+    expect(calls[0]!.url).toBe("https://pgonia8-4510-resource.services.ai.azure.com/openai/v1/chat/completions");
+    expect(calls[0]!.body.model).toBe("nvidia--cosmos3-super");
+    expect(calls[1]!.headers["authorization"]).toBe("Bearer k-123");
+    expect(out.kind === "files" && out.files[0]!.mime).toBe("video/mp4");
   });
 
-  it("el error 'azure-resource-enc' de Azure se traduce a una indicación clara", () => {
+  it("si Cosmos solo responde texto por esa ruta, lo dice en vez de fingir un video", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ choices: [{ message: { content: "Solo puedo describir" } }] }))));
+    await expect(azureAdapter.run(creds("https://pgonia8-4510-resource.services.ai.azure.com/openai/v1"), { capability: "video.generate", model: "nvidia--cosmos3-super", prompt: "x" })).rejects.toThrow(/no entregó un video.*Solo puedo describir/);
+  });
+
+  it("el chat de Azure reintenta con Bearer y sin streaming cuando Azure pide azure-resource-enc", async () => {
+    const { streamChat } = await import("@/lib/providers");
+    const seen: { auth: boolean; stream: boolean }[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (_u: string, init: RequestInit) => {
+      const h = init.headers as Record<string, string>; const body = JSON.parse(init.body as string);
+      seen.push({ auth: !!h["authorization"], stream: body.stream });
+      if (body.stream) return new Response('{"error":{"message":"Required header \'azure-resource-enc\' is missing or empty."}}', { status: 400 });
+      return new Response(JSON.stringify({ choices: [{ message: { content: "OK" } }] }), { headers: { "content-type": "application/json" } });
+    }));
+    let text = "";
+    await streamChat({ kind: "azure_openai", endpoint: "https://r.services.ai.azure.com/openai/v1", apiKey: "k", model: "nvidia--cosmos3-super", deployment: "nvidia--cosmos3-super", apiVersion: "", extraParams: "" }, [{ role: "user", content: "hola" }], (t) => { text += t; });
+    expect(seen).toEqual([{ auth: false, stream: true }, { auth: true, stream: true }, { auth: true, stream: false }]);
+    expect(text).toBe("OK");
+  });
+
+  it("el error 'azure-resource-enc' de Azure se explica claramente", () => {
     const e = responseError(400, '{"error":{"code":"DeploymentError","message":"Required header \'azure-resource-enc\' is missing or empty."}}');
     expect(e.code).toBe("endpoint");
-    expect(e.message).toMatch(/URI de destino/);
+    expect(e.message).toMatch(/Bearer/);
   });
 
   it("elige el modo correcto: texto→video, imagen→video, texto→imagen", () => {
