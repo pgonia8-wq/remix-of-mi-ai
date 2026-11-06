@@ -231,6 +231,7 @@ async function openStream(url: string, init: RequestInit, p: ProviderCall, signa
     const res = await fetch(url, { ...(variant ? applyAzureVariant(init, variant, p.apiKey ?? "") : init), redirect: "error", signal: signal ?? null });
     if (res.ok && res.body) { if (variant && (variant.bearer || variant.noStream)) azureVariant.set(variantKey(p), variant); return res; }
     const body = await res.text().catch(() => "");
+    if (isContentBlock(body)) throw responseError(res.status, body, p.apiKey);
     if (variant && /azure-resource-enc/i.test(body) && !(variant.bearer && variant.noStream)) {
       variant = !variant.bearer ? { bearer: true, noStream: false } : { bearer: true, noStream: true };
       continue;

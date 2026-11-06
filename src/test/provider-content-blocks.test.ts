@@ -37,4 +37,10 @@ describe("bloqueos de contenido: respuestas controladas, sin proveedores reales"
     await expect(streamChat(provider, [{ role: "user", content: "test" }], () => undefined)).rejects.toMatchObject({ code: "content_blocked" });
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
+  it("no reintenta un bloqueo aunque el estado HTTP sugiera cuota temporal", async () => {
+    const fetcher = vi.fn().mockImplementation(() => Promise.resolve(new Response('{"error":{"code":"content_filter"}}', { status: 429, headers: { "retry-after-ms": "1" } })));
+    vi.stubGlobal("fetch", fetcher);
+    await expect(streamChat(provider, [{ role: "user", content: "test" }], () => undefined)).rejects.toMatchObject({ code: "content_blocked" });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
 });
