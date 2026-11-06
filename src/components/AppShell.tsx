@@ -1,5 +1,5 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { FolderKanban, MessagesSquare, LayoutGrid, Settings, Images, Boxes, Menu, SquarePen, Search, ChevronDown, PanelLeftClose, Music, Film, Box, Briefcase, ShieldCheck, ArrowUpRight } from "lucide-react";
+import { FolderKanban, MessagesSquare, LayoutGrid, Settings, Images, Boxes, Menu, SquarePen, Search, ChevronDown, PanelLeftClose, Music, Film, Box, Briefcase, ShieldCheck, ArrowUpRight, LifeBuoy } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { ShareInbox } from "./ShareInbox";
 import { installBackgroundWork } from "@/lib/background-work";
@@ -47,7 +47,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="flex items-center justify-between px-3 pb-2 pt-6"><p className="text-[11px] font-medium uppercase text-muted-foreground">Recientes</p><span className="text-xs text-muted-foreground">{chats.length}</span></div>
       {chats.filter((c) => c.title.toLowerCase().includes(search.toLowerCase())).slice(0, 30).map((c) => <Link key={c.id} to="/chat/$chatId" params={{ chatId: c.id }} onClick={() => setOpen(false)} className={`block truncate rounded-lg px-3 py-2 text-sm hover:bg-sidebar-accent ${path === `/chat/${c.id}` ? "bg-sidebar-accent" : "text-muted-foreground"}`}>{c.title}</Link>)}
     </div>
-    <div className="space-y-1 border-t border-sidebar-border p-3"><Link to="/models" onClick={() => setOpen(false)} className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-sidebar-accent"><Boxes className="h-4 w-4" />Modelos</Link><Link to="/settings" onClick={() => setOpen(false)} className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-sidebar-accent"><Settings className="h-4 w-4" />Configuración</Link><div className="flex items-center gap-2 px-3 pt-3 text-[11px] text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5 text-success" />Privado · En tu dispositivo</div></div>
+    <div className="space-y-1 border-t border-sidebar-border p-3"><Link to="/models" onClick={() => setOpen(false)} className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-sidebar-accent"><Boxes className="h-4 w-4" />Modelos</Link><Link to="/settings" onClick={() => setOpen(false)} className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-sidebar-accent"><Settings className="h-4 w-4" />Configuración</Link><Link to="/support" onClick={() => setOpen(false)} className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm hover:bg-sidebar-accent"><LifeBuoy className="h-4 w-4" />Soporte y legal</Link><div className="flex items-center gap-2 px-3 pt-3 text-[11px] text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5 text-success" />Privado · En tu dispositivo</div></div>
   </div>;
   return <div className="safe-shell flex h-dvh w-full overflow-hidden app-bg">
     {!collapsed && <aside className="hidden w-64 shrink-0 border-r border-sidebar-border lg:block">{sidebar}</aside>}

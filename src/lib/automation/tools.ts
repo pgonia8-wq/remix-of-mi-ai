@@ -264,11 +264,14 @@ export const TOOL_REGISTRY: ToolDef[] = [
       const { driveRun } = await import("./drive");
       // The person approved this delegation in the chat; unknown prices proceed, project budgets still apply.
       const limits = { unknownCost: "allow" as const, concurrency: 2 };
+      // Reuse the team setup the person chose in Sistema autónomo (PC/VM folder, SSH server, coordinator, models per role).
+      const pr = await ctx.core.repo.getAutonomyPrefs(ctx.projectId);
+      const env = { nodeId: pr?.folderId ? pr.nodeId : null, folderId: pr?.folderId ?? null, sshId: pr?.sshId ?? null, modelId: pr?.modelId ?? null, roleChoices: (pr?.roleChoices ?? {}) as Record<string, string> };
       const id = i.mode === "builder"
-        ? await createBuilderRun(ctx.core, ctx.projectId, { requirements: i.goal, kind: i.kind, nodeId: null, folderId: null, limits })
-        : await createRun(ctx.core, ctx.projectId, { goal: i.goal, acceptance: i.acceptance, limits, nodeId: null, folderId: null });
+        ? await createBuilderRun(ctx.core, ctx.projectId, { requirements: i.goal, kind: i.kind, limits, ...env } as Parameters<typeof createBuilderRun>[2])
+        : await createRun(ctx.core, ctx.projectId, { goal: i.goal, acceptance: i.acceptance, limits, ...env } as Parameters<typeof createRun>[2]);
       driveRun(ctx.core, ctx.projectId, id);
-      return { output: `Ejecución autónoma ${id} iniciada en el teléfono. Su avance, aprobaciones y resultado aparecen en esta conversación y en Sistema autónomo. No inventes resultados: explica que el equipo está trabajando.`, trusted: true, runId: id };
+      return { output: `Ejecución autónoma ${id} iniciada (${env.folderId ? "en tu PC/VM" : env.sshId ? "con tu servidor SSH" : "en el teléfono"}). Su avance, aprobaciones y resultado aparecen en esta conversación y en Sistema autónomo. No inventes resultados: explica que el equipo está trabajando.`, trusted: true, runId: id };
     } },
   // J. Herramientas del teléfono (archivos, código, red, datos, medios, sistema) y PC/VM desde el chat.
   ...phoneTools({
@@ -374,7 +377,14 @@ export async function invokeTool(ctx: ToolCtx, toolId: string, raw: unknown, opt
   let out: ToolOut;
   try {
     if (!def.run) throw new ToolRejected("Sin implementación ejecutable.");
-    out = await Promise.race([def.run({ ...ctx, opKey: opts.opKey }, input), new Promise<never>((_r, rej) => setTimeout(() => rej(new ToolRejected("Tiempo máximo superado.")), def.timeoutMs))]);
+    // A real AbortController: on timeout the tool's own signal fires so providers, workers and PC jobs actually stop.
+    const ac = new AbortController();
+    const onOuter = () => ac.abort(ctx.signal?.reason);
+    if (ctx.signal) { if (ctx.signal.aborted) ac.abort(ctx.signal.reason); else ctx.signal.addEventListener("abort", onOuter, { once: true }); }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      out = await Promise.race([def.run({ ...ctx, signal: ac.signal, opKey: opts.opKey }, input), new Promise<never>((_r, rej) => { timer = setTimeout(() => { ac.abort(new ToolRejected("Tiempo máximo superado.")); rej(new ToolRejected("Tiempo máximo superado.")); }, def.timeoutMs); })]);
+    } finally { if (timer) clearTimeout(timer); ctx.signal?.removeEventListener("abort", onOuter); }
   } catch (e) {
     const msg = String(scrubSecrets({ detail: e instanceof Error ? e.message : String(e) })["detail"]).slice(0, 500);
     // Definite local rejections are safe to clear; anything else with side effects stays uncertain.

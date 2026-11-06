@@ -66,7 +66,7 @@ export async function discoverAzureDeployments(baseUrl: string, apiKey: string, 
   if (!base || !apiKey.trim()) return [];
   for (const version of ["2022-12-01", "2023-05-15"]) {
     try {
-      const res = await fetch(`${base.origin}/openai/deployments?api-version=${version}`, { headers: { "api-key": apiKey.trim() }, signal: signal ?? null });
+      const res = await fetch(`${base.origin}/openai/deployments?api-version=${version}`, { headers: { "api-key": apiKey.trim() }, redirect: "error", credentials: "omit", signal: signal ?? null });
       if (res.status === 401 || res.status === 403) throw new Error("La API Key no es válida para este recurso.");
       if (!res.ok) continue;
       const rows = rowsFromDeploymentList(await res.json().catch(() => null), baseUrl);

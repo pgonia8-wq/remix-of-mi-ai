@@ -31,6 +31,7 @@ import { Route as ResearchRouteImport } from './routes/research'
 import { Route as ServersRouteImport } from './routes/servers'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as StudyRouteImport } from './routes/study'
+import { Route as SupportRouteImport } from './routes/support'
 import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as VideoRouteImport } from './routes/video'
 import { Route as VideoEditorRouteImport } from './routes/video-editor'
@@ -148,6 +149,11 @@ const StudyRoute = StudyRouteImport.update({
   path: '/study',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SupportRoute = SupportRouteImport.update({
+  id: '/support',
+  path: '/support',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ToolsRoute = ToolsRouteImport.update({
   id: '/tools',
   path: '/tools',
@@ -202,6 +208,7 @@ export interface FileRoutesByFullPath {
   '/servers': typeof ServersRoute
   '/settings': typeof SettingsRoute
   '/study': typeof StudyRoute
+  '/support': typeof SupportRoute
   '/tools': typeof ToolsRoute
   '/video': typeof VideoRoute
   '/video-editor': typeof VideoEditorRoute
@@ -232,6 +239,7 @@ export interface FileRoutesByTo {
   '/servers': typeof ServersRoute
   '/settings': typeof SettingsRoute
   '/study': typeof StudyRoute
+  '/support': typeof SupportRoute
   '/tools': typeof ToolsRoute
   '/video': typeof VideoRoute
   '/video-editor': typeof VideoEditorRoute
@@ -263,6 +271,7 @@ export interface FileRoutesById {
   '/servers': typeof ServersRoute
   '/settings': typeof SettingsRoute
   '/study': typeof StudyRoute
+  '/support': typeof SupportRoute
   '/tools': typeof ToolsRoute
   '/video': typeof VideoRoute
   '/video-editor': typeof VideoEditorRoute
@@ -295,6 +304,7 @@ export interface FileRouteTypes {
     | '/servers'
     | '/settings'
     | '/study'
+    | '/support'
     | '/tools'
     | '/video'
     | '/video-editor'
@@ -325,6 +335,7 @@ export interface FileRouteTypes {
     | '/servers'
     | '/settings'
     | '/study'
+    | '/support'
     | '/tools'
     | '/video'
     | '/video-editor'
@@ -355,6 +366,7 @@ export interface FileRouteTypes {
     | '/servers'
     | '/settings'
     | '/study'
+    | '/support'
     | '/tools'
     | '/video'
     | '/video-editor'
@@ -386,6 +398,7 @@ export interface RootRouteChildren {
   ServersRoute: typeof ServersRoute
   SettingsRoute: typeof SettingsRoute
   StudyRoute: typeof StudyRoute
+  SupportRoute: typeof SupportRoute
   ToolsRoute: typeof ToolsRoute
   VideoRoute: typeof VideoRoute
   VideoEditorRoute: typeof VideoEditorRoute
@@ -550,6 +563,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StudyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/support': {
+      id: '/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof SupportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tools': {
       id: '/tools'
       path: '/tools'
@@ -618,6 +638,7 @@ const rootRouteChildren: RootRouteChildren = {
   ServersRoute: ServersRoute,
   SettingsRoute: SettingsRoute,
   StudyRoute: StudyRoute,
+  SupportRoute: SupportRoute,
   ToolsRoute: ToolsRoute,
   VideoRoute: VideoRoute,
   VideoEditorRoute: VideoEditorRoute,

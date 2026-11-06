@@ -120,6 +120,7 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
+  useEffect(() => { void import("../lib/crash-log").then((m) => m.installCrashLog()); }, []);
   useEffect(() => {
     // CI-only hook on Android: miai://selftest/write|verify
     let off: (() => void) | undefined;
