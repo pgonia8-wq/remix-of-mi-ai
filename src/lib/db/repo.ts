@@ -88,6 +88,8 @@ export class Repo {
     // Provider "thinking" text some models (DeepSeek, Kimi) require back with tools; never shown, never exported.
     await this.db.run(`CREATE TABLE IF NOT EXISTS message_reasoning (message_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, chat_id TEXT NOT NULL, content TEXT NOT NULL)`);
     // Answers saved while the model is still writing: "streaming" during generation, "interrupted" if it was cut off.
+    await this.db.run(`CREATE TABLE IF NOT EXISTS crash_log (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, message TEXT NOT NULL)`);
+    await this.db.run(`CREATE TABLE IF NOT EXISTS content_reports (project_id TEXT NOT NULL, message_id TEXT NOT NULL, reason TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(project_id, message_id))`);
     await this.db.run(`CREATE TABLE IF NOT EXISTS chat_job_links (job_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, chat_id TEXT NOT NULL, message_id TEXT NOT NULL)`);
     await this.db.run(`CREATE TABLE IF NOT EXISTS autonomy_prefs (project_id TEXT PRIMARY KEY, folder_id TEXT, node_id TEXT, ssh_id TEXT, model_id TEXT, role_choices TEXT NOT NULL DEFAULT '{}', updated_at INTEGER NOT NULL)`);
     await this.db.run(`CREATE TABLE IF NOT EXISTS message_status (message_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, chat_id TEXT NOT NULL, status TEXT NOT NULL)`);
@@ -153,11 +155,25 @@ export class Repo {
     await this.db.run(`UPDATE projects SET name=?, description=? WHERE id=?`, [name, description, id]);
   }
   async deleteProject(id: string) {
-    for (const t of ["chat_job_links", "autonomy_prefs", "cost_ledger", "project_budgets", "chat_settings", "message_reasoning", "message_status", "messages", "chats", "memory_versions", "memory_items", "documents", ...PROJECT_TABLES_V3, ...PROJECT_TABLES_B4])
+    for (const t of ["content_reports", "chat_job_links", "autonomy_prefs", "cost_ledger", "project_budgets", "chat_settings", "message_reasoning", "message_status", "messages", "chats", "memory_versions", "memory_items", "documents", ...PROJECT_TABLES_V3, ...PROJECT_TABLES_B4])
       await this.db.run(`DELETE FROM ${t} WHERE project_id=?`, [id]);
     await this.db.run(`DELETE FROM projects WHERE id=?`, [id]);
   }
 
+  /** Device-local diagnostics (already redacted by the caller); never part of backups. */
+  async addCrash(message: string, keep = 50) {
+    await this.db.run(`INSERT INTO crash_log (at, message) VALUES (?,?)`, [now(), message]);
+    await this.db.run(`DELETE FROM crash_log WHERE id NOT IN (SELECT id FROM crash_log ORDER BY id DESC LIMIT ?)`, [keep]);
+  }
+  async listCrashes() { return this.db.all<{ at: number; message: string }>(`SELECT at, message FROM crash_log ORDER BY id DESC`); }
+  async clearCrashes() { await this.db.run(`DELETE FROM crash_log`); }
+  async reportMessage(projectId: string, messageId: string, reason: string) {
+    need(projectId);
+    const [m] = await this.db.all(`SELECT id FROM messages WHERE project_id=? AND id=?`, [projectId, messageId]);
+    if (!m) throw new IsolationError("Mensaje ajeno al proyecto");
+    await this.db.run(`INSERT OR REPLACE INTO content_reports VALUES (?,?,?,?)`, [projectId, messageId, reason.slice(0, 500), now()]);
+  }
+  async listReported(projectId: string) { need(projectId); return this.db.all<{ message_id: string }>(`SELECT message_id FROM content_reports WHERE project_id=?`, [projectId]); }
   /** Slow media jobs started from a chat answer: when they finish, their files attach to that message. */
   async linkJobsToMessage(projectId: string, chatId: string, messageId: string, since: number) {
     need(projectId);
