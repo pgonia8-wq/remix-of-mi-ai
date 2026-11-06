@@ -172,7 +172,8 @@ export const isToolRejection = (status: number | undefined, technical: string | 
   status === 400 && !isContentBlock(technical ?? "") && /tool|function/i.test(technical ?? "");
 
 export function isContentBlock(body: string): boolean {
-  return /content_filter|content_policy_violation|responsibleaipolicyviolation|"(?:stop_reason|finish_reason)"\s*:\s*"refusal"|"type"\s*:\s*"refusal"/i.test(body);
+  // Match actual content blocks, NOT the harmless "content_filter_results" metadata Azure includes in every response.
+  return /content_policy_violation|responsibleaipolicyviolation|"(?:stop_reason|finish_reason)"\s*:\s*"(?:content_filter|refusal)"|"(?:code|type)"\s*:\s*"(?:content_filter|refusal)"/i.test(body);
 }
 
 /** Same endpoint/credentials as chat/completions, routed to the Responses API with native function tools. */
