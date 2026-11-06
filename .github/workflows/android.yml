@@ -47,7 +47,7 @@ jobs:
 
       - name: Compilar APK Debug y Release sin firmar
         working-directory: android
-        run: ./gradlew assembleDebug assembleRelease --no-daemon
+        run: ./gradlew assembleDebug assembleRelease bundleRelease --no-daemon
 
       - name: Verificar APK (ABIs arm64/armv7, SQLCipher, minSdk 30)
         run: bash scripts/verify-apk.sh android/app/build/outputs/apk/debug/app-debug.apk
@@ -87,6 +87,8 @@ jobs:
           $BT/zipalign -p -f 4 android/app/build/outputs/apk/release/app-release-unsigned.apk /tmp/aligned.apk
           $BT/apksigner sign --ks /tmp/release.jks --ks-pass env:KS_PASS --ks-key-alias "$KEY_ALIAS" --key-pass env:KEY_PASS --out MI-AI-release.apk /tmp/aligned.apk
           $BT/apksigner verify MI-AI-release.apk
+          # Google Play bundle signed with the same upload key.
+          jarsigner -keystore /tmp/release.jks -storepass "$KS_PASS" -keypass "$KEY_PASS" -signedjar MI-AI-release.aab android/app/build/outputs/bundle/release/app-release.aab "$KEY_ALIAS"
           rm -f /tmp/release.jks
           echo "signed=true" >> $GITHUB_OUTPUT
 
@@ -97,7 +99,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: MI-AI-${{ steps.ver.outputs.build_name }}
-          path: MI-AI-*.apk
+          path: |
+            MI-AI-*.apk
+            MI-AI-*.aab
 
       - name: Publicar "Última compilación de pruebas" (se reemplaza en cada commit)
         env: { GH_TOKEN: "${{ github.token }}" }
@@ -113,6 +117,6 @@ jobs:
           TAG="v${{ steps.ver.outputs.version }}"
           if gh release view "$TAG" >/dev/null 2>&1; then echo "$TAG ya existe"; exit 0; fi
           FILES="MI-AI-debug-${{ steps.ver.outputs.build_name }}.apk"
-          [ "${{ steps.sign.outputs.signed }}" = "true" ] && FILES="$FILES MI-AI-release.apk"
+          [ "${{ steps.sign.outputs.signed }}" = "true" ] && FILES="$FILES MI-AI-release.apk MI-AI-release.aab"
           gh release create "$TAG" $FILES --target "$GITHUB_SHA" --title "MI AI $TAG" \
             --notes "Versión estable $TAG (compilación ${{ github.run_number }})."

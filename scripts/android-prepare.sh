@@ -5,7 +5,12 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 VERSION_NAME="${VERSION_NAME:-$(node -p "require('./version.json').version")}"
-VERSION_CODE="${VERSION_CODE:-1}"
+# versionCode must never go backwards (Android refuses downgrades): CI passes the run number; local builds continue a stored counter.
+if [ -z "${VERSION_CODE:-}" ]; then
+  LAST=$(cat .android-version-code 2>/dev/null || echo 0)
+  VERSION_CODE=$((LAST + 1))
+fi
+echo "$VERSION_CODE" > .android-version-code
 
 python3 scripts/fetch-pyodide-packages.py
 CAPACITOR=1 npx vite build
@@ -14,8 +19,33 @@ test -f dist/client/index.html || { echo "dist/client/index.html missing"; exit 
 [ -d android ] || npx cap add android
 npx cap sync android
 
-# Android 11+ (API 30), compile/target 35.
-sed -i -E 's/minSdkVersion = [0-9]+/minSdkVersion = 30/; s/compileSdkVersion = [0-9]+/compileSdkVersion = 35/; s/targetSdkVersion = [0-9]+/targetSdkVersion = 35/' android/variables.gradle
+# Android 11+ (API 30), compile/target 36 (Google Play requirement from 31 Aug 2026).
+sed -i -E 's/minSdkVersion = [0-9]+/minSdkVersion = 30/; s/compileSdkVersion = [0-9]+/compileSdkVersion = 36/; s/targetSdkVersion = [0-9]+/targetSdkVersion = 36/' android/variables.gradle
+grep -q "suppressUnsupportedCompileSdk" android/gradle.properties || echo "android.suppressUnsupportedCompileSdk=36" >> android/gradle.properties
+
+# Release: R8 code shrinking/obfuscation with keep rules for Capacitor plugins and SQLCipher (Debug is untouched).
+if ! grep -q "MIAI_MINIFY" android/app/build.gradle; then
+  python3 - <<'PY'
+import re
+p='android/app/build.gradle'; s=open(p).read()
+s=re.sub(r'minifyEnabled false', 'minifyEnabled true // MIAI_MINIFY', s, count=1)
+open(p,'w').write(s)
+PY
+  cat >> android/app/proguard-rules.pro <<'PRO'
+# MI AI: keep Capacitor bridge, plugins (incl. MiaiRemote/MiaiDevice) and native crypto/SQLCipher.
+-keep class com.getcapacitor.** { *; }
+-keep @com.getcapacitor.annotation.CapacitorPlugin class * { *; }
+-keep class * extends com.getcapacitor.Plugin { *; }
+-keepclassmembers class * { @com.getcapacitor.PluginMethod *; @android.webkit.JavascriptInterface *; }
+-keep class net.zetetic.** { *; }
+-keep class net.sqlcipher.** { *; }
+-keep class com.getcapacitor.community.** { *; }
+-keep class app.miai.** { *; }
+-keep class com.jcraft.jsch.** { *; }
+-keep class androidx.media3.** { *; }
+-dontwarn **
+PRO
+fi
 
 # Version from CI build number.
 sed -i -E "s/versionCode [0-9]+/versionCode ${VERSION_CODE}/; s/versionName \"[^\"]*\"/versionName \"${VERSION_NAME}\"/" android/app/build.gradle

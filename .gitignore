@@ -35,3 +35,4 @@ android/
 
 # Scientific Python wheels: downloaded (sha256-checked) by scripts/fetch-pyodide-packages.py at APK build time
 public/pyodide/*.whl
+.android-version-code
