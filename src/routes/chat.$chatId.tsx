@@ -93,6 +93,11 @@ function ChatPage() {
     const sendingImages = !regenerate && !cont && files.some((f) => f.type.startsWith("image/"));
     const chatModel = registryModels.find((m) => m.provider_id === provider.id && m.remote_id === (provider.deployment || provider.model));
     const seesImages = canSeeImages(chatModel?.capabilities ?? [], provider.deployment || provider.model || "");
+    // Manual choices pass the same compatibility check as automatic routing before any request is sent.
+    if (!routed && chatModel) {
+      const check = route(registryModels, { capability: "chat", mode: "manual", manualModelId: chatModel.id });
+      if (!check.ok) { toast.error(check.reason, { duration: 15000 }); return; }
+    }
     if (sendingImages && !seesImages) toast.info("Este modelo de chat no ve imágenes: la imagen se guarda en el chat y las herramientas (editar, animar a video…) pueden usarla.");
     setBusy(true); let out = "", repo: Awaited<ReturnType<typeof getRepo>> | null = null;
     const produced: ToolAsset[] = [];
