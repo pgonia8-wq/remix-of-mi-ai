@@ -40,7 +40,7 @@ PY
 -keep class net.zetetic.** { *; }
 -keep class net.sqlcipher.** { *; }
 -keep class com.getcapacitor.community.** { *; }
--keep class app.miai.** { *; }
+-keep class com.miai.** { *; }
 -keep class com.jcraft.jsch.** { *; }
 -keep class androidx.media3.** { *; }
 -dontwarn **
