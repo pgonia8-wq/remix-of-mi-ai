@@ -14,23 +14,23 @@ describe("auditoría: respaldos y duplicados no pierden datos", () => {
   it("restaurar un respaldo conserva contexto 80 y estado interrumpido", async () => {
     const p = await repo.createProject("A"), c = await repo.createChat(p.id);
     const m = await repo.addMessage(p.id, c.id, "assistant", "medio");
-    await repo.setChatContext(p.id, c.id, 80);
+    await repo.setChatContextLimit(p.id, c.id, 80);
     await repo.setMessageStatus(p.id, c.id, m.id, "interrupted");
     const dump = JSON.parse(JSON.stringify(await repo.dumpAll()));
     const other = await fresh();
     await other.restoreAll(dump);
-    expect(await other.getChatContext(p.id, c.id)).toBe(80);
+    expect(await other.getChatContextLimit(p.id, c.id)).toBe(80);
     expect(await other.listMessageStatus(p.id, c.id)).toEqual([{ message_id: m.id, status: "interrupted" }]);
   });
 
   it("duplicar conserva contexto y estado", async () => {
     const p = await repo.createProject("A"), c = await repo.createChat(p.id);
     const m = await repo.addMessage(p.id, c.id, "assistant", "medio");
-    await repo.setChatContext(p.id, c.id, 80);
+    await repo.setChatContextLimit(p.id, c.id, 80);
     await repo.setMessageStatus(p.id, c.id, m.id, "interrupted");
     const copy = await repo.duplicateProject(p.id);
     const [nc] = await repo.listChats(copy.id);
-    expect(await repo.getChatContext(copy.id, nc.id)).toBe(80);
+    expect(await repo.getChatContextLimit(copy.id, nc.id)).toBe(80);
     expect((await repo.listMessageStatus(copy.id, nc.id))[0]?.status).toBe("interrupted");
   });
 
