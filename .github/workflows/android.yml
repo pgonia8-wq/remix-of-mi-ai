@@ -82,14 +82,21 @@ jobs:
           KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           if [ -z "$KS_B64" ]; then echo "signed=false" >> $GITHUB_OUTPUT; echo "Sin clave de firma: solo se publica Debug."; exit 0; fi
-          echo "$KS_B64" | base64 -d > /tmp/release.jks
+          set -euo pipefail
+          set +x
+          umask 077
+          : "${KS_PASS:?Falta ANDROID_KEYSTORE_PASSWORD}"
+          KEY_ALIAS="${KEY_ALIAS:-miai-upload}"
+          export KEY_PASS="${KEY_PASS:-$KS_PASS}"
+          trap 'rm -f /tmp/release.jks /tmp/aligned.apk' EXIT
+          printf '%s' "$KS_B64" | base64 -d > /tmp/release.jks
           BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
           $BT/zipalign -p -f 4 android/app/build/outputs/apk/release/app-release-unsigned.apk /tmp/aligned.apk
           $BT/apksigner sign --ks /tmp/release.jks --ks-pass env:KS_PASS --ks-key-alias "$KEY_ALIAS" --key-pass env:KEY_PASS --out MI-AI-release.apk /tmp/aligned.apk
           $BT/apksigner verify MI-AI-release.apk
           # Google Play bundle signed with the same upload key.
-          jarsigner -keystore /tmp/release.jks -storepass "$KS_PASS" -keypass "$KEY_PASS" -signedjar MI-AI-release.aab android/app/build/outputs/bundle/release/app-release.aab "$KEY_ALIAS"
-          rm -f /tmp/release.jks
+          jarsigner -keystore /tmp/release.jks -storepass:env KS_PASS -keypass:env KEY_PASS -signedjar MI-AI-release.aab android/app/build/outputs/bundle/release/app-release.aab "$KEY_ALIAS"
+          jarsigner -verify MI-AI-release.aab
           echo "signed=true" >> $GITHUB_OUTPUT
 
       - name: Renombrar APK Debug
