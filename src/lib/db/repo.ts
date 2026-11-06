@@ -44,7 +44,7 @@ export class IsolationError extends Error {}
 
 // Catalog + project data from migration v3 included in backups. Excluded on purpose: capability_tests
 // (verification claims reset on restore), key_versions (device-bound), asset_blobs (bytes travel separately).
-const BACKUP_TABLES_V3 = ["capabilities", "providers_registry", "endpoints", "auth_refs", "models", "model_versions", "model_capabilities", "model_configs", "jobs", "job_attempts", "assets", "asset_tags", "asset_relations", "workflow_steps", "voices", "notes", "tasks", "embeddings", "flashcards", "agents", "workflows", "workflow_runs", "execution_events", "connections", "schedules", "workspace_items", "tool_favorites", "chat_attachments", "message_feedback", "project_budgets", "cost_ledger"] as const;
+const BACKUP_TABLES_V3 = ["capabilities", "providers_registry", "endpoints", "auth_refs", "models", "model_versions", "model_capabilities", "model_configs", "jobs", "job_attempts", "assets", "asset_tags", "asset_relations", "workflow_steps", "voices", "notes", "tasks", "embeddings", "flashcards", "agents", "workflows", "workflow_runs", "execution_events", "connections", "schedules", "workspace_items", "tool_favorites", "chat_attachments", "message_feedback", "project_budgets", "cost_ledger", "chat_settings", "message_status", "auto_runs", "auto_tasks", "local_ws_files", "local_ws_versions"] as const;
 
 const uid = () => crypto.randomUUID();
 const now = () => Date.now();
@@ -121,17 +121,31 @@ export class Repo {
   async duplicateProject(id: string) {
     const src = await this.getProject(id);
     if (!src) throw new IsolationError("Proyecto inexistente");
+    return exclusive(this.db, async () => {
+    await this.db.run("BEGIN TRANSACTION");
+    try {
     const copy = await this.createProject(`${src.name} (copia)`, src.description ?? "");
     const chats = await this.db.all<{ id: string; title: string; provider_id: string | null; model: string | null; created_at: number; updated_at: number }>(`SELECT * FROM chats WHERE project_id=?`, [id]);
     for (const c of chats) {
       const nc = uid();
       await this.db.run(`INSERT INTO chats VALUES (?,?,?,?,?,?,?)`, [nc, copy.id, c.title, c.provider_id, c.model, c.created_at, c.updated_at]);
-      const msgs = await this.db.all<{ role: string; content: string; provider_id: string | null; model: string | null; created_at: number }>(`SELECT * FROM messages WHERE project_id=? AND chat_id=? ORDER BY created_at`, [id, c.id]);
-      for (const m of msgs) await this.db.run(`INSERT INTO messages VALUES (?,?,?,?,?,?,?,?)`, [uid(), copy.id, nc, m.role, m.content, m.provider_id, m.model, m.created_at]);
+      const [cs] = await this.db.all<{ context_messages: number }>(`SELECT context_messages FROM chat_settings WHERE project_id=? AND chat_id=?`, [id, c.id]);
+      if (cs) await this.db.run(`INSERT INTO chat_settings (chat_id, project_id, context_messages, updated_at) VALUES (?,?,?,?)`, [nc, copy.id, cs.context_messages, now()]);
+      const statuses = new Map((await this.db.all<{ message_id: string; status: string }>(`SELECT message_id, status FROM message_status WHERE project_id=? AND chat_id=?`, [id, c.id])).map((r) => [r.message_id, r.status]));
+      const msgs = await this.db.all<{ id: string; role: string; content: string; provider_id: string | null; model: string | null; created_at: number }>(`SELECT * FROM messages WHERE project_id=? AND chat_id=? ORDER BY created_at`, [id, c.id]);
+      for (const m of msgs) {
+        const nm = uid();
+        await this.db.run(`INSERT INTO messages VALUES (?,?,?,?,?,?,?,?)`, [nm, copy.id, nc, m.role, m.content, m.provider_id, m.model, m.created_at]);
+        const st = statuses.get(m.id);
+        if (st) await this.db.run(`INSERT INTO message_status (message_id, project_id, chat_id, status) VALUES (?,?,?,?)`, [nm, copy.id, nc, st === "streaming" ? "interrupted" : st]);
+      }
     }
     const mem = await this.db.all<MemoryItem>(`SELECT * FROM memory_items WHERE project_id=? AND archived=0`, [id]);
     for (const m of mem) await this.db.run(`INSERT INTO memory_items VALUES (?,?,?,?,?,?,?)`, [uid(), copy.id, m.kind, m.content, 1, 0, now()]);
+    await this.db.run("COMMIT");
     return copy;
+    } catch (error) { await this.db.run("ROLLBACK"); throw error; }
+    });
   }
   async renameProject(id: string, name: string, description: string) {
     await this.db.run(`UPDATE projects SET name=?, description=? WHERE id=?`, [name, description, id]);
