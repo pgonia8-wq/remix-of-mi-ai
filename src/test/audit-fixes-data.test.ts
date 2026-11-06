@@ -46,3 +46,25 @@ describe("auditoría: respaldos y duplicados no pierden datos", () => {
     expect((await repo.listProjects()).length).toBe(1);
   });
 });
+
+describe("auditoría: enlaces y preferencias", () => {
+  it("un video terminado se adjunta al mensaje que lo pidió", async () => {
+    const p = await repo.createProject("A"), c = await repo.createChat(p.id);
+    const m = await repo.addMessage(p.id, c.id, "assistant", "creando video");
+    const t = Date.now();
+    await repo.sql.run("INSERT INTO jobs (id, project_id, capability_id, idempotency_key, phase, status, created_at, updated_at) VALUES ('j1',?,'video.generate','k1','accepted','processing',?,?)", [p.id, t, t]);
+    expect(await repo.linkJobsToMessage(p.id, c.id, m.id, t - 1)).toBe(1);
+    await repo.sql.run("INSERT INTO assets (id, project_id, kind, mime, size, sha256, created_at) VALUES ('a1',?,'video','video/mp4',1,'x',?)", [p.id, t]).catch(async () => {
+      const cols = (await repo.sql.all<{ name: string; notnull: number; dflt_value: unknown }>("PRAGMA table_info(assets)")).filter((x) => x.notnull && x.dflt_value === null).map((x) => x.name);
+      await repo.sql.run(`INSERT INTO assets (${cols.join(",")}) VALUES (${cols.map(() => "?").join(",")})`, cols.map((x) => x === "id" ? "a1" : x === "project_id" ? p.id : x === "mime" ? "video/mp4" : /at$|size/.test(x) ? t : "x"));
+    });
+    expect((await repo.attachFinishedJob(p.id, "j1", ["a1"]))?.message_id).toBe(m.id);
+  });
+
+  it("las preferencias del equipo autónomo quedan en su proyecto", async () => {
+    const a = await repo.createProject("A"), b = await repo.createProject("B");
+    await repo.setAutonomyPrefs(a.id, { folderId: null, nodeId: null, sshId: "s1", modelId: "m1", roleChoices: { coordinator: "m1" } });
+    expect((await repo.getAutonomyPrefs(a.id))?.sshId).toBe("s1");
+    expect(await repo.getAutonomyPrefs(b.id)).toBeNull();
+  });
+});
