@@ -374,7 +374,14 @@ export async function invokeTool(ctx: ToolCtx, toolId: string, raw: unknown, opt
   let out: ToolOut;
   try {
     if (!def.run) throw new ToolRejected("Sin implementación ejecutable.");
-    out = await Promise.race([def.run({ ...ctx, opKey: opts.opKey }, input), new Promise<never>((_r, rej) => setTimeout(() => rej(new ToolRejected("Tiempo máximo superado.")), def.timeoutMs))]);
+    // A real AbortController: on timeout the tool's own signal fires so providers, workers and PC jobs actually stop.
+    const ac = new AbortController();
+    const onOuter = () => ac.abort(ctx.signal?.reason);
+    if (ctx.signal) { if (ctx.signal.aborted) ac.abort(ctx.signal.reason); else ctx.signal.addEventListener("abort", onOuter, { once: true }); }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      out = await Promise.race([def.run({ ...ctx, signal: ac.signal, opKey: opts.opKey }, input), new Promise<never>((_r, rej) => { timer = setTimeout(() => { ac.abort(new ToolRejected("Tiempo máximo superado.")); rej(new ToolRejected("Tiempo máximo superado.")); }, def.timeoutMs); })]);
+    } finally { if (timer) clearTimeout(timer); ctx.signal?.removeEventListener("abort", onOuter); }
   } catch (e) {
     const msg = String(scrubSecrets({ detail: e instanceof Error ? e.message : String(e) })["detail"]).slice(0, 500);
     // Definite local rejections are safe to clear; anything else with side effects stays uncertain.
