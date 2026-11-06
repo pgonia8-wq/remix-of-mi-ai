@@ -29,7 +29,7 @@ describe("auditoría: respaldos y duplicados no pierden datos", () => {
     await repo.setChatContextLimit(p.id, c.id, 80);
     await repo.setMessageStatus(p.id, c.id, m.id, "interrupted");
     const copy = await repo.duplicateProject(p.id);
-    const [nc] = await repo.listChats(copy.id);
+    const nc = (await repo.listChats(copy.id))[0]!;
     expect(await repo.getChatContextLimit(copy.id, nc.id)).toBe(80);
     expect((await repo.listMessageStatus(copy.id, nc.id))[0]?.status).toBe("interrupted");
   });

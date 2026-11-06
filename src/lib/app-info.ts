@@ -1,6 +1,6 @@
 // Public app facts shown in Soporte y legal. SUPPORT_EMAIL must be replaced by the owner's real address before Play submission.
 export const APP_NAME = "MI AI";
-export const APP_VERSION: string = (import.meta.env.VITE_APP_VERSION as string | undefined) ?? "0.1.0";
+export const APP_VERSION: string = (import.meta.env["VITE_APP_VERSION"] as string | undefined) ?? "0.1.0";
 export const SUPPORT_EMAIL = "soporte@miai.app";
 
 /** Removes anything that looks like a credential before text leaves the device (reports, crash logs). */
