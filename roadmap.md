@@ -1,6 +1,6 @@
 ## Falso bloqueo de «Hola» — solicitud de Fer (6 nov)
 - [x] Identificar detección por subcadena que confunde content_filter_results de Azure con un bloqueo real.
-- [ ] Corregir la clasificación y comprobar saludos SSE/JSON y bloqueos reales con respuestas controladas, sin contactar proveedores.
+- [x] Corregir la clasificación por señales estructuradas, no por subcadenas de texto o metadatos; regresiones de saludos SSE/JSON y bloqueos reales con respuestas controladas, sin contactar proveedores.
 - [ ] Comprobar en el teléfono: requiere una APK actualizada y el dispositivo de Fer; no probado aquí.
 
 ## Firma Play Store — solicitud de Fer (6 nov)

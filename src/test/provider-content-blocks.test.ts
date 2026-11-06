@@ -34,6 +34,13 @@ describe("bloqueos de contenido: respuestas controladas, sin proveedores reales"
   it("los metadatos de filtros no convierten otro error en bloqueo", () => {
     expect(responseError(400, JSON.stringify({ error: { code: "invalid_parameter" }, content_filter_results: safeFilters }))).toMatchObject({ code: "parameters" });
   });
+  it("no clasifica texto explicativo como una negativa del proveedor", () => {
+    expect(isContentBlock(JSON.stringify({ choices: [{ delta: { content: "content_policy_violation y ResponsibleAIPolicyViolation son códigos de error" } }] }))).toBe(false);
+  });
+  it("detecta códigos anidados y negativas explícitas sin finish_reason", () => {
+    expect(isContentBlock(JSON.stringify({ error: { innererror: { code: "ResponsibleAIPolicyViolation" } } }))).toBe(true);
+    expect(isContentBlock(JSON.stringify({ choices: [{ message: { refusal: "No puedo responder" } }] }))).toBe(true);
+  });
   it.each([200, 400, 403])("distingue content_filter con HTTP %s", status => {
     expect(responseError(status, '{"error":{"code":"content_filter"}}')).toMatchObject({ code: "content_blocked", httpStatus: status });
   });

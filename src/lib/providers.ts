@@ -172,8 +172,24 @@ export const isToolRejection = (status: number | undefined, technical: string | 
   status === 400 && !isContentBlock(technical ?? "") && /tool|function/i.test(technical ?? "");
 
 export function isContentBlock(body: string): boolean {
-  // Match actual content blocks, NOT the harmless "content_filter_results" metadata Azure includes in every response.
-  return /content_policy_violation|responsibleaipolicyviolation|"(?:stop_reason|finish_reason)"\s*:\s*"(?:content_filter|refusal)"|"(?:code|type)"\s*:\s*"(?:content_filter|refusal)"/i.test(body);
+  // Inspect protocol signals, never metadata names or generated text.
+  const blocked = (value: unknown) => typeof value === "string" && /^(content_filter|content_policy_violation|responsibleaipolicyviolation|refusal)$/i.test(value);
+  const inspect = (value: unknown): boolean => {
+    if (!value || typeof value !== "object") return false;
+    const event = value as Record<string, unknown>;
+    if (blocked(event.code) || blocked(event.type) || blocked(event.finish_reason) || blocked(event.stop_reason)) return true;
+    if (event.type === "response.refusal.delta" || event.type === "response.refusal.done") return true;
+    if (typeof event.refusal === "string" && event.refusal.trim()) return true;
+    for (const key of ["error", "innererror", "inner_error", "response", "delta", "message"]) {
+      if (inspect(event[key])) return true;
+    }
+    for (const key of ["choices", "output", "content"]) {
+      const items = event[key];
+      if (Array.isArray(items) && items.some(inspect)) return true;
+    }
+    return false;
+  };
+  try { return inspect(JSON.parse(body)); } catch { return blocked(body.trim()); }
 }
 
 /** Same endpoint/credentials as chat/completions, routed to the Responses API with native function tools. */
