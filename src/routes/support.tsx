@@ -43,7 +43,7 @@ function Support() {
     <div className="space-y-2 rounded-md border p-4 text-sm">
       <h2 className="font-medium">Registro local de fallos</h2>
       <p className="text-muted-foreground">{crashes.length ? `${crashes.length} fallos guardados (sin claves ni contraseñas).` : "Sin fallos registrados."}</p>
-      <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => void exportLog()}>Compartir registro</Button><Button size="sm" variant="ghost" disabled={!crashes.length} onClick={() => mutate((r) => r.clearCrashes())}>Borrar</Button></div>
+      <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => void exportLog()}>Compartir registro</Button><Button size="sm" variant="ghost" disabled={!crashes.length} onClick={() => mutate((c) => c.repo.clearCrashes())}>Borrar</Button></div>
     </div>
   </section>;
 }

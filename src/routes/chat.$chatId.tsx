@@ -5,7 +5,7 @@ import { canSeeImages } from "@/lib/vision-models";
 import { takeChatHandoff } from "@/lib/share-handoff";
 import { shareContent } from "@/lib/device";
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Square, Plus, Copy, Check, Share2, ThumbsUp, ThumbsDown, RotateCcw, Pencil, FileText, X, Sparkles, ArrowDown } from "lucide-react";
+import { ArrowUp, Square, Plus, Copy, Check, Share2, ThumbsUp, ThumbsDown, RotateCcw, Pencil, Flag, FileText, X, Sparkles, ArrowDown } from "lucide-react";
 import { toast } from "sonner";
 import { getRepo } from "@/lib/app-db";
 import { streamChat, supportsChatTools, ProviderError, type ChatMsg } from "@/lib/providers";
@@ -48,6 +48,7 @@ function ChatPage() {
   const { data: providers = [] } = useRepoQuery(["providers"], (r) => r.listProviders());
   const { data: registryModels = [] } = useRepoQuery(["registry-models"], (r) => r.registry.listModels());
   const { data: attachments = [] } = useRepoQuery(["chat-attachments", pid, chatId], (r) => pid ? r.listChatAttachments(pid, chatId) : Promise.resolve([]), !!pid);
+  const { data: reported = [] } = useRepoQuery(["chat-reported", pid], (r) => pid ? r.listReported(pid) : Promise.resolve([]), !!pid);
   const { data: feedback = [] } = useRepoQuery(["chat-feedback", pid, chatId], (r) => pid ? r.messageFeedback(pid, chatId) : Promise.resolve([]), !!pid);
   const { data: contextLimit = 20 } = useRepoQuery(["chat-context", pid, chatId], (r) => pid ? r.getChatContextLimit(pid, chatId) : Promise.resolve(20), !!pid);
   const { data: statuses = [], refetch: refetchStatus } = useRepoQuery(["message-status", pid, chatId], (r) => pid ? r.listMessageStatus(pid, chatId) : Promise.resolve([]), !!pid);
@@ -338,6 +339,13 @@ function ChatPage() {
               {m.role === "user" ? <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground" disabled={running} aria-label="Editar mensaje" title="Editar mensaje" onClick={() => { setEditing(m.id); setEditText(m.content); }}><Pencil className="h-4 w-4" /></Button> : <>
                 <Button size="icon" variant="ghost" className={`h-8 w-8 ${vote === "like" ? "text-primary" : "text-muted-foreground"}`} aria-label="Buena respuesta" title="Buena respuesta" onClick={() => mutate((r) => r.setMessageFeedback(pid, m.id, vote === "like" ? null : "like"))}><ThumbsUp className="h-4 w-4" /></Button>
                 <Button size="icon" variant="ghost" className={`h-8 w-8 ${vote === "dislike" ? "text-destructive" : "text-muted-foreground"}`} aria-label="Mala respuesta" title="Mala respuesta" onClick={() => mutate((r) => r.setMessageFeedback(pid, m.id, vote === "dislike" ? null : "dislike"))}><ThumbsDown className="h-4 w-4" /></Button>
+                <Button size="icon" variant="ghost" className={`h-8 w-8 ${reported.some((x) => x.message_id === m.id) ? "text-destructive" : "text-muted-foreground"}`} aria-label="Reportar contenido" title="Reportar contenido inapropiado" onClick={async () => {
+                  const reason = prompt("¿Qué tiene de inapropiado esta respuesta? (se marca en tu dispositivo y puedes enviarla a soporte)");
+                  if (reason === null) return;
+                  await mutate((r) => r.reportMessage(pid, m.id, reason || "Sin motivo"));
+                  const { SUPPORT_EMAIL, redactText } = await import("@/lib/app-info");
+                  toast.success("Respuesta reportada.", { action: { label: "Enviar a soporte", onClick: () => { window.location.href = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Reporte de contenido MI AI")}&body=${encodeURIComponent(`Modelo: ${m.model ?? "?"}\nMotivo: ${reason}\n\n${redactText(splitRunMarkers(m.content).text).slice(0, 1500)}`)}`; } } });
+                }}><Flag className="h-4 w-4" /></Button>
                 <SpeakButton projectId={pid} text={splitRunMarkers(m.content).text} />
                 {statuses.some((s) => s.message_id === m.id && s.status === "interrupted") && <span className="ml-1 flex items-center gap-1"><span className="text-xs text-muted-foreground">Interrumpida</span>{index === messages.length - 1 && <Button size="sm" variant="outline" className="h-7 rounded-full px-3 text-xs" disabled={running || !provider} aria-label="Continuar respuesta" title="Pedir al modelo que siga donde se quedó" onClick={() => send(undefined, m)}>Continuar</Button>}</span>}
                 {index === messages.length - 1 && <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground" disabled={running || !provider} aria-label="Regenerar respuesta" title="Regenerar respuesta" onClick={() => { if (confirm("¿Generar otra respuesta? Puede tener costo; la anterior solo se sustituye al recibir el resultado completo.")) send(m); }}><RotateCcw className="h-4 w-4" /></Button>}
