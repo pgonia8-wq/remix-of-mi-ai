@@ -264,11 +264,14 @@ export const TOOL_REGISTRY: ToolDef[] = [
       const { driveRun } = await import("./drive");
       // The person approved this delegation in the chat; unknown prices proceed, project budgets still apply.
       const limits = { unknownCost: "allow" as const, concurrency: 2 };
+      // Reuse the team setup the person chose in Sistema autónomo (PC/VM folder, SSH server, coordinator, models per role).
+      const pr = await ctx.core.repo.getAutonomyPrefs(ctx.projectId);
+      const env = { nodeId: pr?.folderId ? pr.nodeId : null, folderId: pr?.folderId ?? null, sshId: pr?.sshId ?? null, modelId: pr?.modelId ?? null, roleChoices: (pr?.roleChoices ?? {}) as Record<string, string> };
       const id = i.mode === "builder"
-        ? await createBuilderRun(ctx.core, ctx.projectId, { requirements: i.goal, kind: i.kind, nodeId: null, folderId: null, limits })
-        : await createRun(ctx.core, ctx.projectId, { goal: i.goal, acceptance: i.acceptance, limits, nodeId: null, folderId: null });
+        ? await createBuilderRun(ctx.core, ctx.projectId, { requirements: i.goal, kind: i.kind, limits, ...env } as Parameters<typeof createBuilderRun>[2])
+        : await createRun(ctx.core, ctx.projectId, { goal: i.goal, acceptance: i.acceptance, limits, ...env } as Parameters<typeof createRun>[2]);
       driveRun(ctx.core, ctx.projectId, id);
-      return { output: `Ejecución autónoma ${id} iniciada en el teléfono. Su avance, aprobaciones y resultado aparecen en esta conversación y en Sistema autónomo. No inventes resultados: explica que el equipo está trabajando.`, trusted: true, runId: id };
+      return { output: `Ejecución autónoma ${id} iniciada (${env.folderId ? "en tu PC/VM" : env.sshId ? "con tu servidor SSH" : "en el teléfono"}). Su avance, aprobaciones y resultado aparecen en esta conversación y en Sistema autónomo. No inventes resultados: explica que el equipo está trabajando.`, trusted: true, runId: id };
     } },
   // J. Herramientas del teléfono (archivos, código, red, datos, medios, sistema) y PC/VM desde el chat.
   ...phoneTools({

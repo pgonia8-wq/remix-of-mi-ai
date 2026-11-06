@@ -78,6 +78,7 @@ function Runs({ pid, act, busy }: { pid: string; act: Act; busy: boolean }) {
   const f = fl.find((x) => x.id === folder);
   const create = () => act(async (c) => {
     const limits = { maxUsd: usd ? Number(usd) : null, concurrency: conc };
+    await c.repo.setAutonomyPrefs(pid, { folderId: f?.id ?? null, nodeId: f?.node_id ?? null, sshId: sshId || null, modelId: modelId || null, roleChoices: roleChoices as Record<string, string> });
     const id = mode === "builder"
       ? await createBuilderRun(c, pid, { requirements: goal, kind, nodeId: f?.node_id ?? null, folderId: f?.id ?? null, modelId: modelId || null, roleChoices, sshId: sshId || null, limits })
       : await createRun(c, pid, { goal, acceptance: acc.split("\n").map((s) => s.trim()).filter(Boolean), limits, nodeId: f?.node_id ?? null, folderId: f?.id ?? null, modelId: modelId || null, roleChoices, sshId: sshId || null });

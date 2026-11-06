@@ -44,7 +44,7 @@ export class IsolationError extends Error {}
 
 // Catalog + project data from migration v3 included in backups. Excluded on purpose: capability_tests
 // (verification claims reset on restore), key_versions (device-bound), asset_blobs (bytes travel separately).
-const BACKUP_TABLES_V3 = ["capabilities", "providers_registry", "endpoints", "auth_refs", "models", "model_versions", "model_capabilities", "model_configs", "jobs", "job_attempts", "assets", "asset_tags", "asset_relations", "workflow_steps", "voices", "notes", "tasks", "embeddings", "flashcards", "agents", "workflows", "workflow_runs", "execution_events", "connections", "schedules", "workspace_items", "tool_favorites", "chat_attachments", "message_feedback", "project_budgets", "cost_ledger", "chat_settings", "message_status", "auto_runs", "auto_tasks", "local_ws_files", "local_ws_versions"] as const;
+const BACKUP_TABLES_V3 = ["capabilities", "providers_registry", "endpoints", "auth_refs", "models", "model_versions", "model_capabilities", "model_configs", "jobs", "job_attempts", "assets", "asset_tags", "asset_relations", "workflow_steps", "voices", "notes", "tasks", "embeddings", "flashcards", "agents", "workflows", "workflow_runs", "execution_events", "connections", "schedules", "workspace_items", "tool_favorites", "chat_attachments", "message_feedback", "project_budgets", "cost_ledger", "chat_settings", "message_status", "auto_runs", "auto_tasks", "local_ws_files", "local_ws_versions", "autonomy_prefs"] as const;
 
 const uid = () => crypto.randomUUID();
 const now = () => Date.now();
@@ -88,6 +88,7 @@ export class Repo {
     // Provider "thinking" text some models (DeepSeek, Kimi) require back with tools; never shown, never exported.
     await this.db.run(`CREATE TABLE IF NOT EXISTS message_reasoning (message_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, chat_id TEXT NOT NULL, content TEXT NOT NULL)`);
     // Answers saved while the model is still writing: "streaming" during generation, "interrupted" if it was cut off.
+    await this.db.run(`CREATE TABLE IF NOT EXISTS autonomy_prefs (project_id TEXT PRIMARY KEY, folder_id TEXT, node_id TEXT, ssh_id TEXT, model_id TEXT, role_choices TEXT NOT NULL DEFAULT '{}', updated_at INTEGER NOT NULL)`);
     await this.db.run(`CREATE TABLE IF NOT EXISTS message_status (message_id TEXT PRIMARY KEY, project_id TEXT NOT NULL, chat_id TEXT NOT NULL, status TEXT NOT NULL)`);
     for (const s of SCHEMA_B4) await this.db.run(s);
     await this.registry.seedCapabilities();
@@ -151,9 +152,24 @@ export class Repo {
     await this.db.run(`UPDATE projects SET name=?, description=? WHERE id=?`, [name, description, id]);
   }
   async deleteProject(id: string) {
-    for (const t of ["cost_ledger", "project_budgets", "chat_settings", "message_reasoning", "message_status", "messages", "chats", "memory_versions", "memory_items", "documents", ...PROJECT_TABLES_V3, ...PROJECT_TABLES_B4])
+    for (const t of ["autonomy_prefs", "cost_ledger", "project_budgets", "chat_settings", "message_reasoning", "message_status", "messages", "chats", "memory_versions", "memory_items", "documents", ...PROJECT_TABLES_V3, ...PROJECT_TABLES_B4])
       await this.db.run(`DELETE FROM ${t} WHERE project_id=?`, [id]);
     await this.db.run(`DELETE FROM projects WHERE id=?`, [id]);
+  }
+
+  /** Last team setup chosen in Sistema autónomo; chat delegation reuses it so PC/VM and models are not lost. */
+  async setAutonomyPrefs(projectId: string, p: { folderId: string | null; nodeId: string | null; sshId: string | null; modelId: string | null; roleChoices: Record<string, string> }) {
+    need(projectId);
+    if (!(await this.getProject(projectId))) throw new IsolationError("Proyecto inexistente");
+    await this.db.run(`INSERT OR REPLACE INTO autonomy_prefs VALUES (?,?,?,?,?,?,?)`, [projectId, p.folderId, p.nodeId, p.sshId, p.modelId, JSON.stringify(p.roleChoices ?? {}), now()]);
+  }
+  async getAutonomyPrefs(projectId: string) {
+    need(projectId);
+    const [r] = await this.db.all<{ folder_id: string | null; node_id: string | null; ssh_id: string | null; model_id: string | null; role_choices: string }>(`SELECT * FROM autonomy_prefs WHERE project_id=?`, [projectId]);
+    if (!r) return null;
+    let roleChoices: Record<string, string> = {};
+    try { const v = JSON.parse(r.role_choices); if (v && typeof v === "object") roleChoices = v; } catch { /* corrupt → empty */ }
+    return { folderId: r.folder_id, nodeId: r.node_id, sshId: r.ssh_id, modelId: r.model_id, roleChoices };
   }
 
   // ---------- Costs & budgets ----------
