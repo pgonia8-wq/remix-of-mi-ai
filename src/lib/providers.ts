@@ -169,7 +169,11 @@ const responsesKey = (p: ProviderCall) => `${p.kind}|${(p.endpoint ?? "").trim()
 const responsesForTools = new Set<string>();
 /** A chat/completions 400 caused by function tools (not by anything else) on a Responses-capable family. */
 export const isToolRejection = (status: number | undefined, technical: string | undefined) =>
-  status === 400 && /tool|function/i.test(technical ?? "");
+  status === 400 && !isContentBlock(technical ?? "") && /tool|function/i.test(technical ?? "");
+
+export function isContentBlock(body: string): boolean {
+  return /content_filter|content_policy_violation|responsibleaipolicyviolation|"(?:stop_reason|finish_reason)"\s*:\s*"refusal"|"type"\s*:\s*"refusal"/i.test(body);
+}
 
 /** Same endpoint/credentials as chat/completions, routed to the Responses API with native function tools. */
 export function buildResponsesRequest(p: ProviderCall, messages: ChatMsg[], tools: unknown[]): { url: string; init: RequestInit } {
@@ -227,6 +231,7 @@ async function openStream(url: string, init: RequestInit, p: ProviderCall, signa
     const res = await fetch(url, { ...(variant ? applyAzureVariant(init, variant, p.apiKey ?? "") : init), redirect: "error", signal: signal ?? null });
     if (res.ok && res.body) { if (variant && (variant.bearer || variant.noStream)) azureVariant.set(variantKey(p), variant); return res; }
     const body = await res.text().catch(() => "");
+    if (isContentBlock(body)) throw responseError(res.status, body, p.apiKey);
     if (variant && /azure-resource-enc/i.test(body) && !(variant.bearer && variant.noStream)) {
       variant = !variant.bearer ? { bearer: true, noStream: false } : { bearer: true, noStream: true };
       continue;
@@ -243,6 +248,7 @@ async function readSse(res: Response, p: ProviderCall, onEvent: (parsed: any) =>
   // Non-streamed JSON answer (fallback variant): present it as one delta event.
   if ((res.headers.get("content-type") ?? "").includes("application/json")) {
     const j = await res.json().catch(() => { throw new ProviderError("parameters", "Respuesta inválida: el proveedor no devolvió JSON válido."); });
+    if (isContentBlock(JSON.stringify(j)) || j?.error || j?.type === "response.failed") throw responseError(res.status, JSON.stringify(j), p.apiKey);
     const msg = j?.choices?.[0]?.message;
     if (msg) onEvent({ ...j, choices: [{ ...j.choices[0], delta: { content: typeof msg.content === "string" ? msg.content : Array.isArray(msg.content) ? msg.content.map((c: any) => c?.text ?? "").join("") : "", ...(msg.reasoning_content ? { reasoning_content: msg.reasoning_content } : {}), ...(Array.isArray(msg.tool_calls) ? { tool_calls: msg.tool_calls.map((t: any, index: number) => ({ index, ...t })) } : {}) } }] });
     else onEvent(j);
@@ -257,6 +263,7 @@ async function readSse(res: Response, p: ProviderCall, onEvent: (parsed: any) =>
     if (!data || data === "[DONE]") return;
     let parsed: any;
     try { parsed = JSON.parse(data); } catch { throw new ProviderError("parameters", "Respuesta inválida: el proveedor no devolvió JSON válido."); }
+    if (isContentBlock(data) || parsed.type === "response.refusal.delta" || parsed.type === "response.refusal.done") throw new ProviderError("content_blocked", "El proveedor bloqueó esta respuesta por su política de contenido. No es un límite de velocidad ni un error de parámetros. MI AI no reintentó el bloqueo.", res.status);
     if (parsed.error || parsed.type === "error") throw responseError(res.status, JSON.stringify(parsed.error ?? parsed), p.apiKey);
     if (parsed.type === "response.failed") throw responseError(res.status, JSON.stringify(parsed.response?.error ?? parsed), p.apiKey);
     onEvent(parsed);
@@ -314,6 +321,7 @@ export async function streamChat(p: ProviderCall, messages: ChatMsg[], onDelta: 
       return out;
     } catch (second) {
       if ((second as Error)?.name === "AbortError") throw second;
+      if (second instanceof ProviderError && (second.code === "content_blocked" || second.httpStatus === 403)) throw second;
       throw err; // Responses not available either: keep the original tool rejection for the caller's text-only fallback.
     }
   }
@@ -335,7 +343,7 @@ export async function streamChat(p: ProviderCall, messages: ChatMsg[], onDelta: 
   return { toolCalls: finishCalls(calls), ...(reasoning ? { reasoning } : {}) };
 }
 
-export type DiagnosticCode = "key" | "auth" | "endpoint" | "model" | "unavailable" | "network" | "timeout" | "parameters";
+export type DiagnosticCode = "key" | "auth" | "endpoint" | "model" | "unavailable" | "network" | "timeout" | "parameters" | "content_blocked";
 export type ConnectionResult = { ok: true; checkedAt: number } | { ok: false; code: DiagnosticCode; message: string; httpStatus?: number; technical?: string };
 export class ProviderError extends Error {
   constructor(public code: DiagnosticCode, message: string, public httpStatus?: number, public technical?: string) { super(message); this.name = "ProviderError"; }
@@ -347,6 +355,7 @@ export function redactSecret(text: string, key?: string | null): string {
 }
 export function responseError(status: number, body: string, key?: string | null): ProviderError {
   const technical = redactSecret(body, key);
+  if (isContentBlock(body)) return new ProviderError("content_blocked", "El proveedor bloqueó esta respuesta por su política de contenido. No es un límite de velocidad ni un error de parámetros. MI AI no reintentó el bloqueo.", status, technical);
   const msg = technical.toLowerCase();
   let code: DiagnosticCode = "parameters";
   if (/invalid.{0,20}(api.?key|key)|api.?key.{0,20}(invalid|incorrect)|api_key_invalid/.test(msg)) code = "key";
@@ -355,7 +364,7 @@ export function responseError(status: number, body: string, key?: string | null)
   else if (status === 408 || status === 504) code = "timeout";
   else if (status === 429 || status >= 500 || /overloaded|capacity|unavailable|quota|resource_exhausted/.test(msg)) code = "unavailable";
   else if (status === 404 || status === 405) code = "endpoint";
-  const labels: Record<DiagnosticCode, string> = { key: "API Key inválida.", auth: "Error de autenticación: revisa credenciales y permisos.", endpoint: "Endpoint incorrecto: revisa la dirección y la ruta del proveedor.", model: "Modelo o deployment inexistente.", unavailable: "Modelo sin disponibilidad: revisa cuota, límites o estado del servicio.", network: "Error de red.", timeout: "Error de red o timeout: el proveedor no respondió a tiempo.", parameters: "Parámetros incompatibles o respuesta inválida." };
+  const labels: Record<DiagnosticCode, string> = { content_blocked: "El proveedor bloqueó esta respuesta por su política de contenido.", key: "API Key inválida.", auth: "Error de autenticación: revisa credenciales y permisos.", endpoint: "Endpoint incorrecto: revisa la dirección y la ruta del proveedor.", model: "Modelo o deployment inexistente.", unavailable: "Modelo sin disponibilidad: revisa cuota, límites o estado del servicio.", network: "Error de red.", timeout: "Error de red o timeout: el proveedor no respondió a tiempo.", parameters: "Parámetros incompatibles o respuesta inválida." };
   if (status === 429) {
     let reason = "";
     try { const j = JSON.parse(technical); reason = String(j?.error?.message ?? j?.message ?? ""); } catch { reason = technical; }
