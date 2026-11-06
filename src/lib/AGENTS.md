@@ -2,3 +2,4 @@
 - Chat delegation reuses the project's `autonomy_prefs` (last Sistema autónomo setup); slow media jobs started by an answer are linked via `chat_job_links` and attach on completion; each tool-loop turn records its own cost and hitting the turn limit is `needs_human`, never completed. Why: no lost PC/VM choice, orphan files or false success.
 - Crash log and content reports stay on-device (`crash_log`, `content_reports`), redacted by `redactText`, excluded from backups. Why: Play reporting without a backend or secret leakage.
 - Provider content refusals are terminal for the current request, including HTTP 200 streams and Responses fallback; never retry them or invalidate a working model's verification. Why: a content refusal is not a compatibility or connection failure.
+- Content-block detection must match explicit refusal/error signals, never the presence of Azure filter metadata. Why: successful responses also carry content_filter_results.
