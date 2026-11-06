@@ -30,6 +30,7 @@ export function useRemoteJobWatcher(projectId: string | null) {
           try {
             const r = await pollRemoteJob(core, projectId, j.id);
             if (r.pending) continue;
+            await core.repo.attachFinishedJob(projectId, j.id, r.assets.map((a) => a.id)).catch(() => null);
             await qc.invalidateQueries();
             toast.success(`${LABEL[j.capability_id ?? ""] ?? "Tu archivo"} está listo. Lo encuentras en Biblioteca.`);
             window.dispatchEvent(new CustomEvent<JobDoneDetail>(JOB_DONE_EVENT, { detail: { projectId, jobId: j.id, capability: j.capability_id, assetIds: r.assets.map((a) => a.id) } }));

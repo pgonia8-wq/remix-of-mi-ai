@@ -99,6 +99,7 @@ function ChatPage() {
       if (!check.ok) { toast.error(check.reason, { duration: 15000 }); return; }
     }
     if (sendingImages && !seesImages) toast.info("Este modelo de chat no ve imágenes: la imagen se guarda en el chat y las herramientas (editar, animar a video…) pueden usarla.");
+    const answerStart = Date.now();
     setBusy(true); let out = "", repo: Awaited<ReturnType<typeof getRepo>> | null = null;
     const produced: ToolAsset[] = [];
     const delegated: string[] = [];
@@ -231,6 +232,7 @@ function ChatPage() {
       if (regenerate && !finished) await repo.setMessageStatus(pid, chatId, regenerate.id, "interrupted").catch(() => undefined);
       liveText = ""; committed = true;
       for (const a of produced.splice(0)) await repo.attachToMessage(pid, chatId, saved.id, a.id, null).catch(() => undefined);
+      await repo.linkJobsToMessage(pid, chatId, saved.id, answerStart).catch(() => undefined);
       await repo.setMessageReasoning(pid, chatId, saved.id, thinking).catch(() => undefined);
       out = "";
       await repo.setProviderVerification(provider.id, "verified");
@@ -263,11 +265,12 @@ function ChatPage() {
           if (out) await repo.updateMessage(pid, draftId, out).catch(() => toast.error("No se pudo guardar la parte final de la respuesta."));
           await repo.setMessageStatus(pid, chatId, draftId, "interrupted").catch(() => undefined);
         } else keptId = (await repo.addMessage(pid, chatId, "assistant", out || "Archivos creados antes de la interrupción:", provider.id, provider.deployment || provider.model).catch(() => null))?.id ?? null;
-        if (keptId) for (const a of produced) await repo.attachToMessage(pid, chatId, keptId, a.id, null).catch(() => undefined);
+        if (keptId) { for (const a of produced) await repo.attachToMessage(pid, chatId, keptId, a.id, null).catch(() => undefined); await repo.linkJobsToMessage(pid, chatId, keptId, answerStart).catch(() => undefined); }
       } else if (regenerate && repo && (produced.length || delegated.length)) {
         // A failed regenerate must not orphan files already created or agents already started.
         if (delegated.length) await repo.updateMessage(pid, regenerate.id, `${(out || regenerate.content).trimEnd()}\n\n${delegated.map(runMarker).join("\n")}`).catch(() => undefined);
         for (const a of produced) await repo.attachToMessage(pid, chatId, regenerate.id, a.id, null).catch(() => undefined);
+        await repo.linkJobsToMessage(pid, chatId, regenerate.id, answerStart).catch(() => undefined);
       }
       if (saver?.id()) activeDrafts.delete(saver.id()!);
       void refetchStatus?.();
