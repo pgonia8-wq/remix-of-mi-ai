@@ -181,7 +181,7 @@ function ChatPage() {
         } catch (err) {
           // A provider/deployment without tool support rejects the request: answer without tools, but never leave the
           // tool list in the system prompt (the model would claim tools it cannot call) and tell the person why.
-          if (tools && !turnText && err instanceof ProviderError && err.httpStatus === 400 && /tool|function|reasoning_content/i.test(err.technical ?? "")) {
+          if (tools && !turnText && err instanceof ProviderError && err.code !== "content_blocked" && err.httpStatus === 400 && /tool|function|reasoning_content/i.test(err.technical ?? "")) {
             tools = undefined; turn--;
             const reason = (err.technical ?? "").replace(/\s+/g, " ").slice(0, 300);
             msgs[0] = { role: "system", content: `${baseSystem}${toolsRejectedPrompt}\n\n${ctx}` };
@@ -190,7 +190,7 @@ function ChatPage() {
             continue;
           }
           // A real "too long" rejection: trim old turns / old tool results and retry instead of failing the answer.
-          if (!turnText && err instanceof ProviderError && isContextOverflow(err.httpStatus, err.technical) && shrinks < 4 && shrinkForRetry(msgs)) {
+          if (!turnText && err instanceof ProviderError && err.code !== "content_blocked" && isContextOverflow(err.httpStatus, err.technical) && shrinks < 4 && shrinkForRetry(msgs)) {
             if (shrinks++ === 0) toast.info("La conversación era más larga de lo que acepta el modelo: envié solo la parte más reciente.");
             turn--; continue;
           }
@@ -241,9 +241,9 @@ function ChatPage() {
       if ((e as Error).name === "BudgetError") toast.error((e as Error).message);
       else if ((e as Error).name !== "AbortError") {
         // A provider rate limit is temporary: it must not mark the model as broken or demote it in routing.
-        if (!(e instanceof ProviderError && e.httpStatus === 429)) await repo?.setProviderVerification(provider.id, "error");
-        const detail = e instanceof ProviderError && e.technical ? ` (HTTP ${e.httpStatus ?? "?"}: ${e.technical.replace(/\s+/g, " ").slice(0, 240)})` : "";
-        if (e instanceof ProviderError && isContextOverflow(e.httpStatus, e.technical)) {
+        if (!(e instanceof ProviderError && (e.httpStatus === 429 || e.code === "content_blocked"))) await repo?.setProviderVerification(provider.id, "error");
+        const detail = e instanceof ProviderError && e.code !== "content_blocked" && e.technical ? ` (HTTP ${e.httpStatus ?? "?"}: ${e.technical.replace(/\s+/g, " ").slice(0, 240)})` : "";
+        if (e instanceof ProviderError && e.code !== "content_blocked" && isContextOverflow(e.httpStatus, e.technical)) {
           toast.error(`La conversación supera lo que el modelo acepta por mensaje (${contextLimit === 0 ? "contexto ilimitado" : `${contextLimit} mensajes de contexto`}). Baja los mensajes de contexto o abre un chat nuevo.${detail}`, {
             duration: 20000,
             action: { label: "Bajar contexto", onClick: () => { contextSelect.current?.focus(); contextSelect.current?.showPicker?.(); } },
