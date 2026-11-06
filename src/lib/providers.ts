@@ -177,9 +177,9 @@ export function isContentBlock(body: string): boolean {
   const inspect = (value: unknown): boolean => {
     if (!value || typeof value !== "object") return false;
     const event = value as Record<string, unknown>;
-    if (blocked(event.code) || blocked(event.type) || blocked(event.finish_reason) || blocked(event.stop_reason)) return true;
-    if (event.type === "response.refusal.delta" || event.type === "response.refusal.done") return true;
-    if (typeof event.refusal === "string" && event.refusal.trim()) return true;
+    if (blocked(event["code"]) || blocked(event["type"]) || blocked(event["finish_reason"]) || blocked(event["stop_reason"])) return true;
+    if (event["type"] === "response.refusal.delta" || event["type"] === "response.refusal.done") return true;
+    if (typeof event["refusal"] === "string" && (event["refusal"] as string).trim()) return true;
     for (const key of ["error", "innererror", "inner_error", "response", "delta", "message"]) {
       if (inspect(event[key])) return true;
     }
