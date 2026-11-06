@@ -1,3 +1,9 @@
+## Firma Play Store — solicitud de Fer (6 nov)
+- [x] Actualizar soporte a soporte@tramanetwork.lat.
+- [ ] Generar clave de carga distinta de Debug; requiere contraseña en formulario seguro.
+- [ ] Verificar certificado y entregar archivo de firma y certificado público.
+- [ ] Configurar secretos de firma en GitHub; requiere acceso a secretos del repositorio.
+
 # MI AI — Roadmap
 
 ## Auditoría real por archivo de Fer (5 nov, 20:07 UTC)
