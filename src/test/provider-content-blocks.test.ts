@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { isToolRejection, responseError, streamChat } from "@/lib/providers";
+import { isContentBlock, isToolRejection, responseError, streamChat } from "@/lib/providers";
 
 afterEach(() => vi.unstubAllGlobals());
 const provider = { kind: "openai" as const, endpoint: "https://example.test/v1", apiKey: "test-only", model: "test" };
@@ -7,6 +7,33 @@ const tools = [{ type: "function", function: { name: "inspect", parameters: { ty
 const stream = (event: unknown) => new Response(`data: ${JSON.stringify(event)}\n\n`, { headers: { "content-type": "text/event-stream" } });
 
 describe("bloqueos de contenido: respuestas controladas, sin proveedores reales", () => {
+  const safeFilters = {
+    hate: { filtered: false, severity: "safe" },
+    self_harm: { filtered: false, severity: "safe" },
+    sexual: { filtered: false, severity: "safe" },
+    violence: { filtered: false, severity: "safe" },
+  };
+  it("no bloquea los metadatos seguros de Azure", () => {
+    expect(isContentBlock(JSON.stringify({
+      prompt_filter_results: [{ prompt_index: 0, content_filter_results: safeFilters }],
+      choices: [{ content_filter_results: safeFilters, finish_reason: "stop", message: { content: "Hola" } }],
+    }))).toBe(false);
+  });
+  it.each(["sse", "json"])("Hola recibe respuesta con metadatos Azure en %s sin reintentos", async format => {
+    const event = {
+      prompt_filter_results: [{ prompt_index: 0, content_filter_results: safeFilters }],
+      choices: [{ content_filter_results: safeFilters, finish_reason: "stop", delta: { content: "Hola, Fer" }, message: { content: "Hola, Fer" } }],
+    };
+    const fetcher = vi.fn().mockResolvedValue(format === "sse" ? stream(event) : new Response(JSON.stringify(event), { headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetcher);
+    const chunks: string[] = [];
+    await expect(streamChat(provider, [{ role: "user", content: "Hola" }], text => chunks.push(text))).resolves.toMatchObject({ toolCalls: [] });
+    expect(chunks.join("")).toBe("Hola, Fer");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+  it("los metadatos de filtros no convierten otro error en bloqueo", () => {
+    expect(responseError(400, JSON.stringify({ error: { code: "invalid_parameter" }, content_filter_results: safeFilters }))).toMatchObject({ code: "parameters" });
+  });
   it.each([200, 400, 403])("distingue content_filter con HTTP %s", status => {
     expect(responseError(status, '{"error":{"code":"content_filter"}}')).toMatchObject({ code: "content_blocked", httpStatus: status });
   });
