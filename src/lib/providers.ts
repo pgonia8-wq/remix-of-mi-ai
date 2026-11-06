@@ -224,7 +224,7 @@ async function openStream(url: string, init: RequestInit, p: ProviderCall, signa
   const azure = (p.kind === "azure_openai" || p.kind === "azure") && !!(init.headers as Record<string, string> | undefined)?.["api-key"];
   let variant = azure ? azureVariant.get(variantKey(p)) ?? { bearer: false, noStream: false } : null;
   for (let attempt = 0; ; attempt++) {
-    const res = await fetch(url, { ...(variant ? applyAzureVariant(init, variant, p.apiKey ?? "") : init), signal: signal ?? null });
+    const res = await fetch(url, { ...(variant ? applyAzureVariant(init, variant, p.apiKey ?? "") : init), redirect: "error", signal: signal ?? null });
     if (res.ok && res.body) { if (variant && (variant.bearer || variant.noStream)) azureVariant.set(variantKey(p), variant); return res; }
     const body = await res.text().catch(() => "");
     if (variant && /azure-resource-enc/i.test(body) && !(variant.bearer && variant.noStream)) {
@@ -396,7 +396,7 @@ async function testRealtime(p: ProviderCall, signal: AbortSignal): Promise<void>
   const { realtimeEndpoints, realtimeConfig } = await import("./realtime-voice");
   const ep = realtimeEndpoints(p.kind === "openai" ? "openai" : "azure_openai", p.endpoint);
   const headers: Record<string, string> = { "content-type": "application/json", ...(ep.auth === "bearer" ? { authorization: `Bearer ${p.apiKey}` } : { "api-key": p.apiKey }) };
-  const res = await fetch(ep.secrets, { method: "POST", headers, body: JSON.stringify({ session: realtimeConfig(deployment, "Prueba de conexión de MI AI.", "alloy") }), signal });
+  const res = await fetch(ep.secrets, { method: "POST", headers, body: JSON.stringify({ session: realtimeConfig(deployment, "Prueba de conexión de MI AI.", "alloy") }), redirect: "error", signal });
   const body = await res.text().catch(() => "");
   if (!res.ok) throw responseError(res.status, body, p.apiKey);
   let token: any = null;

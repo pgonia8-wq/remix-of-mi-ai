@@ -9,7 +9,7 @@ export async function call(url: string, init: RequestInit, apiKey: string | null
   else outer?.addEventListener("abort", abort, { once: true });
   const t = setTimeout(() => ctl.abort(), timeoutMs);
   let res: Response;
-  try { res = await fetch(url, { ...init, signal: ctl.signal }); }
+  try { res = await fetch(url, { redirect: "error", credentials: "omit", ...init, signal: ctl.signal }); }
   catch {
     // No HTTP response: the request may or may not have reached the provider.
     throw new ProviderError(ctl.signal.aborted ? "timeout" : "network", ctl.signal.aborted ? "Error de red o timeout: el proveedor no respondió a tiempo." : "Error de red: no se pudo alcanzar el endpoint (Internet, DNS, TLS o CORS).");
