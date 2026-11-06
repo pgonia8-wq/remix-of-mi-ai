@@ -54,10 +54,7 @@ describe("auditoría: enlaces y preferencias", () => {
     const t = Date.now();
     await repo.sql.run("INSERT INTO jobs (id, project_id, capability_id, idempotency_key, phase, status, created_at, updated_at) VALUES ('j1',?,'video.generate','k1','accepted','processing',?,?)", [p.id, t, t]);
     expect(await repo.linkJobsToMessage(p.id, c.id, m.id, t - 1)).toBe(1);
-    await repo.sql.run("INSERT INTO assets (id, project_id, kind, mime, size, sha256, created_at) VALUES ('a1',?,'video','video/mp4',1,'x',?)", [p.id, t]).catch(async () => {
-      const cols = (await repo.sql.all<{ name: string; notnull: number; dflt_value: unknown }>("PRAGMA table_info(assets)")).filter((x) => x.notnull && x.dflt_value === null).map((x) => x.name);
-      await repo.sql.run(`INSERT INTO assets (${cols.join(",")}) VALUES (${cols.map(() => "?").join(",")})`, cols.map((x) => x === "id" ? "a1" : x === "project_id" ? p.id : x === "mime" ? "video/mp4" : /at$|size/.test(x) ? t : "x"));
-    });
+    await repo.sql.run("INSERT INTO assets (id, project_id, kind, mime, size, path, key_id, wrapped_dek, enc_state, created_at) VALUES ('a1',?,'video','video/mp4',1,'p',1,'w','sealed',?)", [p.id, t]);
     expect((await repo.attachFinishedJob(p.id, "j1", ["a1"]))?.message_id).toBe(m.id);
   });
 
