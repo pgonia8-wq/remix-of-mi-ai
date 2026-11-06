@@ -158,8 +158,11 @@ function ChatPage() {
       let shrinks = 0;
       let thinking = ""; // reasoning DeepSeek/Kimi need back with tools; kept for this answer and later turns
       // Tool loop: the model may request app tools; each runs through invokeTool and its result goes back to the model.
-      for (let turn = 0; turn < 30; turn++) {
+      let finished = false;
+      const MAX_TURNS = 30;
+      for (let turn = 0; turn < MAX_TURNS; turn++) {
         let turnText = "";
+        const turnInputChars = msgs.reduce((a, m) => a + (typeof m.content === "string" ? m.content.length : JSON.stringify(m.content).length), 0);
         let result;
         try {
           // Re-rendering the growing answer on every token is quadratic on long replies: flush at most ~8 times/s.
@@ -187,8 +190,10 @@ function ChatPage() {
           throw err;
         }
         out += turnText;
+        // Every provider call is billed: record each turn separately instead of one entry per answer.
+        await recordUsage(repo, pid, { providerId: provider.id, model: costModel, operation: "chat", usage: { inputChars: turnInputChars, outputChars: turnText.length + JSON.stringify(result.toolCalls ?? []).length } }).catch((e) => console.warn("No se pudo registrar el costo del chat:", e instanceof Error ? e.message : e));
         if (result.reasoning) thinking += (thinking ? "\n" : "") + result.reasoning;
-        if (!result.toolCalls.length) break;
+        if (!result.toolCalls.length) { finished = true; break; }
         msgs.push({ role: "assistant", content: turnText, tool_calls: result.toolCalls, ...(result.reasoning ? { reasoning_content: result.reasoning } : {}) });
         if (!runId) { const { createRun } = await import("@/lib/automation/orchestrator"); runId = await createRun(core, pid, { goal: `Chat: ${(text || "respuesta").slice(0, 300)}`, kind: "chat", limits: { maxCalls: 300, perAgentCalls: 300, unknownCost: "allow" } }); }
         const { runChatTool, TOOL_LABELS, toolIdOf } = await import("@/lib/chat-tools");
@@ -205,18 +210,20 @@ function ChatPage() {
         compactToolResults(msgs);
         if (out && !out.endsWith("\n")) out += "\n\n";
       }
-      if (runId) await repo.sql.run("UPDATE auto_runs SET status='completed', phase='done', updated_at=? WHERE project_id=? AND id=?", [Date.now(), pid, runId]).catch(() => undefined);
+      // Hitting the turn limit is not a final answer: never report it as completed.
+      if (runId) await repo.sql.run(finished ? "UPDATE auto_runs SET status='completed', phase='done', updated_at=? WHERE project_id=? AND id=?" : "UPDATE auto_runs SET status='needs_human', error='Límite de turnos de herramientas alcanzado sin respuesta final.', updated_at=? WHERE project_id=? AND id=?", [Date.now(), pid, runId]).catch(() => undefined);
+      if (!finished) { out = `${out.trimEnd()}\n\n⚠️ Se alcanzó el límite de ${MAX_TURNS} pasos con herramientas antes de una respuesta final. Pulsa Continuar o Regenerar.`; toast.warning("El modelo usó el máximo de pasos con herramientas sin terminar."); }
       if (!out.trim() && produced.length) out = "Listo. Aquí tienes el resultado.";
       if (!out.trim() && delegated.length) out = "El equipo de agentes ya está trabajando.";
       // Live cards for delegated autonomous runs are stored as markers in the message.
       if (delegated.length) out = `${out.trimEnd()}\n\n${delegated.splice(0).map(runMarker).join("\n")}`;
-      await recordUsage(repo, pid, { providerId: provider.id, model: costModel, operation: "chat", usage: { inputChars, outputChars: out.length } }).catch((e) => console.warn("No se pudo registrar el costo del chat:", e instanceof Error ? e.message : e));
       if (!out.trim()) throw new ProviderError("parameters", "El modelo no devolvió una respuesta válida.");
       await saver?.settle();
       const draftId = saver?.id();
       const saved = regenerate ? (await repo.updateMessage(pid, regenerate.id, out), regenerate) : draftId ? (await repo.updateMessage(pid, draftId, out), { id: draftId }) : await repo.addMessage(pid, chatId, "assistant", out, provider.id, provider.deployment || provider.model);
       if (regenerate) await repo.setMessageStatus(pid, chatId, regenerate.id, null).catch(() => undefined);
-      if (draftId) { await repo.setMessageStatus(pid, chatId, draftId, null).catch(() => undefined); activeDrafts.delete(draftId); }
+      if (draftId) { await repo.setMessageStatus(pid, chatId, draftId, finished ? null : "interrupted").catch(() => undefined); activeDrafts.delete(draftId); }
+      if (regenerate && !finished) await repo.setMessageStatus(pid, chatId, regenerate.id, "interrupted").catch(() => undefined);
       liveText = ""; committed = true;
       for (const a of produced.splice(0)) await repo.attachToMessage(pid, chatId, saved.id, a.id, null).catch(() => undefined);
       await repo.setMessageReasoning(pid, chatId, saved.id, thinking).catch(() => undefined);
@@ -252,6 +259,10 @@ function ChatPage() {
           await repo.setMessageStatus(pid, chatId, draftId, "interrupted").catch(() => undefined);
         } else keptId = (await repo.addMessage(pid, chatId, "assistant", out || "Archivos creados antes de la interrupción:", provider.id, provider.deployment || provider.model).catch(() => null))?.id ?? null;
         if (keptId) for (const a of produced) await repo.attachToMessage(pid, chatId, keptId, a.id, null).catch(() => undefined);
+      } else if (regenerate && repo && (produced.length || delegated.length)) {
+        // A failed regenerate must not orphan files already created or agents already started.
+        if (delegated.length) await repo.updateMessage(pid, regenerate.id, `${(out || regenerate.content).trimEnd()}\n\n${delegated.map(runMarker).join("\n")}`).catch(() => undefined);
+        for (const a of produced) await repo.attachToMessage(pid, chatId, regenerate.id, a.id, null).catch(() => undefined);
       }
       if (saver?.id()) activeDrafts.delete(saver.id()!);
       void refetchStatus?.();
