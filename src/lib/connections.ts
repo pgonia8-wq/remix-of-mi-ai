@@ -8,7 +8,7 @@ type Remote = { exec(o: ConnectionConfig & { password: string; privateKey?: stri
 const native = registerPlugin<Remote>("MiaiRemote");
 
 /** Credential stored per connection: legacy plain password, or JSON with a private key (never shown again). */
-export type SshCredential = { password?: string; privateKey?: string; passphrase?: string };
+export type SshCredential = { password?: string | undefined; privateKey?: string | undefined; passphrase?: string | undefined };
 export function encodeCredential(c: SshCredential): string {
   const password = c.password ?? "", passphrase = c.passphrase ?? "";
   if (!c.privateKey?.trim()) return password;
