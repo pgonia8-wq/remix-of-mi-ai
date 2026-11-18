@@ -88,6 +88,7 @@ XML
 JAVA_DIR=android/app/src/main/java/com/miai/app
 mkdir -p "$JAVA_DIR"
 cp scripts/native/MiaiKeystorePlugin.java "$JAVA_DIR/MiaiKeystorePlugin.java"
+cp scripts/native/MiaiSsh.java "$JAVA_DIR/MiaiSsh.java"
 cp scripts/native/MiaiRemotePlugin.java "$JAVA_DIR/MiaiRemotePlugin.java"
 cp scripts/native/MiaiSchedulePlugin.java "$JAVA_DIR/MiaiSchedulePlugin.java"
 cp scripts/native/MiaiScheduleReceiver.java "$JAVA_DIR/MiaiScheduleReceiver.java"

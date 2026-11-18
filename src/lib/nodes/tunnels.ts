@@ -4,7 +4,7 @@
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import type { Repo } from "../db/repo";
 import { rpc, nodes } from "./client";
-import { connections } from "../connections";
+import { connections, decodeCredential, cleanKnownHosts } from "../connections";
 
 export type Tunnel = { id: string; project_id: string; node_id: string; remote_id: string | null; kind: string; target: string; port: number | null; agent: string; status: string; reconnect: number; expires_at: number | null; opened_at: number | null; closed_at: number | null; log: string; created_at: number };
 type Kind = "pc.dev" | "pc.socks5" | "ssh.local" | "ssh.reverse" | "ssh.socks5" | "vpn";
@@ -26,7 +26,7 @@ export function tunnelKind(k: Kind) {
 }
 
 // ---------- Native drivers (injectable for tests) ----------
-type SshCfg = { host: string; port: number; user: string; knownHosts: string; password: string };
+type SshCfg = { host: string; port: number; user: string; knownHosts: string; password: string; privateKey?: string; passphrase?: string };
 export type TunnelNative = {
   forwardLocal(o: SshCfg & { targetHost: string; targetPort: number; ttlMs: number }): Promise<{ id: string; port: number; expiresAt: number }>;
   forwardRemote(o: SshCfg & { remotePort: number; targetHost: string; targetPort: number; ttlMs: number }): Promise<{ id: string; port: number; expiresAt: number }>;
@@ -91,8 +91,10 @@ export const tunnels = {
     if (info.via === "pc") { const n = await nodes.get(repo, o.nodeId ?? ""); if (!n || n.revoked) throw new Error("Nodo no autorizado"); owner = n.id; }
     else {
       const c = (await connections.list(repo, p)).find((x) => x.id === o.connectionId && x.kind === "ssh"); if (!c) throw new Error("Conexión SSH ajena al proyecto");
-      const password = o.password || await repo.getConnectionSecret(p, c.id); if (!password) throw new Error("Falta la contraseña de la conexión SSH");
-      ssh = { ...(JSON.parse(c.config) as Omit<SshCfg, "password">), password }; owner = c.id;
+      const secret = o.password || await repo.getConnectionSecret(p, c.id); if (!secret) throw new Error("Falta la contraseña o la clave privada de la conexión SSH");
+      const cred = decodeCredential(secret), cfg = JSON.parse(c.config) as Omit<SshCfg, "password">;
+      try { cfg.knownHosts = cleanKnownHosts(cfg.knownHosts, cfg.host, cfg.port); } catch { /* native reports it */ }
+      ssh = { ...cfg, password: cred.password ?? "", ...(cred.privateKey ? { privateKey: cred.privateKey } : {}), ...(cred.passphrase ? { passphrase: cred.passphrase } : {}) }; owner = c.id;
     }
     const id = crypto.randomUUID();
     await repo.sql.run("INSERT INTO tunnels (id,project_id,node_id,remote_id,kind,target,port,agent,status,reconnect,expires_at,opened_at,closed_at,log,created_at) VALUES (?,?,?,NULL,?,?,NULL,?,'opening',?,NULL,NULL,NULL,'[]',?)", [id, p, owner, kind, kind === "ssh.reverse" ? `srv:${o.remotePort}→${target}` : target, o.agent.slice(0, 80), o.reconnect ? 1 : 0, Date.now()]);

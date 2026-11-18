@@ -9,6 +9,7 @@ import { Button } from "./ui/button";
 import { useCoreQuery, useCoreMutate } from "@/lib/use-app";
 import { getCore } from "@/lib/core";
 import { saveExport } from "@/lib/save-export";
+import { VmTerminal } from "./VmTerminal";
 
 const STATUS: Record<string, string> = { active: "Trabajando", paused: "En pausa", waiting: "Esperando tu aprobación", review_required: "Requiere tu revisión", needs_human: "Necesita tu intervención", completed: "Terminado", cancelled: "Detenido", failed: "Fallido" };
 const TASK: Record<string, string> = { pending: "en espera", active: "trabajando", waiting_approval: "espera aprobación", review_required: "revisión", audit: "en auditoría", approved: "aprobada", failed: "fallida", replaced: "reemplazada", cancelled: "detenida" };
@@ -24,7 +25,9 @@ export function AutoRunInline({ pid, runId }: { pid: string; runId: string }) {
     if (!run) return null;
     const tasks = await autoRuns.tasks(c, pid, runId);
     const pending = (await approvals.pending(c.repo, pid)).filter((a) => a.run_id === runId);
-    return { run, tasks, pending };
+    const { remoteActivity } = await import("@/lib/automation/remote-activity");
+    const remote = (await remoteActivity(c.repo, pid, runId, 1000)).length;
+    return { run, tasks, pending, remote };
   });
   const run = data?.run;
 
@@ -74,6 +77,7 @@ export function AutoRunInline({ pid, runId }: { pid: string; runId: string }) {
     </header>
     <details className="text-xs"><summary className="cursor-pointer text-muted-foreground">Modelos del equipo</summary><ul className="mt-2 space-y-1">{Object.entries(assignments).map(([role, m]) => <li key={role} className="break-words">{ROLES[role as Role]?.name ?? role} · {m.name} · {m.provider} · {m.deployment}</li>)}</ul></details>
     {visible.length > 0 && <ul className="space-y-1 text-xs">{visible.map((t) => <li key={t.id} className="flex gap-2"><span className={t.status === "approved" ? "text-success" : t.status === "failed" ? "text-destructive" : "text-muted-foreground"}>{t.status === "approved" ? "✓" : t.status === "failed" ? "✕" : "•"}</span><span className="min-w-0 flex-1 truncate">{t.title}</span><span className="shrink-0 text-muted-foreground">{TASK[t.status] ?? t.status}</span></li>)}</ul>}
+    {data.remote > 0 && <details open className="text-xs"><summary className="cursor-pointer text-muted-foreground">Ver lo que hacen en la VM ({data.remote})</summary><div className="mt-2"><VmTerminal pid={pid} runId={runId} title="Terminal de la VM" /></div></details>}
     {data.pending.map((a) => <div key={a.id} className="space-y-2 rounded-xl border border-primary/40 p-3 text-sm">
       <p className="break-words">{a.summary}</p>
       {a.cost_usd != null && <p className="text-xs text-muted-foreground">Costo estimado: US$ {a.cost_usd.toFixed(4)}</p>}

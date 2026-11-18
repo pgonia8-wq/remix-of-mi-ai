@@ -21,6 +21,7 @@ import { nodes, pairNode, heartbeat, type NodeInfo } from "@/lib/nodes/client";
 import { folders, pcFiles } from "@/lib/nodes/storage";
 import { tunnels, tunnelKind, TUNNEL_INFO, tunnelCredentials } from "@/lib/nodes/tunnels";
 import { connections } from "@/lib/connections";
+import { VmTerminal } from "@/components/VmTerminal";
 
 export const Route = createFileRoute("/autonomy")({ head: () => ({ meta: [
   { title: "Sistema autónomo — MI AI" }, { name: "description", content: "Equipos de agentes, AI Builder, aprobaciones, PC Node, carpetas privadas y túneles." },
@@ -139,6 +140,7 @@ function RunCard({ pid, r, open, toggle, act, busy }: { pid: string; r: AutoRun;
     {open && <div className="space-y-3 text-sm">
       <h3 className="font-medium">Modelos del equipo</h3>
       <ul className="space-y-1 text-xs">{Object.entries(assignments).map(([role, m]) => <li key={role} className="break-words">{ROLES[role as Role]?.name ?? role} · {m.name} · {m.provider} · {m.deployment}</li>)}</ul>
+      <VmTerminal pid={pid} runId={r.id} title="Lo que hacen en la VM/servidor" />
       <h3 className="font-medium">Subtareas</h3>
       {tasks.map((t) => <div key={t.id} className="rounded-md border p-2">
         <p className="font-medium">{t.title}</p>

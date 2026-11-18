@@ -15,25 +15,20 @@ import java.util.concurrent.*;
 public class MiaiRemotePlugin extends Plugin {
   private final ExecutorService executor = Executors.newSingleThreadExecutor();
   private static final int CAP = 1024 * 1024;
+  private static final long APPROVAL_TIMEOUT_MS = 5 * 60 * 1000L;
   private void approve(PluginCall call, String operation, Runnable task) {
-    getActivity().runOnUiThread(() -> new AlertDialog.Builder(getActivity())
+    getActivity().runOnUiThread(() -> { AlertDialog dialog = new AlertDialog.Builder(getActivity())
       .setTitle("Autorizar operación remota")
-      .setMessage(call.getString("user", "") + "@" + call.getString("host", "") + "\n" + operation + "\n\nClave de host confiada:\n" + call.getString("knownHosts", "") + "\n\nUna operación remota puede modificar o borrar datos. Verifica la clave del servidor por una vía independiente.")
+      .setMessage(call.getString("user", "") + "@" + call.getString("host", "") + " · " + (call.getString("privateKey", "").isEmpty() ? "contraseña" : "clave privada") + "\n" + operation + "\n\nClave de host confiada:\n" + call.getString("knownHosts", "") + "\n\nUna operación remota puede modificar o borrar datos. Verifica la clave del servidor por una vía independiente.")
       .setNegativeButton("Cancelar", (d,w) -> call.reject("Operación cancelada"))
       .setPositiveButton("Autorizar", (d,w) -> executor.execute(task))
-      .setOnCancelListener(d -> call.reject("Operación cancelada")).show());
+      .setOnCancelListener(d -> call.reject("Operación cancelada")).create();
+      dialog.show();
+      // A confirmation nobody answers must not hang the agent for hours.
+      new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> { if (dialog.isShowing()) { dialog.dismiss(); call.reject("No confirmaste la operación en el teléfono (se canceló a los 5 minutos)."); } }, APPROVAL_TIMEOUT_MS);
+    });
   }
-  private Session session(PluginCall call) throws Exception {
-    String host=call.getString("host", ""), user=call.getString("user", ""), known=call.getString("knownHosts", "");
-    if (!host.matches("[a-zA-Z0-9.:-]{1,253}") || user.length()==0 || user.length()>100 || known.length()==0 || known.length()>16000) throw new IOException("Invalid config");
-    JSch jsch=new JSch();
-    jsch.setKnownHosts(new ByteArrayInputStream(known.getBytes(StandardCharsets.UTF_8)));
-    Session s=jsch.getSession(user,host,call.getInt("port",22));
-    s.setPassword(call.getString("password", ""));
-    s.setConfig("StrictHostKeyChecking","yes");
-    s.setConfig("PreferredAuthentications","password,keyboard-interactive");
-    s.setTimeout(15000); s.connect(15000); return s;
-  }
+  private Session session(PluginCall call) throws Exception { return MiaiSsh.open(call, false); }
   @PluginMethod public void exec(PluginCall call) {
     String command=call.getString("command", "");
     if(command.length()==0 || command.length()>8000 || command.indexOf('\0')>=0) { call.reject("Comando no válido"); return; }
@@ -53,7 +48,7 @@ public class MiaiRemotePlugin extends Plugin {
           Thread.sleep(20);
         }
         JSObject result=new JSObject(); result.put("output",data.toString("UTF-8")); result.put("exitCode",c.getExitStatus()); call.resolve(result);
-      } catch(Exception e) { call.reject("SSH no confirmó el resultado. Verifica clave de host, credenciales, red y límites; no repitas acciones sin revisar el servidor."); }
+      } catch(Exception e) { call.reject(MiaiSsh.explain(e, "SSH no confirmó el resultado; no repitas acciones sin revisar el servidor.")); }
       finally { if(c!=null)c.disconnect(); if(s!=null)s.disconnect(); }
     });
   }
@@ -84,7 +79,7 @@ public class MiaiRemotePlugin extends Plugin {
           c.put(new ByteArrayInputStream(bytes),temp); c.rename(temp,path); result.put("output","Archivo transferido"); java.util.Arrays.fill(bytes,(byte)0);
         }
         call.resolve(result);
-      } catch(Exception e) {call.reject("SFTP no confirmó el resultado. Revisa permisos, clave de host, conexión y tamaño máximo de 1 MB.");}
+      } catch(Exception e) {call.reject(MiaiSsh.explain(e, "SFTP no confirmó el resultado."));}
       finally { if(c!=null)c.disconnect(); if(s!=null)s.disconnect(); }
     });
   }

@@ -44,17 +44,7 @@ public class MiaiTunnelPlugin extends Plugin {
   private static boolean validHost(String h) { return h != null && h.matches("[a-zA-Z0-9.:-]{1,253}") && !h.equals("0.0.0.0"); }
   private static boolean validPort(int p) { return p > 0 && p < 65536; }
 
-  private Session session(PluginCall call) throws Exception {
-    String host = call.getString("host", ""), user = call.getString("user", ""), known = call.getString("knownHosts", "");
-    if (!validHost(host) || user.isEmpty() || user.length() > 100 || known.isEmpty() || known.length() > 16000) throw new IOException("Invalid config");
-    JSch jsch = new JSch();
-    jsch.setKnownHosts(new ByteArrayInputStream(known.getBytes(StandardCharsets.UTF_8)));
-    Session s = jsch.getSession(user, host, call.getInt("port", 22));
-    s.setPassword(call.getString("password", ""));
-    s.setConfig("StrictHostKeyChecking", "yes");
-    s.setConfig("PreferredAuthentications", "password,keyboard-interactive");
-    s.setServerAliveInterval(15000); s.setTimeout(15000); s.connect(15000); return s;
-  }
+  private Session session(PluginCall call) throws Exception { return MiaiSsh.open(call, true); }
   private Fwd register(String kind, String desc, Session s, long ttl) {
     Fwd f = new Fwd(); f.id = UUID.randomUUID().toString(); f.kind = kind; f.desc = desc; f.session = s; f.expiresAt = System.currentTimeMillis() + ttl;
     f.timer = timers.schedule(() -> close(f.id, "expirado"), ttl, TimeUnit.MILLISECONDS); f.add("abierto " + desc); active.put(f.id, f); return f;
@@ -74,7 +64,7 @@ public class MiaiTunnelPlugin extends Plugin {
     approve(call, "Reenvío local: 127.0.0.1 (teléfono) → " + th + ":" + tp + " (desde el servidor)", () -> {
       Session s = null;
       try { s = session(call); int lp = s.setPortForwardingL("127.0.0.1", 0, th, tp); call.resolve(result(register("ssh.local", th + ":" + tp, s, ttl(call)), lp)); }
-      catch (Exception e) { if (s != null) s.disconnect(); call.reject("No se pudo abrir el reenvío. Revisa clave de host, credenciales y que el servidor permita AllowTcpForwarding."); }
+      catch (Exception e) { if (s != null) s.disconnect(); call.reject(MiaiSsh.explain(e, "No se pudo abrir el reenvío (¿el servidor permite AllowTcpForwarding?).")); }
     });
   }
 
@@ -103,7 +93,7 @@ public class MiaiTunnelPlugin extends Plugin {
         final Session sess = s;
         executor.execute(() -> { while (!ss.isClosed()) { try { Socket c = ss.accept(); executor.execute(() -> socksClient(f, sess, c, allow, user, pass)); } catch (IOException e) { break; } } });
         JSObject r = result(f, ss.getLocalPort()); r.put("user", user); r.put("pass", pass); call.resolve(r);
-      } catch (Exception e) { if (s != null) s.disconnect(); call.reject("No se pudo iniciar SOCKS sobre SSH."); }
+      } catch (Exception e) { if (s != null) s.disconnect(); call.reject(MiaiSsh.explain(e, "No se pudo iniciar SOCKS sobre SSH.")); }
     });
   }
   private static String token(int n) { byte[] b = new byte[n]; RNG.nextBytes(b); return android.util.Base64.encodeToString(b, android.util.Base64.NO_WRAP | android.util.Base64.URL_SAFE | android.util.Base64.NO_PADDING); }
