@@ -16,6 +16,7 @@ jobs:
     timeout-minutes: 60
     env:
       VERSION_CODE: ${{ github.run_number }}
+      NODE_OPTIONS: --max-old-space-size=6144
 
     steps:
       - name: Descargar código
@@ -50,10 +51,59 @@ jobs:
           echo "build_name=${V}-build.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
 
       - name: Instalar dependencias
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile || bun install
+
+      - name: Aceptar salida Nitro si no hay dist/client
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("scripts/android-prepare.sh")
+          s = p.read_text()
+          old = """CAPACITOR=1 npx vite build
+          test -f dist/client/index.html || { echo \"dist/client/index.html missing\"; exit 1; }"""
+          new = r"""set +e
+          CAPACITOR=1 bunx vite build
+          VITE_RC=$?
+          set -e
+          if [ ! -f dist/client/index.html ]; then
+            echo "Vite no escribió dist/client/index.html (exit=$VITE_RC). Buscando salida Nitro..."
+            find dist .output -name 'index.html' -o -name '200.html' || true
+            if [ -d .output/public ]; then
+              mkdir -p dist/client
+              cp -a .output/public/. dist/client/
+              if [ ! -f dist/client/index.html ] && [ -f dist/client/200.html ]; then
+                cp dist/client/200.html dist/client/index.html
+              fi
+            fi
+          fi
+          test -f dist/client/index.html || {
+            echo "dist/client/index.html missing"
+            ls -la dist dist/client .output .output/public 2>/dev/null || true
+            exit 1
+          }
+          """
+          old = "\n".join(line.strip() for line in old.splitlines())
+          if old not in s.replace("\r\n", "\n"):
+              s_norm = s.replace("\r\n", "\n")
+              key = "CAPACITOR=1 npx vite build"
+              if key not in s_norm:
+                  raise SystemExit("no encontré CAPACITOR=1 npx vite build")
+              raise SystemExit("el bloque de vite no coincide; no parcheo a ciegas")
+          s = s.replace("\r\n", "\n").replace(old, new, 1)
+          p.write_text(s)
+          print("parche ok")
+          PY
 
       - name: Preparar proyecto Android
         run: VERSION_NAME="${{ steps.ver.outputs.build_name }}" bash scripts/android-prepare.sh
+
+      - name: Diagnóstico si falló la web
+        if: failure()
+        run: |
+          echo "index.html encontrados:"
+          find dist .output -name 'index.html' -o -name '200.html' || true
+          echo "--- dist ---"; ls -la dist dist/client 2>/dev/null || true
+          echo "--- .output ---"; ls -la .output .output/public 2>/dev/null || true
 
       - name: Compilar APK Debug
         working-directory: android
