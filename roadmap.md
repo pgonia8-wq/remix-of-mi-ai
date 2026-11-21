@@ -1,3 +1,9 @@
+## Solicitudes de Fer (21 nov)
+- [ ] APK firmada con secreto actualizado y verificación de instalación; suspendida al solicitar cambio de tema, no ejecutada.
+- [ ] Comprobar si GitHub compila sin errores; no afirmar éxito sin ejecución verificable.
+- [ ] Pantalla de diagnóstico SSH (puerto, autenticación, host); suspendida al solicitar cambio de tema.
+- [ ] Informe técnico y funcional completo de MIAI basado en implementación actual; distinguir capacidades del producto de las del entorno constructor.
+
 ## Falso bloqueo de «Hola» — solicitud de Fer (6 nov)
 - [x] Identificar detección por subcadena que confunde content_filter_results de Azure con un bloqueo real.
 - [x] Corregir la clasificación por señales estructuradas, no por subcadenas de texto o metadatos; regresiones de saludos SSE/JSON y bloqueos reales con respuestas controladas, sin contactar proveedores.
